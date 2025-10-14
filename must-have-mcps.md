@@ -1,8 +1,6 @@
-# must-have-mcps.md
+# Must-have MCPs
 
 A practical guide to **must‑have MCP servers** and adjacent tools that *meaningfully* upgrade your dev flow with Codex/Gemini CLI & Claude Code.
-
----
 
 ## TL;DR – What to install first
 
@@ -16,9 +14,11 @@ If you only add seven things, make it these:
 6. **Semgrep** – SAST gate on agent‑generated diffs.
 7. **A memory server** (pgvector or Weaviate) – persistent semantic memory to avoid re‑feeding context.
 
-Then optionally add **Firecrawl** (robust crawling), **Sourcegraph** (cross‑repo code search), **Snyk** (vuln scanning), and a workflow glue tool (**Composio/Rube**).
-
----
+Then optionally add:
+- **Firecrawl** (robust crawling)
+- **Sourcegraph** (cross‑repo code search)
+- **Snyk** (vuln scanning)
+- a workflow glue tool (**Composio/Rube**).
 
 ## How to run and use MCPs
 
@@ -58,10 +58,79 @@ When you're only using **one agent at a time** (e.g. *only launching one of* Cla
     - `HTTP`/`sse`/`stdio` transports
     - *Local*, *project*, or *user* scopes
 
-- Add servers with `claude mcp add ...`
+- Add **`stdio`** servers: `claude mcp add ...`
+- Add **`http`** servers: edit the `~/.codex/config.toml` file
 - Use `/mcp` to list active servers
 
 ---
+
+> ### MCP server types
+>
+> - **Official/reference** servers are developed and maintained by the creators of MCP
+>     
+>     - Are standard, primary implementations that serve as models for how to build new MCPs  
+> 
+> - **Community** servers are developed by the community
+
+## Filesystem MCP *(official/reference)*
+
+**Cost:** Free / open source.
+
+### Why use over vanilla agents
+
+- **Enhanced security and control:** The server operates only within pre-approved, "allow-listed" directories; prevents accessing sensitive system files or directories outside project scope
+- **Reliable and structured ops:** agent receives structured data (like JSON) (instead of parsing the unpredictable text output of commands like `ls` or `find`)
+    
+    - *Makes file discovery, reading, and writing far less error-prone*
+    - Eliminates brittleness from platform differences (e.g., macOS vs. Linux shell tools)
+
+- **Predictable error handling:** 
+    
+    - Server provides typed, machine-readable errors (e.g., `FileNotFound`, `AccessDenied`)
+    - Allows the agent to intelligently handle failures, retry operations, or ask for clarification, rather than failing silently or misinterpreting a generic `bash` error message.
+
+### Running the server
+
+#### Via `http` (when using many agents together)
+
+1. Set the port you want the server to use (best if in `.bashrc`/`.zshrc`):
+
+    ```bash
+    export FS_MCP_PORT=8081
+    ```
+
+2. Start the central server:
+
+    ```bash
+    npx -y @modelcontextprotocol/server-filesystem --port $FS_MCP_PORT [your-allowed-directory]
+    ```
+
+3. Connect agents:
+
+    - Gemini CLI: `gemini mcp add fs http --url http://localhost:8081/mcp/`
+    - Claude Code: `claude mcp add --transport http fs http://localhost:8081/mcp/`
+    - Codex CLI add to `~/.codex/config.toml`:
+
+        ```toml
+        [mcp_servers.fs]
+        url = "http://localhost:8081/mcp/"
+        transport = "http"
+        ``` 
+
+#### Via `stdio` (if only using one agent at a time)
+
+The agent client will start and stop the server automatically as needed.
+
+| Agent | Command |
+| :--- | :--- |
+| Gemini CLI | `gemini mcp add fs npx -- -y @modelcontextprotocol/server-filesystem [your-allowed-directory]` |
+| Codex CLI | `codex mcp add fs -- npx -y @modelcontextprotocol/server-filesystem [your-allowed-directory]` |
+| Claude Code | `claude mcp add fs -s user -- npx -y @modelcontextprotocol/server-filesystem [your-allowed-directory]` |
+
+### Examples to try
+
+> “Read `server/**/*.go` and propose a patch adding retries with exponential backoff; write diffs but do not commit.”
+<p></p>
 
 **Git (choose one implementation)**  
 - **Gemini (Python server via uvx):**  
