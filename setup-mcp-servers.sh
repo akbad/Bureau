@@ -76,17 +76,17 @@ export CONTEXT7_URL="https://mcp.context7.com/mcp"
 export ZEN_CLINK_DISABLED_TOOLS='analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer'
 
 # Qdrant MCP: semantic memory configuration
-export QDRANT_PORT=8079
+export QDRANT_PORT=8779
 export QDRANT_URL="http://127.0.0.1:$QDRANT_PORT"
 export QDRANT_COLLECTION_NAME="coding-memory"
 export QDRANT_EMBEDDING_PROVIDER="fastembed"
 export QDRANT_DATA_DIR="$HOME/Code/qdrant-data"
 
 # Ports for local HTTP servers
-export FS_MCP_PORT=8080
-export ZEN_MCP_PORT=8081
-export FETCH_MCP_PORT=8082
-export QDRANT_MCP_PORT=8083
+export FS_MCP_PORT=8780
+export ZEN_MCP_PORT=8781
+export FETCH_MCP_PORT=8782
+export QDRANT_MCP_PORT=8783
 
 # Directories
 FS_ALLOWED_DIR="${FS_ALLOWED_DIR:-$HOME/Code}"
