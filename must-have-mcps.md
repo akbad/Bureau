@@ -5,6 +5,13 @@ A practical guide to **must‑have MCP servers** and adjacent tools that *meanin
 - Claude Code
 - Codex CLI
 
+## Prerequisites
+
+- npm
+- python3
+- uv (Python package manager)
+- 1 or more coding agents that you use (this guide covers Claude Code, Codex CLI, Gemini CLI)
+
 ## Useful background info 
 
 ### MCP server types
