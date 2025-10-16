@@ -1,33 +1,28 @@
 # Must-have MCPs
 
-A practical guide to **must‑have MCP servers** and adjacent tools that *meaningfully* upgrade your dev flow with Codex/Gemini CLI & Claude Code.
+A practical guide to **must‑have MCP servers** and adjacent tools that *meaningfully* upgrade dev flow when using
+- Gemini CLI
+- Claude Code
+- Codex CLI
 
-## TL;DR – What to install first
+## Useful background info 
 
-If you only add seven things, make it these:
+### MCP server types
 
-1. **Filesystem (reference server)** – safe, allow‑listed file ops.
-2. **Git (reference/community)** – branch/commit/diff/search via tools the model understands.
-3. **Fetch (HTML → Markdown)** – ingest docs/specs efficiently.
-4. **Context7** – *version‑correct* API docs/examples into context.
-5. **Tavily** – search/extract/map/crawl with citations for design‑doc research.
-6. **Semgrep** – SAST gate on agent‑generated diffs.
-7. **A memory server** (pgvector or Weaviate) – persistent semantic memory to avoid re‑feeding context.
+- **Official/reference** servers are developed and maintained by the creators of MCP
+    
+    - Are standard, primary implementations that serve as models for how to build new MCPs  
 
-Then optionally add:
-- **Firecrawl** (robust crawling)
-- **Sourcegraph** (cross‑repo code search)
-- **Snyk** (vuln scanning)
-- a workflow glue tool (**Composio/Rube**).
+- **Community** servers are developed by the community
 
-## How to run and use MCPs
+### Ways of running MCP servers
 
 If you're **running multiple agents at once** (e.g. Claude Code, Gemini CLI, Codex CLI all running at the same time; they can all reuse the same server):
 
 | Method | When to use | How it works |
 | --- | --- | --- |
 | **Shared instance (`http`)** | **For MCPs whose toolcalls are quick & synchronous** | Run the server once, `mcp add` command provides the server's URL; client then initiates exchanges w/ server via HTTP |
-| **Server-sent events** (`sse`) | **For MCPs whose tools run for a long time**, thus making progress updates useful; MCP server **must support SSE** | Similar to `http`, except connection remains open instead of closing after each request. Client then stays listening, and server can "push" messages (via events) to the client whenever new data is available |
+| **Server-sent events** (`sse`) | **For MCPs whose tools run for a long time**, thus making progress updates useful; Agent CLI *and* MCP server **must support SSE** | Similar to `http`, except connection remains open instead of closing after each request. Client then stays listening, and server can "push" messages (via events) to the client whenever new data is available |
 
 When you're only using **one agent at a time** (e.g. *only launching one of* Claude Code, Codex or Gemini CLI):
 
@@ -35,44 +30,105 @@ When you're only using **one agent at a time** (e.g. *only launching one of* Cla
 | --- | --- | --- |
 | **Client-managed servers (`stdio`)** | `mcp add` command includes the full command to run the server, which the client starts/stops as needed | Simple setup (no separate process) but inefficient for frequent use and stateless by default |
 
-### Gemini CLI
- 
-- Add servers with `gemini mcp add <name> <commandOrUrl> [args...]` 
-- Stored in
-  
-    - By default: `~/.gemini/settings.json` (user Gemini config)
-    - Add `-s project` to store in `.gemini/settings.json` (project-specific config)
+### Notes about adding MCPs to specific agent CLIs
 
-- Use `/mcp` to list tools
+> The `/mcp` command in each of the agent CLIs below will **list currently-active servers** *(useful for verifying setup was successful)*
 
-### Codex
+#### Gemini CLI
 
-- Add servers with `codex mcp add ...`
-- Stored at `~/.codex/config.toml`
-- Use `/mcp` to list active servers
-
-### Claude Code
-
-- Supports:
-    
-    - `HTTP`/`sse`/`stdio` transports
-    - *Local*, *project*, or *user* scopes
-
-- Add **`stdio`** servers: `claude mcp add ...`
-- Add **`http`** servers: edit the `~/.codex/config.toml` file
-- Use `/mcp` to list active servers
-
----
-
-> ### MCP server types
->
-> - **Official/reference** servers are developed and maintained by the creators of MCP
->     
->     - Are standard, primary implementations that serve as models for how to build new MCPs  
+> [***Full Gemini MCP guide***](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md)
 > 
-> - **Community** servers are developed by the community
+> → [*Shortcut: guide to `gemini mcp` commands*](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md#managing-mcp-servers-with-gemini-mcp)
 
-## Filesystem MCP *(official/reference)*
+- Add servers with `gemini mcp add <name> <commandOrUrl> [args...]` 
+    
+    - Scope used determines which config file is changed: 
+
+        - **Project scope *(default)*** → `~/.gemini/settings.json`
+        - **User scope** → `~/.gemini/settings.json`
+            
+            - Use via `-s user` option
+
+#### Claude Code
+
+> [***Full Claude Code MCP guide***](https://docs.claude.com/en/docs/claude-code/mcp)
+
+- **Support for SSE servers is deprecated**; prefer HTTP servers instead 
+- Can add MCP servers at these scopes (with `--scope <local|project|user>`):
+
+    - **Local (*default*)**: for current repo
+    - **Project**: changes current repo's `.mcp.json` so collaborators can reuse the same MCP setup
+    - **User**: for Claude Code anywhere on your device (changes config in `~/.claude`)
+
+- Listing and using available MCPs:
+
+    - Type `@` to see available resources from all connected MCP servers (alongside files)
+    - Use the format **`@server:protocol://resource/path`** to reference a resource, for example:
+
+        > `Compare @postgres:schema://users with @docs:file://database/user-model`
+
+#### Codex
+
+> [***Full Codex MCP guide***](https://developers.openai.com/codex/mcp)
+
+- Adding MCP servers:
+    
+    - Options for `stdio` servers:
+
+        1. **Edit `~/.codex/config.toml` config file** with this format:
+
+            ```toml
+            [mcp_servers.<server-name>]
+            command = <server launch command>  # required
+            args = <args for launch command>   # optional
+            env = { "ENV_VAR" = "VALUE" }      # optional: env vars for server to use
+
+            # alternate way of adding any env vars for server to use
+            [mcp_servers.<server-name>.env]
+            ENV_VAR = "VALUE"                 
+            # ... repeat for each variable
+            ```
+
+            - Example:
+
+                ```toml
+                [mcp_servers.context7]
+                command = "npx"
+                args = ["-y", "@upstash/context7-mcp"]
+
+                [mcp_servers.context7.env]
+                SUNRISE_DIRECTION = "EAST"
+                ```
+            
+        2. **Use shortcut command** (creates config entry for you): 
+
+            ```bash
+            codex mcp add <server-name> [--env <VAR=VALUE>]... -- <server launch command>
+            ```
+    
+    - For `http` servers: **must edit `~/.codex/config.toml`** config file with this format:
+
+        ```toml
+        # optional: add this line if you want to use RMCP client to connect to server
+        #           enables auth via OAuth for HTTP servers
+        experimental_use_rmcp_client = true 
+
+        [mcp_servers.<server-name>]
+        url = <server URL>      # required
+        bearer_token = <token>  # optional: bearer token to use in an `Authorization` header 
+                                #           (if not using OAuth via RMCP above)
+        ``` 
+
+    - **Doesn't support SSE**; use HTTP servers instead
+
+## Prerequisites
+
+- npm
+- python3
+- uv (Python package manager)
+- 1 or more coding agents that you use (this guide covers Claude Code, Codex CLI, Gemini CLI)
+
+## MCP servers
 
 **Cost:** Free / open source.
 
