@@ -10,6 +10,7 @@ A practical guide to **must‑have MCP servers** and adjacent tools that *meanin
 - npm
 - python3
 - uv (Python package manager)
+- Rancher Desktop or Docker Desktop (needed for running the local Qdrant container)
 - 1 or more coding agents that you use (this guide covers Claude Code, Codex CLI, Gemini CLI)
 - **Context7 API key** (optional but recommended): Set `CONTEXT7_API_KEY` in your shell config (`.zshrc` or `.bashrc`)
   - Create a key at [console.upstash.com](https://console.upstash.com/)
@@ -705,6 +706,73 @@ Visit the [**Context7 docs**](https://github.com/upstash/context7) for agent-spe
 
 > "Use context7 to fetch OpenTelemetry tracing setup for Node.js, then instrument our Express API with automatic span creation and context propagation."
 <p></p>
+
+## Qdrant MCP *(semantic memory)*
+
+**Cost:** Free / open source (self-host).
+
+### Why use over simple transcript files
+
+- **Semantic recall instead of raw logs:** Store ADRs, constraints, design notes, and retrieve them by meaning (`qdrant-find`) instead of replaying entire chat histories.
+- **Structured metadata filters:** Tag memories with components, severity, owner, or sprint and filter when querying.
+- **Shared across agents:** One Qdrant instance can serve Claude Code, Codex CLI, Gemini CLI simultaneously, so context stays consistent.
+- **Ready to scale later:** Keep it local now, move to remote Qdrant (or snapshots) if you need team-wide memory later.
+
+### Running the server
+
+#### Via `http`
+
+1. Run Qdrant (single node, local persistent storage):
+
+    ```bash
+    docker run -d \
+      --name qdrant \
+      -p 6333:6333 \
+      -v ~/qdrant-data:/qdrant/storage \
+      qdrant/qdrant
+    ```
+
+2. Launch the MCP wrapper (uses FastMCP over HTTP):
+
+    ```bash
+    QDRANT_URL=http://127.0.0.1:6333 \
+    COLLECTION_NAME=engineering-memory \
+    EMBEDDING_PROVIDER=fastembed \
+    uvx mcp-server-qdrant --transport http --port 8050
+    ```
+
+3. Register with each CLI:
+
+    - Gemini CLI: `gemini mcp add qdrant http --url http://localhost:8050/mcp/`
+    - Claude Code: `claude mcp add --transport http qdrant http://localhost:8050/mcp/`
+    - Codex CLI (`~/.codex/config.toml`):
+
+        ```toml
+        [mcp_servers.qdrant]
+        url = "http://localhost:8050/mcp/"
+        transport = "http"
+        ```
+
+#### Via `stdio`
+
+If you prefer the CLI to manage the process (one at a time), run Qdrant locally as above, then register:
+
+| Agent | Command |
+| :--- | :--- |
+| Gemini CLI | `gemini mcp add qdrant env QDRANT_URL=http://127.0.0.1:6333 env COLLECTION_NAME=engineering-memory env EMBEDDING_PROVIDER=fastembed uvx mcp-server-qdrant` |
+| Codex CLI | `codex mcp add qdrant -- env QDRANT_URL=http://127.0.0.1:6333 env COLLECTION_NAME=engineering-memory env EMBEDDING_PROVIDER=fastembed uvx mcp-server-qdrant` |
+| Claude Code CLI | `claude mcp add qdrant -s user -- env QDRANT_URL=http://127.0.0.1:6333 env COLLECTION_NAME=engineering-memory env EMBEDDING_PROVIDER=fastembed uvx mcp-server-qdrant` |
+
+### Examples to try
+
+> “Store the ADR describing our read-repair invariants with tag `component=locker`.”  
+> Later: “Find prior decisions tagged component=locker mentioning ‘read repair’ before I change the reconciler.”  
+>  
+> “Save a summary of the DynamoDB throttling postmortem (tag it high_severity, date=2024-09-12).”  
+> Then: “Retrieve high_severity incidents about DynamoDB before planning retries.”  
+>  
+> “Remember the auth team service limits (owner=security, expires=2025-06-30).”  
+> Afterwards: “Pull security-owned memories that mention service limits.”
 
 
 **Git (choose one implementation)**  
