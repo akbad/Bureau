@@ -71,6 +71,7 @@ AGENTS=("gemini" "claude" "codex")
 
 # Remote server URLs
 export CONTEXT7_URL="https://mcp.context7.com/mcp"
+export TAVILY_URL="https://mcp.tavily.com/mcp/?tavilyApiKey=\${TAVILY_API_KEY}"
 
 # Zen MCP: disable all tools except clink
 export ZEN_CLINK_DISABLED_TOOLS='analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer'
@@ -518,6 +519,7 @@ start_http_server "Qdrant MCP" "$QDRANT_MCP_PORT" "QDRANT_PID" \
 # - Fetch MCP (local)
 # - Qdrant MCP (local, semantic memory)
 # - Context7 MCP (remote Upstash - for Gemini & Claude only)
+# - Tavily MCP (remote Tavily - all agents)
 log_info "Configuring agents to use Filesystem MCP (HTTP)..."
 setup_http_mcp "fs" "http://localhost:$FS_MCP_PORT/mcp/"
 
@@ -564,30 +566,43 @@ log_success "Setup complete."
 echo ""
 log_info "Local HTTP servers running:"
 log_info "  • Filesystem MCP: http://localhost:$FS_MCP_PORT/mcp/ (PID: $FS_PID)"
-log_info "    └─ Shared across all agents, allowed dir: $FS_ALLOWED_DIR"
-log_info "  • Zen MCP (clink): http://localhost:$ZEN_MCP_PORT/mcp/ (PID: $ZEN_PID)"
-log_info "    └─ Cross-CLI orchestration (only 'clink' tool enabled)"
+log_info "    └─ Allowed directory: $FS_ALLOWED_DIR"
+log_info "  • Zen MCP (clink only): http://localhost:$ZEN_MCP_PORT/mcp/ (PID: $ZEN_PID)"
 log_info "  • Fetch MCP: http://localhost:$FETCH_MCP_PORT/mcp/ (PID: $FETCH_PID)"
-log_info "    └─ HTML to Markdown conversion for web content"
 log_info "  • Qdrant MCP: http://localhost:$QDRANT_MCP_PORT/mcp/ (PID: $QDRANT_PID)"
-log_info "    └─ Semantic memory storage (collection: $QDRANT_COLLECTION_NAME)"
 log_info "    └─ Backend: Qdrant Docker container on port $QDRANT_PORT"
 log_info "    └─ Data directory: $QDRANT_DATA_DIR"
 echo ""
-log_info "Remote HTTP servers configured:"
-log_info "  • Context7 MCP: $CONTEXT7_URL"
-log_info "    └─ Always-fresh API docs (remote Upstash server)"
-log_info "    └─ Requires CONTEXT7_API_KEY in environment (already set in your .zshrc)"
-log_info "    └─ Gemini: Headers configured automatically in ~/.gemini/settings.json"
-log_info "    └─ Claude: Header configured automatically via CLI"
-log_info "    └─ Codex: Using stdio mode instead (HTTP doesn't support custom headers)"
-echo ""
+
+# Only show remote servers section if at least one is configured
+if [[ "$CONTEXT7_AVAILABLE" == true || "$TAVILY_AVAILABLE" == true ]]; then
+    log_info "Remote HTTP servers configured:"
+
+    if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
+        log_info "  • Context7 MCP: $CONTEXT7_URL"
+        log_info "    └─ Gemini: Headers configured automatically in ~/.gemini/settings.json"
+        log_info "    └─ Claude: Header configured automatically via CLI"
+        log_info "    └─ Codex: Using stdio mode instead (HTTP doesn't support custom headers)"
+    fi
+
+    if [[ "$TAVILY_AVAILABLE" == true ]]; then
+        log_info "  • Tavily MCP: https://mcp.tavily.com/mcp/"
+        log_info "    └─ Web search/extract/map/crawl with citations (remote Tavily server)"
+        log_info "    └─ All agents: Configured via HTTP with API key in URL"
+    fi
+
+    echo ""
+fi
+
 log_info "Configured stdio servers:"
 log_info "  → Each agent starts its own server when launched, stops when exited."
 log_info "  • Git MCP (all agents)"
 log_info "    └─ Uses current directory when agent is launched"
-log_info "  • Context7 MCP (Codex only)"
-log_info "    └─ Codex HTTP doesn't support custom headers, so using stdio mode"
+
+if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
+    log_info "  • Context7 MCP (Codex only)"
+    log_info "    └─ Codex HTTP doesn't support custom headers, so using stdio mode"
+fi
 echo ""
 log_info "Logs:"
 log_info "  • Filesystem: /tmp/mcp-Filesystem MCP-server.log"
@@ -605,4 +620,3 @@ log_info "To stop local HTTP servers:"
 log_info "  kill $FS_PID $ZEN_PID $FETCH_PID $QDRANT_PID"
 log_info "To stop Qdrant Docker container:"
 log_info "  docker stop qdrant"
-
