@@ -15,6 +15,7 @@
 #    (i.e. shared across all agents/repos):
 #      - Filesystem MCP
 #      - Zen MCP (clink only - for cross-CLI orchestration)
+#      - Fetch MCP (HTML to Markdown conversion)
 #  2. Sets up the following MCP servers in stdio mode
 #     (i.e. each agent runs its own server)
 #      - Git MCP (necessary since needs to run specifically within *one* Git repo)
@@ -63,6 +64,7 @@ AGENTS=("gemini" "claude" "codex")
 # Ports
 export FS_MCP_PORT=8080
 export ZEN_MCP_PORT=8081
+export FETCH_MCP_PORT=8082
 
 # Zen MCP: disable all tools except clink
 export ZEN_CLINK_DISABLED_TOOLS='analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer'
@@ -275,7 +277,7 @@ else
     log_info "uvx found, will configure agents to use it for Git MCP (stdio mode)"
 fi
 
-log_success "Dependencies checked"
+log_success "Dependency check complete."
 
 # ============================================================================
 #   Start central HTTP servers
@@ -284,7 +286,7 @@ log_success "Dependencies checked"
 log_info "Idempotently starting up HTTP MCP servers..."
 
 # Filesystem MCP
-log_info "Allowed directory: $FS_ALLOWED_DIR"
+log_info "Allowed directory for Filesystem MCP: $FS_ALLOWED_DIR"
 start_http_server "Filesystem MCP" "$FS_MCP_PORT" "FS_PID" \
     npx -y @modelcontextprotocol/server-filesystem --port "$FS_MCP_PORT" "$FS_ALLOWED_DIR"
 
@@ -294,6 +296,10 @@ start_http_server "Zen MCP" "$ZEN_MCP_PORT" "ZEN_PID" \
     uvx --from git+https://github.com/BeehiveInnovations/zen-mcp-server.git \
     python "$SCRIPT_DIR/start-zen-http.py"
 
+# Fetch MCP (HTML to Markdown conversion)
+start_http_server "Fetch MCP" "$FETCH_MCP_PORT" "FETCH_PID" \
+    npx -y @modelcontextprotocol/server-fetch --port "$FETCH_MCP_PORT"
+
 # ============================================================================
 #   Configure agents to use MCP servers
 # ============================================================================
@@ -301,11 +307,15 @@ start_http_server "Zen MCP" "$ZEN_MCP_PORT" "ZEN_PID" \
 # Servers to use in HTTP mode
 # - Filesystem MCP
 # - Zen MCP (clink)
+# - Fetch MCP
 log_info "Configuring agents to use Filesystem MCP (HTTP)..."
 setup_http_mcp "fs" "http://localhost:$FS_MCP_PORT/mcp/"
 
 log_info "Configuring agents to use Zen MCP for clink (HTTP)..."
 setup_http_mcp "zen" "http://localhost:$ZEN_MCP_PORT/mcp/"
+
+log_info "Configuring agents to use Fetch MCP (HTTP)..."
+setup_http_mcp "fetch" "http://localhost:$FETCH_MCP_PORT/mcp/"
 
 # Servers to use in stdio mode
 # Git MCP (stdio mode - per-agent)
@@ -324,6 +334,8 @@ log_info "  • Filesystem MCP: http://localhost:$FS_MCP_PORT/mcp/ (PID: $FS_PID
 log_info "    └─ Shared across all agents, allowed dir: $FS_ALLOWED_DIR"
 log_info "  • Zen MCP (clink): http://localhost:$ZEN_MCP_PORT/mcp/ (PID: $ZEN_PID)"
 log_info "    └─ Cross-CLI orchestration (only 'clink' tool enabled)"
+log_info "  • Fetch MCP: http://localhost:$FETCH_MCP_PORT/mcp/ (PID: $FETCH_PID)"
+log_info "    └─ HTML to Markdown conversion for web content"
 echo ""
 log_info "Configured stdio servers:"
 log_info " -> Each agent will start its own server when launched, and stop it when it's exited."
@@ -333,6 +345,7 @@ echo ""
 log_info "Logs:"
 log_info "  • Filesystem: /tmp/mcp-Filesystem MCP-server.log"
 log_info "  • Zen MCP: /tmp/mcp-Zen MCP-server.log"
+log_info "  • Fetch MCP: /tmp/mcp-Fetch MCP-server.log"
 echo ""
 log_info "To verify setup:"
 log_info "  1. cd into a git repo"
@@ -340,5 +353,5 @@ log_info "  2. Run 'gemini', 'claude', or 'codex'"
 log_info "  3. Type '/mcp' to see available tools"
 echo ""
 log_info "To stop HTTP servers:"
-log_info "  kill $FS_PID $ZEN_PID"
+log_info "  kill $FS_PID $ZEN_PID $FETCH_PID"
 
