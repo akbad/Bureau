@@ -5,6 +5,12 @@ Start Zen MCP server in HTTP mode using streamable HTTP adapter.
 This script wraps Zen's stdio transport in an HTTP gateway so multiple
 agent CLIs can share the same server instance.
 
+Dependencies (automatically installed by uvx via zen-mcp-server's package metadata):
+  - zen-mcp-server (from git+https://github.com/BeehiveInnovations/zen-mcp-server.git)
+  - starlette (dependency of zen-mcp-server)
+  - uvicorn (dependency of zen-mcp-server)
+  - mcp (MCP SDK, dependency of zen-mcp-server)
+
 Environment variables:
   DISABLED_TOOLS - Comma-separated list of Zen tools to disable
   ZEN_MCP_PORT   - Port to run the server on (default: 3333)
