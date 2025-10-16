@@ -183,16 +183,17 @@ start_http_server() {
     shift 3
     local start_cmd=("$@")
     local log_file="/tmp/mcp-${server_name}-server.log"
+    local pid
 
     if check_port "$port"; then
         log_success "$server_name already running on port $port"
-        local pid=$(lsof -ti:"$port")
+        pid=$(lsof -ti:"$port")
         log_info "Using existing server (PID: $pid)"
         eval "$pid_var=$pid"
     else
         log_info "Starting $server_name on port $port..."
         nohup "${start_cmd[@]}" > "$log_file" 2>&1 &
-        local pid=$!
+        pid=$!
         sleep 2
 
         if check_port "$port"; then
