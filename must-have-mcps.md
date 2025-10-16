@@ -15,6 +15,9 @@ A practical guide to **must‑have MCP servers** and adjacent tools that *meanin
 - **Context7 API key** (optional but recommended): Set `CONTEXT7_API_KEY` in your shell config (`.zshrc` or `.bashrc`)
   - Create a key at [console.upstash.com](https://console.upstash.com/)
   - Free tier available; paid tiers for higher rate limits and private repo access
+- **Tavily API key** (optional but recommended): Set `TAVILY_API_KEY` in your shell config (`.zshrc` or `.bashrc`)
+  - Create a key at [tavily.com](https://www.tavily.com/)
+  - Free tier with monthly credits; paid plans for higher volume
 
 ## Useful background info 
 
@@ -773,6 +776,61 @@ If you prefer the CLI to manage the process (one at a time), run Qdrant locally 
 >  
 > “Remember the auth team service limits (owner=security, expires=2025-06-30).”  
 > Afterwards: “Pull security-owned memories that mention service limits.”
+## Tavily — search/extract/map/crawl with citations
+
+**Cost:** Free tier (monthly credits), paid plans for higher volume.
+
+### Why use over basic web search MCP
+
+- **AI-optimized search results:** Unlike traditional search APIs (Google, Bing, SerpAPI), Tavily reviews multiple sources and extracts the most relevant content from each, delivering concise, LLM-ready information optimized for agent context windows
+
+- **Built-in citation tracking:** Every search result includes source URLs and attribution, making it trivial for agents to provide traceable sources in documentation, research summaries, and design decisions
+
+- **Four complementary tools:** Combines `search` (real-time web queries), `extract` (raw content from URL lists), `map` (generate sitemaps from a base URL), and `crawl` (graph-based traversal with parallel path exploration) — agents can orchestrate multi-step research workflows in a single conversation
+
+- **Production-grade filtering:** Advanced options for search depth (basic/advanced), time range filtering (recent news, last 7 days, etc.), domain-specific targeting, and maximum result limits give agents fine-grained control over result quality vs token cost
+
+- **Remote deployment option:** Connect to Tavily's hosted MCP server instead of managing local processes — reduces setup friction and enables instant access across all agent CLIs without environment configuration
+
+### Running the server
+
+Tavily provides a hosted MCP server — no local installation required:
+
+1. Get your Tavily API key from [tavily.com](https://www.tavily.com/)
+
+2. Connect agents to the remote endpoint:
+
+    - Gemini CLI: `gemini mcp add tavily http --url "https://mcp.tavily.com/mcp/?tavilyApiKey=$TAVILY_API_KEY"`
+    - Claude Code: `claude mcp add --transport http tavily "https://mcp.tavily.com/mcp/?tavilyApiKey=$TAVILY_API_KEY"`
+    - Codex CLI: add to `~/.codex/config.toml`:
+
+        ```toml
+        [mcp_servers.tavily]
+        url = "https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}"
+        transport = "http"
+        ```
+
+### Examples to try
+
+> "Search for 'event-sourced outbox pattern' best practices published in the last year. Return pros/cons, common failure modes, and 5 citations with URLs."
+<p></p>
+
+> "Map the Redis documentation site (redis.io/docs) to understand its structure, then extract content from the distributed locks and transactions pages. Summarize how to implement safe distributed mutations."
+<p></p>
+
+> "Search for recent news about Rust async runtime developments (last 30 days). Filter results to include only tokio.rs and rust-lang.org. Summarize breaking changes and migration paths."
+<p></p>
+
+> "Extract the main content from these three PostgreSQL performance tuning articles: [URL1], [URL2], [URL3]. Compare their recommendations for connection pooling and create a decision matrix."
+<p></p>
+
+> "Crawl the Stripe API changelog starting from stripe.com/docs/upgrades and follow internal links up to 3 levels deep. Identify all breaking changes in the last 12 months that affect webhook signatures."
+<p></p>
+
+> "Search for 'DynamoDB single-table design' with advanced search depth, limit to 10 results, and include only stackoverflow.com and aws.amazon.com domains. Extract code examples and explain trade-offs for multi-tenant SaaS."
+<p></p>
+
+---
 
 
 **Git (choose one implementation)**  
