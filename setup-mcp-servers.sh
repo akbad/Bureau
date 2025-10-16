@@ -5,6 +5,7 @@
 # Prerequisites:
 #   - Node.js (for npx)
 #   - uv/uvx (for Python packages)
+#   - Docker (for Qdrant container)
 #   - Context7 API key in $CONTEXT7_API_KEY
 #
 # Usage:
@@ -21,6 +22,7 @@
 #      - Filesystem MCP (local server)
 #      - Zen MCP (local server, clink only - for cross-CLI orchestration)
 #      - Fetch MCP (local server, HTML to Markdown conversion)
+#      - Qdrant MCP (local server, semantic memory with Docker backend)
 #      - Context7 MCP (remote Upstash server, always-fresh API docs)
 #  2. Sets up the following MCP servers in stdio mode
 #     (i.e. each agent runs its own server)
@@ -67,16 +69,24 @@ done
 # Agent CLIs we support
 AGENTS=("gemini" "claude" "codex")
 
-# Ports for local HTTP servers
-export FS_MCP_PORT=8080
-export ZEN_MCP_PORT=8081
-export FETCH_MCP_PORT=8082
-
 # Remote server URLs
 export CONTEXT7_URL="https://mcp.context7.com/mcp"
 
 # Zen MCP: disable all tools except clink
 export ZEN_CLINK_DISABLED_TOOLS='analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer'
+
+# Qdrant MCP: semantic memory configuration
+export QDRANT_PORT=8079
+export QDRANT_URL="http://127.0.0.1:$QDRANT_PORT"
+export QDRANT_COLLECTION_NAME="coding-memory"
+export QDRANT_EMBEDDING_PROVIDER="fastembed"
+export QDRANT_DATA_DIR="$HOME/Code/qdrant-data"
+
+# Ports for local HTTP servers
+export FS_MCP_PORT=8080
+export ZEN_MCP_PORT=8081
+export FETCH_MCP_PORT=8082
+export QDRANT_MCP_PORT=8083
 
 # Directories
 FS_ALLOWED_DIR="${FS_ALLOWED_DIR:-$HOME/Code}"
@@ -124,6 +134,42 @@ kill_port() {
         lsof -ti:"$port" | xargs kill -9 2>/dev/null || true
         sleep 1
     fi
+}
+
+# Start Qdrant Docker container idempotently
+start_qdrant_docker() {
+    local container_name="qdrant"
+    local port=$QDRANT_PORT
+    local data_dir=$QDRANT_DATA_DIR
+
+    # Check if container exists and is running
+    if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        log_success "Qdrant container already running"
+        return 0
+    fi
+
+    # Check if container exists but is stopped
+    if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        log_info "Starting existing Qdrant container..."
+        docker start "$container_name" >/dev/null
+        sleep 2
+        log_success "Qdrant container started"
+        return 0
+    fi
+
+    # Create data directory if it doesn't exist
+    mkdir -p "$data_dir"
+
+    # Start new container
+    log_info "Creating and starting Qdrant container..."
+    docker run -d \
+        --name "$container_name" \
+        -p "$port:6333" \
+        -v "$data_dir:/qdrant/storage" \
+        qdrant/qdrant >/dev/null
+
+    sleep 2
+    log_success "Qdrant container started on port $port"
 }
 
 # Start HTTP server idempotently (returns PID via variable name passed as arg)
@@ -392,6 +438,13 @@ if ! command -v uvx &> /dev/null; then
 fi
 log_info "uvx found, will use for Git MCP (stdio mode) and Zen MCP"
 
+# Check for Docker (required for Qdrant)
+if ! command -v docker &> /dev/null; then
+    log_error "docker not found. Please install Docker first: https://docs.docker.com/get-docker/"
+    exit 1
+fi
+log_info "docker found, will use for Qdrant container"
+
 log_success "Dependency check complete."
 
 # ============================================================================
@@ -415,6 +468,17 @@ start_http_server "Zen MCP" "$ZEN_MCP_PORT" "ZEN_PID" \
 start_http_server "Fetch MCP" "$FETCH_MCP_PORT" "FETCH_PID" \
     npx -y @modelcontextprotocol/server-fetch --port "$FETCH_MCP_PORT"
 
+# Qdrant (Docker container for semantic memory backend)
+log_info "Starting Qdrant Docker container..."
+start_qdrant_docker
+
+# Qdrant MCP (wrapper server for semantic memory)
+start_http_server "Qdrant MCP" "$QDRANT_MCP_PORT" "QDRANT_PID" \
+    env QDRANT_URL="$QDRANT_URL" \
+    COLLECTION_NAME="$QDRANT_COLLECTION_NAME" \
+    EMBEDDING_PROVIDER="$QDRANT_EMBEDDING_PROVIDER" \
+    uvx mcp-server-qdrant --transport http --port "$QDRANT_MCP_PORT"
+
 # ============================================================================
 #   Configure agents to use MCP servers
 # ============================================================================
@@ -423,6 +487,7 @@ start_http_server "Fetch MCP" "$FETCH_MCP_PORT" "FETCH_PID" \
 # - Filesystem MCP (local)
 # - Zen MCP (local, clink)
 # - Fetch MCP (local)
+# - Qdrant MCP (local, semantic memory)
 # - Context7 MCP (remote Upstash - for Gemini & Claude only)
 log_info "Configuring agents to use Filesystem MCP (HTTP)..."
 setup_http_mcp "fs" "http://localhost:$FS_MCP_PORT/mcp/"
@@ -432,6 +497,9 @@ setup_http_mcp "zen" "http://localhost:$ZEN_MCP_PORT/mcp/"
 
 log_info "Configuring agents to use Fetch MCP (HTTP)..."
 setup_http_mcp "fetch" "http://localhost:$FETCH_MCP_PORT/mcp/"
+
+log_info "Configuring agents to use Qdrant MCP (HTTP)..."
+setup_http_mcp "qdrant" "http://localhost:$QDRANT_MCP_PORT/mcp/"
 
 log_info "Configuring Gemini & Claude to use Context7 MCP (HTTP - remote Upstash)..."
 # Note: Uses colon format for headers
@@ -462,6 +530,10 @@ log_info "  • Zen MCP (clink): http://localhost:$ZEN_MCP_PORT/mcp/ (PID: $ZEN_
 log_info "    └─ Cross-CLI orchestration (only 'clink' tool enabled)"
 log_info "  • Fetch MCP: http://localhost:$FETCH_MCP_PORT/mcp/ (PID: $FETCH_PID)"
 log_info "    └─ HTML to Markdown conversion for web content"
+log_info "  • Qdrant MCP: http://localhost:$QDRANT_MCP_PORT/mcp/ (PID: $QDRANT_PID)"
+log_info "    └─ Semantic memory storage (collection: $QDRANT_COLLECTION_NAME)"
+log_info "    └─ Backend: Qdrant Docker container on port $QDRANT_PORT"
+log_info "    └─ Data directory: $QDRANT_DATA_DIR"
 echo ""
 log_info "Remote HTTP servers configured:"
 log_info "  • Context7 MCP: $CONTEXT7_URL"
@@ -482,6 +554,8 @@ log_info "Logs:"
 log_info "  • Filesystem: /tmp/mcp-Filesystem MCP-server.log"
 log_info "  • Zen MCP: /tmp/mcp-Zen MCP-server.log"
 log_info "  • Fetch MCP: /tmp/mcp-Fetch MCP-server.log"
+log_info "  • Qdrant MCP: /tmp/mcp-Qdrant MCP-server.log"
+log_info "  • Qdrant Docker: docker logs qdrant"
 echo ""
 log_info "To verify setup:"
 log_info "  1. cd into a git repo"
@@ -489,5 +563,7 @@ log_info "  2. Run 'gemini', 'claude', or 'codex'"
 log_info "  3. Type '/mcp' to see available tools"
 echo ""
 log_info "To stop local HTTP servers:"
-log_info "  kill $FS_PID $ZEN_PID $FETCH_PID"
+log_info "  kill $FS_PID $ZEN_PID $FETCH_PID $QDRANT_PID"
+log_info "To stop Qdrant Docker container:"
+log_info "  docker stop qdrant"
 
