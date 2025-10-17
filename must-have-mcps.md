@@ -50,7 +50,7 @@ When you're only using **one agent at a time** (e.g. *only launching one of* Cla
 
 #### Gemini CLI
 
-> [***Full Gemini MCP guide***](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md)
+> [***Full Gemini MCP guide***](https://geminicli.com/docs/tools/mcp-server/)
 > 
 > → [*Shortcut: guide to `gemini mcp` commands*](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md#managing-mcp-servers-with-gemini-mcp)
 
