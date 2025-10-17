@@ -841,7 +841,66 @@ Tavily provides a hosted MCP server — no local installation required:
 > "Search for 'DynamoDB single-table design' with advanced search depth, limit to 10 results, and include only stackoverflow.com and aws.amazon.com domains. Extract code examples and explain trade-offs for multi-tenant SaaS."
 <p></p>
 
----
+## Firecrawl — resilient scraping & deep crawls
+
+**Cost:** Free starter credits; paid plans for higher volume.
+
+### Why use over basic Fetch MCP
+
+- **JavaScript-rendered page support:** Handles 96% of the web including JS-heavy sites, SPAs, and protected pages that basic `curl` or `wget` cannot access — no proxy configuration needed
+
+- **Interactive scraping capabilities:** Can perform actions (click, scroll, write, wait, press) before extracting content, enabling scraping of content behind interactions like "Load More" buttons or infinite scroll
+
+- **Batch processing and parallel execution:** Process multiple URLs simultaneously with built-in retry logic, automatic backoff, and progress monitoring — ideal for extracting documentation sets or crawling entire wiki sections
+
+- **AI-powered structured extraction:** Use natural language prompts to extract specific structured data without knowing exact selectors or page structure, powered by LLM capabilities that adapt to different page layouts
+
+- **Comprehensive web operations:** Combines `scrape` (single page), `batch_scrape` (multiple URLs), `crawl` (recursive traversal), `map` (URL discovery), `search` (web search), and `extract` (structured data) in one unified API
+
+- **Fire-engine proprietary backend:** Cloud API includes advanced anti-bot evasion, intelligent proxy rotation, and automatic CAPTCHA solving — not available in self-hosted deployments
+
+### Running the server
+
+Firecrawl provides a hosted MCP server with Fire-engine (their proprietary anti-bot, proxy management, and CAPTCHA-solving backend) — no local installation required:
+
+1. Get your Firecrawl API key from [firecrawl.dev/app/api-keys](https://firecrawl.dev/app/api-keys)
+
+2. Connect agents to the remote endpoint:
+
+    - Gemini CLI: `gemini mcp add firecrawl http --url "https://mcp.firecrawl.dev/$FIRECRAWL_API_KEY/v2/mcp"`
+    - Claude Code: `claude mcp add --transport http firecrawl "https://mcp.firecrawl.dev/$FIRECRAWL_API_KEY/v2/mcp"`
+    - Codex CLI: add to `~/.codex/config.toml`:
+
+        ```toml
+        [mcp_servers.firecrawl]
+        url = "https://mcp.firecrawl.dev/${FIRECRAWL_API_KEY}/v2/mcp"
+        transport = "http"
+        ```
+
+**Note:** While Firecrawl can be self-hosted, the self-hosted version lacks Fire-engine (anti-bot evasion, proxy rotation, CAPTCHA handling), making the cloud service significantly more capable for production scraping.
+
+### Examples to try
+
+> "Scrape the Next.js documentation page at nextjs.org/docs/app/building-your-application/routing and extract all routing concepts into a structured markdown summary with code examples."
+<p></p>
+
+> "Crawl our internal wiki starting from wiki.company.com/engineering/payments with max depth 3. Extract all constraint definitions, decision records, and open questions into categorized lists."
+<p></p>
+
+> "Map the entire Stripe API documentation site (stripe.com/docs/api) to discover all endpoint URLs, then batch scrape the authentication and webhooks sections. Compare their security recommendations."
+<p></p>
+
+> "Search for 'GraphQL federation best practices' and extract the top 5 results. For each result, scrape the full content and create a comparison table of pros, cons, and implementation complexity."
+<p></p>
+
+> "Use the extract tool with this prompt: 'Find all pricing tiers, their features, and annual costs' on competitor-site.com/pricing. Return as structured JSON with tier name, features array, and cost in USD."
+<p></p>
+
+> "Crawl the React documentation starting from react.dev/learn, but first click the 'Show more examples' button on each page before extracting. Compile all interactive examples into a single reference document."
+<p></p>
+
+> "Batch scrape these 10 Medium articles about microservices architecture [URL1-URL10]. Extract author name, publication date, key takeaways (3-5 bullets), and any code snippets. Generate a synthesized summary."
+<p></p>
 
 
 **Git (choose one implementation)**  

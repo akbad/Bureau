@@ -3,11 +3,17 @@
 # MCP server setup script
 #
 # Prerequisites:
-#   - Node.js (for npx)
-#   - uv/uvx (for Python packages)
-#   - Docker (for Qdrant container)
-#   - Context7 API key in $CONTEXT7_API_KEY
-#   - Tavily API key in $TAVILY_API_KEY
+#   Required:
+#       - Node.js (for npx)
+#       - uv/uvx (for Python packages)
+#       - Docker (for Qdrant container)
+#       - Context7 API key in $CONTEXT7_API_KEY
+#       - Tavily API key in $TAVILY_API_KEY
+#
+#   Optional but recommended:
+#       - Set up Zen clink config:
+#           - Roles and per-CLI config at `~/.zen/cli_clients/`
+#           - Subagent prompts at `~/.zen/prompts`
 #
 # Usage:
 #   ./setup-mcp-servers.sh [options]
@@ -26,6 +32,7 @@
 #      - Qdrant MCP (local server, semantic memory with Docker backend)
 #      - Context7 MCP (remote Upstash server, always-fresh API docs)
 #      - Tavily MCP (remote Tavily server, web search/extract/map/crawl)
+#      - Firecrawl MCP (remote Firecrawl server, resilient scraping with Fire-engine)
 #  2. Sets up the following MCP servers in stdio mode
 #     (i.e. each agent runs its own server)
 #      - Git MCP (necessary since needs to run specifically within *one* Git repo)
@@ -74,6 +81,7 @@ AGENTS=("gemini" "claude" "codex")
 # Remote server URLs
 export CONTEXT7_URL="https://mcp.context7.com/mcp"
 export TAVILY_URL="https://mcp.tavily.com/mcp/?tavilyApiKey=\${TAVILY_API_KEY}"
+export FIRECRAWL_URL="https://mcp.firecrawl.dev/\${FIRECRAWL_API_KEY}/v2/mcp"
 
 # Zen MCP: disable all tools except clink
 export ZEN_CLINK_DISABLED_TOOLS='analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer'
@@ -469,6 +477,7 @@ log_info "Checking API keys..."
 
 CONTEXT7_AVAILABLE=false
 TAVILY_AVAILABLE=false
+FIRECRAWL_AVAILABLE=false
 
 if check_env_var "CONTEXT7_API_KEY" "Context7 MCP will not work. Get a key at https://console.upstash.com/"; then
     CONTEXT7_AVAILABLE=true
@@ -476,6 +485,10 @@ fi
 
 if check_env_var "TAVILY_API_KEY" "Tavily MCP will not work. Get a key at https://www.tavily.com/"; then
     TAVILY_AVAILABLE=true
+fi
+
+if check_env_var "FIRECRAWL_API_KEY" "Firecrawl MCP will not work. Get a key at https://firecrawl.dev/app/api-keys"; then
+    FIRECRAWL_AVAILABLE=true
 fi
 
 log_success "API key check complete."
@@ -523,6 +536,7 @@ start_http_server "Qdrant MCP" "$QDRANT_MCP_PORT" "QDRANT_PID" \
 # - Qdrant MCP (local, semantic memory)
 # - Context7 MCP (remote Upstash - for Gemini & Claude only)
 # - Tavily MCP (remote Tavily - all agents)
+# - Firecrawl MCP (remote Firecrawl - all agents)
 log_info "Configuring agents to use Filesystem MCP (HTTP)..."
 setup_http_mcp "fs" "http://localhost:$FS_MCP_PORT/mcp/"
 
@@ -547,6 +561,12 @@ if [[ "$TAVILY_AVAILABLE" == true ]]; then
     log_info "Configuring all agents to use Tavily MCP (HTTP - remote)..."
     # Tavily uses API key in URL query parameter, so no custom headers needed
     setup_http_mcp "tavily" "$TAVILY_URL"
+fi
+
+if [[ "$FIRECRAWL_AVAILABLE" == true ]]; then
+    log_info "Configuring all agents to use Firecrawl MCP (HTTP - remote)..."
+    # Firecrawl uses API key in URL path, so no custom headers needed
+    setup_http_mcp "firecrawl" "$FIRECRAWL_URL"
 fi
 
 # Servers to use in stdio mode
@@ -578,7 +598,7 @@ log_info "    └─ Data directory: $QDRANT_DATA_DIR"
 echo ""
 
 # Only show remote servers section if at least one is configured
-if [[ "$CONTEXT7_AVAILABLE" == true || "$TAVILY_AVAILABLE" == true ]]; then
+if [[ "$CONTEXT7_AVAILABLE" == true || "$TAVILY_AVAILABLE" == true || "$FIRECRAWL_AVAILABLE" == true ]]; then
     log_info "Remote HTTP servers configured:"
 
     if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
@@ -590,7 +610,11 @@ if [[ "$CONTEXT7_AVAILABLE" == true || "$TAVILY_AVAILABLE" == true ]]; then
 
     if [[ "$TAVILY_AVAILABLE" == true ]]; then
         log_info "  • Tavily MCP: https://mcp.tavily.com/mcp/"
-        log_info "    └─ Web search/extract/map/crawl with citations (remote Tavily server)"
+        log_info "    └─ All agents: Configured via HTTP with API key in URL"
+    fi
+
+    if [[ "$FIRECRAWL_AVAILABLE" == true ]]; then
+        log_info "  • Firecrawl MCP: https://mcp.firecrawl.dev/*/v2/mcp"
         log_info "    └─ All agents: Configured via HTTP with API key in URL"
     fi
 
