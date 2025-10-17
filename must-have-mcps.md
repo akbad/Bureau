@@ -418,8 +418,8 @@ When you want:
 
 > **Follow-up using continuation IDs**
 >
-> **Prompt:** Use clink with role="planner" prompt="Outline the plan for shipping the new auth service.
-> **Subsequent prompt *(resumes previous planner session)*:** Use clink with role="planner" continuation_id="<paste id>" prompt="Refine the timeline with detailed milestones."
+> - **Prompt:** Use clink with role="planner" prompt="Outline the plan for shipping the new auth service.
+> - **Subsequent prompt *(resumes previous planner session)*:** Use clink with role="planner" continuation_id="<paste id>" prompt="Refine the timeline with detailed milestones."
 <p></p>
 
 > **Multi-model consensus, *without* Zen’s consensus tool**
@@ -448,11 +448,13 @@ When you want:
 
 > **Batch research, then delegate**
 > 
-> **Prompt:** clink with cli_name="gemini" prompt="Find 2025 best practices for securing WebAuthn attestation and list references."
-> **Subsequent prompt** Use clink with cli_name="codex" prompt="Given Gemini’s findings, patch auth/webauthn_handler.py to harden attestation validation."
+> - **Prompt:** clink with cli_name="gemini" prompt="Find 2025 best practices for securing WebAuthn attestation and list references."
+> - **Subsequent prompt** Use clink with cli_name="codex" prompt="Given Gemini’s findings, patch auth/webauthn_handler.py to harden attestation validation."
 <p></p>
 
-## Filesystem MCP *(official/reference)*
+## Filesystem MCP
+
+> For reliable filesystem access.
 
 **Cost:** Free / open source.
 
@@ -512,7 +514,9 @@ The agent client will start and stop the server automatically as needed.
 > “Read `server/**/*.go` and propose a patch adding retries with exponential backoff; write diffs but do not commit.”
 <p></p>
 
-## Git MCP *(official/reference)*
+## Git MCP
+
+> For reliable Git operations
 
 **Cost:** Free / open source.
 
@@ -604,7 +608,9 @@ The agent client will start and stop the server automatically as needed.
 > "List all branches. If there's a branch called `stale/old-feature`, check it out and show me its status compared to main."
 <p></p>
 
-## Fetch MCP *(official/reference)*
+## Fetch MCP
+
+> For vastly more efficient and reliable webpage processing.
 
 **Cost:** Free / open source.
 
@@ -676,7 +682,9 @@ The agent client will start and stop the server automatically as needed.
 > "Fetch the latest Python async best practices from https://docs.python.org/3/library/asyncio.html and recommend which patterns we should adopt for our websocket service."
 <p></p>
 
-## Context7 (Upstash) — "always‑fresh" API docs
+## Context7 (Upstash) 
+
+> For "always‑fresh" API docs
 
 **Cost:** Free tier for personal/edu; paid tiers available.
 
@@ -716,7 +724,9 @@ Visit the [**Context7 docs**](https://github.com/upstash/context7) for agent-spe
 > "Use context7 to fetch OpenTelemetry tracing setup for Node.js, then instrument our Express API with automatic span creation and context propagation."
 <p></p>
 
-## Qdrant MCP *(semantic memory)*
+## Qdrant MCP 
+
+> For persistent, efficient and easily-shareable semantic memory
 
 **Cost:** Free / open source (self-host).
 
@@ -793,7 +803,9 @@ If you prefer the CLI to manage the process (one at a time), run Qdrant locally 
 > “Ahead of the infra sync, run `qdrant-find` with a filter `{"must":[{"key":"owner","match":{"value":"infra"}},{"key":"created_at","range":{"gte":"2025-01-01"}}]}` and summarize the retrieved memories into action items.”
 <p></p>
 
-## Tavily — search/extract/map/crawl with citations
+## Tavily 
+
+> For searching, extracting, mapping and crawling the web, with citations.
 
 **Cost:** Free tier (monthly credits), paid plans for higher volume.
 
@@ -847,7 +859,9 @@ Tavily provides a hosted MCP server — no local installation required:
 > "Search for 'DynamoDB single-table design' with advanced search depth, limit to 10 results, and include only stackoverflow.com and aws.amazon.com domains. Extract code examples and explain trade-offs for multi-tenant SaaS."
 <p></p>
 
-## Firecrawl — resilient scraping & deep crawls
+## Firecrawl 
+
+> For resilient web scraping & deep crawls.
 
 **Cost:** Free starter credits; paid plans for higher volume.
 
@@ -908,7 +922,9 @@ Firecrawl provides a hosted MCP server with Fire-engine (their proprietary anti-
 > "Batch scrape these 10 Medium articles about microservices architecture [URL1-URL10]. Extract author name, publication date, key takeaways (3-5 bullets), and any code snippets. Generate a synthesized summary."
 <p></p>
 
-## Sourcegraph — org-wide code search across repos
+## Sourcegraph 
+
+> For efficient, precise, semantic code search across millions of open-source repos, **for free**.
 
 **Cost:** Free for public code on Sourcegraph.com; paid plans or self-hosted required for private/org code.
 
@@ -971,7 +987,7 @@ The community-maintained [divar-ir/sourcegraph-mcp](https://github.com/divar-ir/
         transport = "http"
         ```
 
-#### For private code (optional - advanced)
+#### For private code (optional)
 
 If you need to search private repositories, you have two options:
 
@@ -1017,7 +1033,9 @@ For personal use on a 16GB Mac, stick with the free Sourcegraph.com option inste
 <p></p>
 
 
-## Semgrep MCP *(static analysis & security)*
+## Semgrep MCP 
+
+> For deterministic static code and security analysis.
 
 **Cost:** Community edition free / open source; Teams/Enterprise paid tiers.
 
