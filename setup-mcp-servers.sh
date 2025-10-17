@@ -30,6 +30,8 @@
 #      - Zen MCP (local server, clink only - for cross-CLI orchestration)
 #      - Fetch MCP (local server, HTML to Markdown conversion)
 #      - Qdrant MCP (local server, semantic memory with Docker backend)
+#      - Sourcegraph MCP (local server wrapper for Sourcegraph.com public search)
+#      - Semgrep MCP (local server, static analysis and security scanning)
 #      - Context7 MCP (remote Upstash server, always-fresh API docs)
 #      - Tavily MCP (remote Tavily server, web search/extract/map/crawl)
 #      - Firecrawl MCP (remote Firecrawl server, resilient scraping with Fire-engine)
@@ -75,6 +77,9 @@ done
 
 # --- CONFIG ---
 
+# Parent repo (best if it contains all projects you want to use these agents with)
+PARENT_REPO="$HOME/Code"
+
 # Agent CLIs we support
 AGENTS=("gemini" "claude" "codex")
 
@@ -91,16 +96,22 @@ export QDRANT_PORT=8779
 export QDRANT_URL="http://127.0.0.1:$QDRANT_PORT"
 export QDRANT_COLLECTION_NAME="coding-memory"
 export QDRANT_EMBEDDING_PROVIDER="fastembed"
-export QDRANT_DATA_DIR="$HOME/Code/qdrant-data"
+export QDRANT_DATA_DIR="$PARENT_REPO/qdrant-data"
+
+# Sourcegraph MCP: code search configuration
+export SOURCEGRAPH_ENDPOINT="https://sourcegraph.com"                     # Free public search (no token needed)
+export SOURCEGRAPH_REPO_PATH="$PARENT_REPO/mcp-servers/sourcegraph-mcp"   # Where to clone the MCP server repo to
 
 # Ports for local HTTP servers
 export FS_MCP_PORT=8780
 export ZEN_MCP_PORT=8781
 export FETCH_MCP_PORT=8782
 export QDRANT_MCP_PORT=8783
+export SOURCEGRAPH_MCP_PORT=8784
+export SEMGREP_MCP_PORT=8785
 
 # Directories
-FS_ALLOWED_DIR="${FS_ALLOWED_DIR:-$HOME/Code}"
+FS_ALLOWED_DIR="${FS_ALLOWED_DIR:-$PARENT_REPO}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -478,6 +489,7 @@ log_info "Checking API keys..."
 CONTEXT7_AVAILABLE=false
 TAVILY_AVAILABLE=false
 FIRECRAWL_AVAILABLE=false
+SOURCEGRAPH_AVAILABLE=false
 
 if check_env_var "CONTEXT7_API_KEY" "Context7 MCP will not work. Get a key at https://console.upstash.com/"; then
     CONTEXT7_AVAILABLE=true
@@ -492,6 +504,36 @@ if check_env_var "FIRECRAWL_API_KEY" "Firecrawl MCP will not work. Get a key at 
 fi
 
 log_success "API key check complete."
+
+# Check if Sourcegraph MCP repo is available (must be cloned from GitHub)
+log_info "Checking Sourcegraph MCP availability..."
+if [[ -d "$SOURCEGRAPH_REPO_PATH" ]]; then
+    log_success "Sourcegraph MCP repository found at $SOURCEGRAPH_REPO_PATH"
+    SOURCEGRAPH_AVAILABLE=true
+else
+    log_warning "Sourcegraph MCP repository not found at $SOURCEGRAPH_REPO_PATH"
+    log_info "Cloning Sourcegraph MCP repository..."
+
+    # Create parent directory if it doesn't exist
+    mkdir -p "$(dirname "$SOURCEGRAPH_REPO_PATH")"
+
+    if git clone https://github.com/divar-ir/sourcegraph-mcp "$SOURCEGRAPH_REPO_PATH"; then
+        log_success "Repository cloned successfully"
+        SOURCEGRAPH_AVAILABLE=true
+    else
+        log_error "Failed to clone Sourcegraph MCP repository"
+        SOURCEGRAPH_AVAILABLE=false
+    fi
+fi
+
+if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
+    if (cd "$SOURCEGRAPH_REPO_PATH" && uv sync); then
+        log_success "Dependencies synced successfully"
+    else
+        log_error "Failed to install/sync Sourcegraph dependencies."
+        SOURCEGRAPH_AVAILABLE=false
+    fi
+fi
 
 # ============================================================================
 #   Start central HTTP servers
@@ -525,6 +567,18 @@ start_http_server "Qdrant MCP" "$QDRANT_MCP_PORT" "QDRANT_PID" \
     EMBEDDING_PROVIDER="$QDRANT_EMBEDDING_PROVIDER" \
     uvx mcp-server-qdrant --transport http --port "$QDRANT_MCP_PORT"
 
+# Sourcegraph MCP (wrapper for Sourcegraph.com public search)
+if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
+    start_http_server "Sourcegraph MCP" "$SOURCEGRAPH_MCP_PORT" "SOURCEGRAPH_PID" \
+        env SRC_ENDPOINT="$SOURCEGRAPH_ENDPOINT" \
+        MCP_STREAMABLE_HTTP_PORT="$SOURCEGRAPH_MCP_PORT" \
+        uv --directory "$SOURCEGRAPH_REPO_PATH" run python -m src.main
+fi
+
+# Semgrep MCP (static analysis and security scanning)
+start_http_server "Semgrep MCP" "$SEMGREP_MCP_PORT" "SEMGREP_PID" \
+    uvx semgrep-mcp -t streamable-http --port "$SEMGREP_MCP_PORT"
+
 # ============================================================================
 #   Configure agents to use MCP servers
 # ============================================================================
@@ -533,7 +587,9 @@ start_http_server "Qdrant MCP" "$QDRANT_MCP_PORT" "QDRANT_PID" \
 # - Filesystem MCP (local)
 # - Zen MCP (local, clink)
 # - Fetch MCP (local)
-# - Qdrant MCP (local, semantic memory)
+# - Qdrant MCP (local)
+# - Sourcegraph MCP (local wrapper for Sourcegraph.com)
+# - Semgrep MCP (local,)
 # - Context7 MCP (remote Upstash - for Gemini & Claude only)
 # - Tavily MCP (remote Tavily - all agents)
 # - Firecrawl MCP (remote Firecrawl - all agents)
@@ -548,6 +604,14 @@ setup_http_mcp "fetch" "http://localhost:$FETCH_MCP_PORT/mcp/"
 
 log_info "Configuring agents to use Qdrant MCP (HTTP)..."
 setup_http_mcp "qdrant" "http://localhost:$QDRANT_MCP_PORT/mcp/"
+
+if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
+    log_info "Configuring all agents to use Sourcegraph MCP (HTTP - local wrapper for Sourcegraph.com)..."
+    setup_http_mcp "sourcegraph" "http://localhost:$SOURCEGRAPH_MCP_PORT/sourcegraph/mcp/"
+fi
+
+log_info "Configuring agents to use Semgrep MCP (HTTP)..."
+setup_http_mcp "semgrep" "http://localhost:$SEMGREP_MCP_PORT/mcp/"
 
 if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
     log_info "Configuring Gemini & Claude to use Context7 MCP (HTTP - remote Upstash)..."
@@ -595,6 +659,15 @@ log_info "  • Fetch MCP: http://localhost:$FETCH_MCP_PORT/mcp/ (PID: $FETCH_PI
 log_info "  • Qdrant MCP: http://localhost:$QDRANT_MCP_PORT/mcp/ (PID: $QDRANT_PID)"
 log_info "    └─ Backend: Qdrant Docker container on port $QDRANT_PORT"
 log_info "    └─ Data directory: $QDRANT_DATA_DIR"
+
+if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
+    log_info "  • Sourcegraph MCP: http://localhost:$SOURCEGRAPH_MCP_PORT/sourcegraph/mcp/ (PID: $SOURCEGRAPH_PID)"
+    log_info "    └─ Endpoint: $SOURCEGRAPH_ENDPOINT (free public search)"
+    log_info "    └─ Repository: $SOURCEGRAPH_REPO_PATH"
+fi
+
+log_info "  • Semgrep MCP: http://localhost:$SEMGREP_MCP_PORT/mcp/ (PID: $SEMGREP_PID)"
+log_info "    └─ Static analysis and security scanning (5000+ rules)"
 echo ""
 
 # Only show remote servers section if at least one is configured
@@ -637,6 +710,12 @@ log_info "  • Zen MCP: /tmp/mcp-Zen MCP-server.log"
 log_info "  • Fetch MCP: /tmp/mcp-Fetch MCP-server.log"
 log_info "  • Qdrant MCP: /tmp/mcp-Qdrant MCP-server.log"
 log_info "  • Qdrant Docker: docker logs qdrant"
+
+if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
+    log_info "  • Sourcegraph MCP: /tmp/mcp-Sourcegraph MCP-server.log"
+fi
+
+log_info "  • Semgrep MCP: /tmp/mcp-Semgrep MCP-server.log"
 echo ""
 log_info "To verify setup:"
 log_info "  1. cd into a git repo"
@@ -644,6 +723,9 @@ log_info "  2. Run 'gemini', 'claude', or 'codex'"
 log_info "  3. Type '/mcp' to see available tools"
 echo ""
 log_info "To stop local HTTP servers:"
-log_info "  kill $FS_PID $ZEN_PID $FETCH_PID $QDRANT_PID"
+pidlist="$FS_PID $ZEN_PID $FETCH_PID $QDRANT_PID $SEMGREP_PID"
+[[ "$SOURCEGRAPH_AVAILABLE" == "true" ]] && pidlist+=("$SOURCEGRAPH_PID")
+log_info "  kill ${pidlist[*]}"
+echo ""
 log_info "To stop Qdrant Docker container:"
 log_info "  docker stop qdrant"

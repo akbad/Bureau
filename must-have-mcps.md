@@ -902,6 +902,205 @@ Firecrawl provides a hosted MCP server with Fire-engine (their proprietary anti-
 > "Batch scrape these 10 Medium articles about microservices architecture [URL1-URL10]. Extract author name, publication date, key takeaways (3-5 bullets), and any code snippets. Generate a synthesized summary."
 <p></p>
 
+## Sourcegraph — org-wide code search across repos
+
+**Cost:** Free for public code on Sourcegraph.com; paid plans or self-hosted required for private/org code.
+
+### Why use over local grep/search
+
+- **Cross-repository code search at scale:** Search across hundreds or thousands of repositories simultaneously using Sourcegraph's indexed search, far faster and more comprehensive than local `grep`, `rg`, or file-by-file exploration
+
+- **Advanced query language with structured results:** Leverage RE2 regex, boolean operators (AND/OR with proper precedence), and powerful filters (`repo:`, `file:`, `lang:`, `rev:`) to construct precise queries that return machine-readable, structured results instead of fragile text parsing
+
+- **Evidence gathering before refactors:** Agents can proactively search for all usages of a function, class, or API across your entire codebase to assess impact, identify breaking changes, and generate migration strategies before making edits
+
+- **Semantic code navigation:** Beyond text matching, search for definitions, references, and implementations across repositories, enabling agents to understand call graphs, dependency relationships, and architectural patterns
+
+- **Three complementary tools:** Combines `search` (advanced code queries), `search_prompt_guide` (context-aware query construction help), and content retrieval (fetch file contents and explore directory structures) to orchestrate comprehensive codebase analysis workflows
+
+- **Free access to millions of open-source repos:** Search public code on Sourcegraph.com at no cost — ideal for learning from real-world codebases, finding usage examples, and researching best practices without any setup
+
+### Running the server
+
+The community-maintained [divar-ir/sourcegraph-mcp](https://github.com/divar-ir/sourcegraph-mcp) server provides MCP access to Sourcegraph's code search capabilities. By default, it connects to the free **Sourcegraph.com** public search (no token needed).
+
+#### Via `http` (when using many agents together)
+
+**Recommended for most users — connects to free Sourcegraph.com by default:**
+
+1. Clone and set up the server:
+
+    ```bash
+    git clone https://github.com/divar-ir/sourcegraph-mcp
+    cd sourcegraph-mcp
+    uv sync
+    ```
+
+2. Configure environment variables (add to `.bashrc`/`.zshrc`):
+
+    ```bash
+    # For public code search (Sourcegraph.com) - FREE, no token needed
+    export SRC_ENDPOINT="https://sourcegraph.com"
+
+    # Optional: customize ports if 8080 is already in use
+    export MCP_SSE_PORT=8000
+    export MCP_STREAMABLE_HTTP_PORT=8080
+    ```
+
+3. Start the server (*leave this terminal running*):
+
+    ```bash
+    uv run python -m src.main
+    ```
+
+4. Connect agents:
+
+    - Gemini CLI: `gemini mcp add sourcegraph http --url http://localhost:8080/sourcegraph/mcp/`
+    - Claude Code: `claude mcp add --transport http sourcegraph http://localhost:8080/sourcegraph/mcp/`
+    - Codex CLI: add to `~/.codex/config.toml`:
+
+        ```toml
+        [mcp_servers.sourcegraph]
+        url = "http://localhost:8080/sourcegraph/mcp/"
+        transport = "http"
+        ```
+
+#### For private code (optional - advanced)
+
+If you need to search private repositories, you have two options:
+
+**Option 1: Connect to your organization's Sourcegraph instance**
+
+```bash
+export SRC_ENDPOINT="https://sourcegraph.yourcompany.com"
+export SRC_ACCESS_TOKEN="your-sourcegraph-token"
+```
+
+Then start the server as shown above.
+
+**Option 2: Self-host Sourcegraph (not recommended for personal use)**
+
+- **Minimum requirements:** 8 CPU cores, 20-24GB RAM, SSD storage
+- **M1/M2 Mac limitations:** Not officially supported; requires `--platform linux/amd64` emulation (slower)
+- **Resource impact:** Runs 15+ Docker containers; will consume significant system resources
+- **Recommendation:** Only worthwhile for teams/orgs with substantial infrastructure
+
+For personal use on a 16GB Mac, stick with the free Sourcegraph.com option instead of self-hosting.
+
+### Examples to try
+
+> "Search across all repositories for usages of the `WriteBatch` class. Summarize where it's used and what would break if we changed its return type from `Promise<void>` to `Promise<Result>`."
+<p></p>
+
+> "Find all functions that call `authenticateUser` across the organization's repos. Check if any are missing error handling or timeout logic. Generate a migration plan."
+<p></p>
+
+> "Search for all TypeScript files in repositories matching 'backend-*' that import from '@aws-sdk/client-dynamodb'. Extract the table names being accessed and create a dependency map."
+<p></p>
+
+> "Use the search_prompt_guide tool to help me construct a query for finding all API endpoints that perform database writes without transaction wrappers in our microservices."
+<p></p>
+
+> "Search for regex pattern `context\.Background\(\)` in Go files across all repos. Identify services that aren't using context for cancellation and explain the risks."
+<p></p>
+
+> "Find all occurrences of deprecated method `getUserById` (case-insensitive) across repos, fetch the file contents for each match, and generate refactoring diffs to use `getUserByIdV2` instead."
+<p></p>
+
+> "Search repositories containing 'auth' OR 'identity' for files modified in the last 30 days that mention 'JWT' or 'token'. Summarize recent security-related changes for our audit."
+<p></p>
+
+
+## Semgrep MCP *(static analysis & security)*
+
+**Cost:** Community edition free / open source; Teams/Enterprise paid tiers.
+
+### Why use over manual security reviews
+
+- **Deterministic security scanning in the agent loop:** Fast, reliable static analysis with structured, machine-readable findings that agents can parse and act on — no fragile text parsing of security tool output or post-hoc vulnerability discovery
+
+- **Catch AI-generated code issues before commit:** Enables agents to scan their own code generation immediately, detect security vulnerabilities, hardcoded secrets, and correctness bugs, then iteratively fix and re-scan until clean — bringing AppSec into the "vibe coding" workflow
+
+- **Semantic code understanding across 30+ languages:** Goes beyond regex pattern matching with language-aware analysis that understands syntax, control flow, and data flow — reduces false positives and catches real bugs that simple linters miss
+
+- **5000+ production-tested rules out of the box:** Instant access to community and Semgrep-maintained rules covering OWASP Top 10, CWE categories, secret detection, and language-specific best practices — no need to write security rules from scratch
+
+- **Custom rule authoring for project-specific constraints:** Agents can use `semgrep_scan_with_custom_rule` to enforce organization-specific patterns, banned API usage, or architectural guidelines — making policy-as-code actionable during development
+
+- **Abstract Syntax Tree (AST) introspection:** The `get_abstract_syntax_tree` tool enables agents to understand code structure programmatically, supporting advanced refactoring, migration, and analysis workflows beyond simple security scanning
+
+- **Cloud platform integration for team-wide visibility:** Optional `semgrep_findings` tool (requires Semgrep AppSec Platform) retrieves historical findings, tracks remediation status, and maintains security posture across repositories — useful for agents generating compliance reports or prioritizing fixes
+
+### Running the server
+
+Semgrep MCP server (version 0.9.0 as of October 2025) supports stdio, streamable HTTP, and SSE transports. The official package is `semgrep-mcp` on PyPI, with Docker images at `ghcr.io/semgrep/mcp`.
+
+#### Via `http` (when using many agents together)
+
+Semgrep recommends **streamable HTTP** (not legacy SSE) for shared deployments:
+
+1. Set the port you want the server to use:
+
+    ```bash
+    export SEMGREP_MCP_PORT=8084
+    ```
+
+2. Start the central server (*leave this terminal running*):
+
+    ```bash
+    uvx semgrep-mcp -t streamable-http --port $SEMGREP_MCP_PORT
+    ```
+
+    By default, the server listens at `127.0.0.1:8000/mcp`. Use `--port` to customize.
+
+3. Connect agents:
+
+    - Gemini CLI: `gemini mcp add semgrep http --url http://localhost:$SEMGREP_MCP_PORT/mcp/`
+    - Claude Code: `claude mcp add --transport http semgrep http://localhost:$SEMGREP_MCP_PORT/mcp/`
+    - Codex CLI: add to `~/.codex/config.toml`:
+
+        ```toml
+        [mcp_servers.semgrep]
+        url = "http://localhost:8084/mcp/"
+        transport = "http"
+        ```
+
+#### Via `stdio` (if only using one agent at a time)
+
+The agent client will start and stop the server automatically as needed.
+
+| Agent | Command |
+| :--- | :--- |
+| Gemini CLI | `gemini mcp add semgrep uvx -- semgrep-mcp` |
+| Codex CLI | `codex mcp add semgrep -- uvx semgrep-mcp` |
+| Claude Code | `claude mcp add semgrep -s user -- uvx semgrep-mcp` |
+
+### Examples to try
+
+> "Run a security check on `src/auth/login.py` and list any High or Critical vulnerabilities. For each finding, explain the risk and propose a fix."
+<p></p>
+
+> "Scan all TypeScript files in `backend/api/` for hardcoded secrets, API keys, or credentials. If you find any, suggest environment variable replacements."
+<p></p>
+
+> "Use a custom Semgrep rule to detect all Express.js routes that don't validate input with Zod schemas. Generate the rule, scan the codebase, and propose patches for non-compliant routes."
+<p></p>
+
+> "Get the Abstract Syntax Tree for `util/parser.ts`, identify all functions that throw exceptions, and document their error handling contracts."
+<p></p>
+
+> "Scan the files I just modified (use git diff) with Semgrep's OWASP Top 10 rules. If any Medium+ severity issues are found, fix them and re-scan until the branch is clean before I commit."
+<p></p>
+
+> "Fetch Semgrep findings from the AppSec Platform for the `payments-service` repository. Filter for unresolved Critical issues introduced in the last 7 days and generate a markdown remediation report."
+<p></p>
+
+> "List all programming languages Semgrep supports. Then scan our polyglot monorepo (Go, Python, JavaScript, Rust) and summarize vulnerability counts by language and severity."
+<p></p>
+
+> "Show me the Semgrep rule JSON Schema so I can write a custom rule banning usage of `eval()` and `exec()` in our Python codebase. After you create the rule, scan all `.py` files and report violations."
+<p></p>
+
 
 **Git (choose one implementation)**  
 - **Gemini (Python server via uvx):**  
