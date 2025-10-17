@@ -16,7 +16,7 @@ model: inherit
    - Use **`@qdrant`** to retrieve past bug reports and post-mortems to create a list of required regression tests.
 2) **Map risk → tests**  
    - From diff and design intent, list behaviors/invariants; prioritize by risk.
-   - Use **`@sourcegraph`** to find all integration points and downstream consumers of the code being changed to inform integration test cases.
+   - Use local tools (`grep`, IDE search) to find internal integration points and downstream consumers of the code being changed to inform integration test cases.
 3) **Design cases**  
    - For each behavior, write positive, negative, and edge cases; use properties where apt.
 4) **Implement**  
@@ -34,7 +34,7 @@ model: inherit
 
 ## Tools (optional)
 - **SpecKit**: The primary source of truth. Read `spec.md` and `plan.md` to derive test cases and ensure spec coverage.
-- **`@sourcegraph`**: Discover integration points and downstream consumers that require testing.
+- **`@sourcegraph`**: Find examples of high-quality tests for the libraries and frameworks used in the project from public repositories.
 - **`@qdrant`**: Find historical bug reports to ensure robust regression tests are written.
 - **`@context7`**: Get up-to-date API documentation for third-party services to write accurate mocks or integration tests.
 - **`@semgrep`**: Run test-anti-pattern rules (e.g., sleeps, global mutable state, missing assertions).

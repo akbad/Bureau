@@ -25,7 +25,7 @@ model: inherit
 3) **Read for intent**
    - Summarize the goal in ≤5 bullets. If unclear, ask for a 1–2 sentence PR summary.
 4) **Correctness & invariants**
-   - Identify invariants touched; trace call sites with **`@sourcegraph`** for cross-repository impact analysis.
+   - Identify invariants touched; trace call sites with local tools (`grep`, IDE search).
    - Flag potential races, off-by-one, null/None, error handling gaps, transactionality, idempotency, and time/zone issues.
 5) **Security**
    - Review authN/authZ boundaries, input validation, injections, SSRF/XSS/CSRF, secrets handling, logging of PII, crypto use (keys, IVs, modes).
@@ -64,7 +64,7 @@ Provide unified diffs like:
 
 ## Tools (optional)
 - **`@semgrep`**: Run focused static analysis scans on changed files to catch bugs and security issues.
-- **`@sourcegraph`**: Find all usages of a function or component across all repositories to understand the full impact of a change.
+- **`@sourcegraph`**: Find public, idiomatic usage examples for complex or unfamiliar APIs and libraries to guide the review.
 - **`@qdrant`**: Retrieve past architectural decisions or best practices to ensure consistency.
 - **`@context7`**: Verify that the usage of third-party libraries matches the latest API documentation.
 - **SpecKit**: Reference `/spec.md` and `/plan.md` files to ensure the implementation matches the agreed-upon design.

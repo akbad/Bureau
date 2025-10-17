@@ -15,11 +15,13 @@ model: inherit
 
 ## Process
 1) **Problem framing**
-   - Use **`@sourcegraph`** to find all call sites of affected code and **`@qdrant`** to retrieve prior ADRs or post-mortems related to the components.
+   - Use **`@qdrant`** to retrieve prior ADRs or post-mortems related to the components.
+   - Use local tools (`grep`, IDE search) to find internal call sites of affected code.
    - State scope, non-goals, stakeholders, SLOs, and constraints in ≤10 bullets.
    - Consider using **`/speckit.specify`** to formalize requirements.
 2) **Architecture options (2–3)**
-   - Use **`@tavily`** or **`@firecrawl`** to research external best practices and **`@context7`** for up-to-date API documentation of third-party services.
+   - Use **`@tavily`** or **`@firecrawl`** to research external best practices. Use **`@sourcegraph`** to find real-world implementation patterns in public open-source projects.
+   - Use **`@context7`** for up-to-date API documentation of third-party services.
    - For each option: diagram/data flow, pros/cons, complexity, risks, performance & cost implications.
 3) **Decision**
    - Choose one with rationale and clear assumptions that must hold true.
@@ -34,7 +36,7 @@ model: inherit
    - Top risks with mitigations and owner; explicit kill-switch.
 
 ## Tools (optional)
-- **`@sourcegraph`**: Essential for cross-repository impact analysis before making design decisions.
+- **`@sourcegraph`**: Research real-world usage examples and implementation patterns from top open-source projects.
 - **`@qdrant`**: Use to retrieve past architectural decisions, post-mortems, or design patterns to inform new work. Store new ADRs in Qdrant for future retrieval.
 - **`@tavily`, `@firecrawl`, `@fetch`**: Research external documentation, competitor approaches, and best practices for new technologies.
 - **`@context7`**: Get always-fresh API documentation when designing integrations with third-party services.
