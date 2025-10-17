@@ -13,20 +13,25 @@ model: inherit
 - Error message/stack/logs, failing test or steps, git diff (if any).
 
 ## Process
-1) **Reproduce**  
+1) **Gather Context**
+   - Use **`@qdrant`** to search for post-mortems or ADRs related to the failing component or error message.
+   - If a third-party service is implicated, use **`@context7`** to check for recent API changes or outages.
+2) **Reproduce**  
    - Derive an exact repro command (e.g., `pytest -k ...`, `go test ./pkg -run TestFoo`, `npm test -- -t Foo`).
-2) **Isolate**  
-   - Minimize the failing scope (single test/file); grep for the code path and edge conditions.
-   - Consider concurrency/time/IO sources; check for flaky assumptions.
-3) **Root-cause analysis**  
+3) **Isolate**  
+   - Use **`@git`** log and blame to identify recent changes to the affected code path.
+   - Use **`@sourcegraph`** to trace call sites and understand the full context of the failing code.
+   - Minimize the failing scope (single test/file); consider concurrency/time/IO sources; check for flaky assumptions.
+4) **Root-cause analysis**  
    - Explain causal chain in ≤5 bullets; annotate the specific lines responsible.
-4) **Patch**  
+5) **Patch**  
    - Propose the smallest change that fixes the bug without breaking invariants.
    - Add **regression tests** (positive + negative) and seed/repro notes if nondeterministic.
-5) **Verify**  
+6) **Verify**  
    - Re-run the minimal test set; outline commands and expected output.
-6) **Post-mortem**  
+7) **Post-mortem**  
    - One paragraph: what failed, why now, how to prevent class repeats.
+   - Store the post-mortem in **`@qdrant`** for future reference.
 
 ## Output
 - **Root cause:** concise description + implicated lines.
@@ -35,5 +40,9 @@ model: inherit
 - **Verification:** commands and expected pass signals.
 
 ## Tools (optional)
-- If **Semgrep MCP** exists, run targeted rules for the module after the fix.
-- If **Zen MCP** is present and large context helps (e.g., cross-package flows), you may `clink gemini` to map the flow then return here with a minimal patch.
+- **`@git`**: Use `git log` and `git blame` to find the commit that may have introduced the regression.
+- **`@sourcegraph`**: Trace the execution path and find all call sites for the failing function across the codebase.
+- **`@qdrant`**: Retrieve post-mortems of similar past incidents to identify recurring issues.
+- **`@context7`**: Check for breaking changes in third-party APIs if the failure involves an external service.
+- **`@semgrep`**: Run targeted rules for the module after the fix to ensure the patch doesn't introduce new issues.
+- **`@zen:clink`**: If the bug involves a complex cross-package flow, use `clink gemini` to map the flow before returning to create a minimal patch.

@@ -11,23 +11,31 @@ model: inherit
 - Make tests **deterministic**: control time/seed/environment; avoid sleeps; fake external IO.
 
 ## Process
-1) **Map risk → tests**  
+1) **Understand Requirements**
+   - Read the **SpecKit** `spec.md` and `plan.md` files. The test plan MUST ensure all specified requirements and behaviors are covered.
+   - Use **`@qdrant`** to retrieve past bug reports and post-mortems to create a list of required regression tests.
+2) **Map risk → tests**  
    - From diff and design intent, list behaviors/invariants; prioritize by risk.
-2) **Design cases**  
+   - Use **`@sourcegraph`** to find all integration points and downstream consumers of the code being changed to inform integration test cases.
+3) **Design cases**  
    - For each behavior, write positive, negative, and edge cases; use properties where apt.
-3) **Implement**  
+4) **Implement**  
    - Add tests with clear Arrange/Act/Assert and minimal fixtures.
-4) **Flake hunt**  
+5) **Flake hunt**  
    - If flakes exist, isolate by running narrowed scopes repeatedly; record seed and stabilize.
-5) **Measure**  
+6) **Measure**  
    - Generate focused coverage (module-level); report delta and gaps that matter.
 
 ## Output
-- **Test plan**: behaviors ↔ cases matrix.
+- **Test plan**: behaviors ↔ cases matrix, explicitly linked to spec requirements.
 - **New tests**: diffs.
 - **Flake report**: root cause + stabilization patch.
 - **Coverage delta**: before/after with justification (why remaining gaps are acceptable).
 
 ## Tools (optional)
-- If **Semgrep MCP** exists, run test-anti-pattern rules (e.g., sleeps, global mutable state).
-- If **Zen MCP** is present and you need broad refactors to enable testing, `clink codex` for codemods (mocks, interfaces) then finish here.
+- **SpecKit**: The primary source of truth. Read `spec.md` and `plan.md` to derive test cases and ensure spec coverage.
+- **`@sourcegraph`**: Discover integration points and downstream consumers that require testing.
+- **`@qdrant`**: Find historical bug reports to ensure robust regression tests are written.
+- **`@context7`**: Get up-to-date API documentation for third-party services to write accurate mocks or integration tests.
+- **`@semgrep`**: Run test-anti-pattern rules (e.g., sleeps, global mutable state, missing assertions).
+- **`@zen:clink`**: If the code is difficult to test, use `clink codex` to perform refactors (e.g., extracting interfaces, adding dependency injection) to improve testability.

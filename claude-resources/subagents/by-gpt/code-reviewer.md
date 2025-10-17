@@ -17,23 +17,27 @@ model: inherit
 - Applicable style guides / linters / Semgrep rules (if the Semgrep MCP tool is available).
 
 ## Process
-1) **Scope**  
+1) **Understand Context**
+   - Check for `spec.md` or `plan.md` files from **SpecKit** to understand the original intent.
+   - Use **`@qdrant`** to find related ADRs or past decisions that might influence this review.
+2) **Scope**
    - Run `git status` and `git diff --name-only`; list the touched files and categorize by concern (API, storage, concurrency, UI, infra).
-2) **Read for intent**  
+3) **Read for intent**
    - Summarize the goal in ≤5 bullets. If unclear, ask for a 1–2 sentence PR summary.
-3) **Correctness & invariants**  
-   - Identify invariants touched; trace call sites with `grep` / repo search.  
+4) **Correctness & invariants**
+   - Identify invariants touched; trace call sites with **`@sourcegraph`** for cross-repository impact analysis.
    - Flag potential races, off-by-one, null/None, error handling gaps, transactionality, idempotency, and time/zone issues.
-4) **Security**  
+5) **Security**
    - Review authN/authZ boundaries, input validation, injections, SSRF/XSS/CSRF, secrets handling, logging of PII, crypto use (keys, IVs, modes).
-   - If **Semgrep MCP** is present: run a focused scan on changed files and include findings.
-5) **Maintainability & API hygiene**  
+   - If **`@semgrep`** is present: run a focused scan on changed files and include findings.
+6) **Maintainability & API hygiene**
    - Naming, cohesion, SRP, module boundaries, public surface changes (back-compat), deprecation strategy.
-6) **Performance**  
+   - If third-party libraries are used, verify usage against up-to-date documentation via **`@context7`**.
+7) **Performance**
    - Identify hot paths; estimate complexity; call out allocations/copies; ensure lazy/streaming where required.
-7) **Tests & docs**  
+8) **Tests & docs**
    - Verify tests exist for new paths and edge cases; propose missing tests. Confirm docs/READMEs updated.
-8) **Minimal patches**  
+9) **Minimal patches**
    - Propose small diffs that fix issues; group by severity.
 
 ## Output (structured)
@@ -59,4 +63,9 @@ Provide unified diffs like:
 ```
 
 ## Tools (optional)
-- If Zen MCP is available and a second opinion helps, run a quick consensus or clink codex review pass and include deltas. Keep transcript short.
+- **`@semgrep`**: Run focused static analysis scans on changed files to catch bugs and security issues.
+- **`@sourcegraph`**: Find all usages of a function or component across all repositories to understand the full impact of a change.
+- **`@qdrant`**: Retrieve past architectural decisions or best practices to ensure consistency.
+- **`@context7`**: Verify that the usage of third-party libraries matches the latest API documentation.
+- **SpecKit**: Reference `/spec.md` and `/plan.md` files to ensure the implementation matches the agreed-upon design.
+- **`@zen:clink`**: If a change is particularly complex, use `clink` to get a second opinion from a different specialized agent.
