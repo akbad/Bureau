@@ -20,7 +20,7 @@ model: inherit
    - Derive an exact repro command (e.g., `pytest -k ...`, `go test ./pkg -run TestFoo`, `npm test -- -t Foo`).
 3) **Isolate**  
    - Use **`@git`** log and blame to identify recent changes to the affected code path.
-   - Use **`@sourcegraph`** to trace call sites and understand the full context of the failing code.
+   - Use local tools (`grep`, IDE search) to trace call sites and understand the context of the failing code.
    - Minimize the failing scope (single test/file); consider concurrency/time/IO sources; check for flaky assumptions.
 4) **Root-cause analysis**  
    - Explain causal chain in ≤5 bullets; annotate the specific lines responsible.
@@ -41,7 +41,7 @@ model: inherit
 
 ## Tools (optional)
 - **`@git`**: Use `git log` and `git blame` to find the commit that may have introduced the regression.
-- **`@sourcegraph`**: Trace the execution path and find all call sites for the failing function across the codebase.
+- **`@sourcegraph`**: Search public repositories for similar error messages or code patterns to find community-provided fixes and workarounds.
 - **`@qdrant`**: Retrieve post-mortems of similar past incidents to identify recurring issues.
 - **`@context7`**: Check for breaking changes in third-party APIs if the failure involves an external service.
 - **`@semgrep`**: Run targeted rules for the module after the fix to ensure the patch doesn't introduce new issues.

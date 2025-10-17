@@ -473,35 +473,11 @@ When you want:
 
 ### Running the server
 
-#### Via `http` (when using many agents together)
+**Note:** The official Filesystem MCP server **only supports stdio transport**. Unlike other MCP servers, it does not have HTTP or SSE capabilities. Each agent must run its own instance.
 
-1. Set the port you want the server to use (best if in `.bashrc`/`.zshrc`):
+#### Via `stdio` (per-agent)
 
-    ```bash
-    export FS_MCP_PORT=8081
-    ```
-
-2. Start the central server:
-
-    ```bash
-    npx -y @modelcontextprotocol/server-filesystem --port $FS_MCP_PORT [your-allowed-directory]
-    ```
-
-3. Connect agents:
-
-    - Gemini CLI: `gemini mcp add fs http --url http://localhost:8081/mcp/`
-    - Claude Code: `claude mcp add --transport http fs http://localhost:8081/mcp/`
-    - Codex CLI: add to `~/.codex/config.toml`:
-
-        ```toml
-        [mcp_servers.fs]
-        url = "http://localhost:8081/mcp/"
-        transport = "http"
-        ``` 
-
-#### Via `stdio` (if only using one agent at a time)
-
-The agent client will start and stop the server automatically as needed.
+The agent client will start and stop the server automatically as needed when you launch/exit the agent.
 
 | Agent | Command |
 | :--- | :--- |
@@ -628,45 +604,17 @@ The agent client will start and stop the server automatically as needed.
 
 ### Running the server
 
-#### Via `http` (when using many agents together)
+**Note:** The official Fetch MCP server **only supports stdio transport**. Unlike some other MCP servers, it does not have HTTP or SSE capabilities. Each agent must run its own instance.
 
-1. Set the port you want the server to use:
+#### Via `stdio` (per-agent)
 
-    ```bash
-    export FETCH_MCP_PORT=8083
-    ```
-
-2. Start the central server:
-
-    ```bash
-    npx -y @modelcontextprotocol/server-fetch --port $FETCH_MCP_PORT
-    ```
-
-3. Connect agents:
-
-    - Gemini CLI: `gemini mcp add fetch http --url http://localhost:8083/mcp/`
-    - Claude Code: `claude mcp add --transport http fetch http://localhost:8083/mcp/`
-    - Codex CLI: add to `~/.codex/config.toml`:
-
-        ```toml
-        [mcp_servers.fetch]
-        url = "http://localhost:8083/mcp/"
-        transport = "http"
-        ```
-
-#### Via `stdio` (if only using one agent at a time)
-
-The agent client will start and stop the server automatically as needed.
+The agent client will start and stop the server automatically as needed when you launch/exit the agent.
 
 | Agent | Command |
 | :--- | :--- |
-| Gemini CLI | `gemini mcp add fetch npx -- -y @modelcontextprotocol/server-fetch` |
-| Codex CLI | `codex mcp add fetch -- npx -y @modelcontextprotocol/server-fetch` |
-| Claude Code | `claude mcp add fetch -s user -- npx -y @modelcontextprotocol/server-fetch` |
-
-**Alternative (Python):** You can also use the Python implementation:
-- `gemini mcp add fetch uvx -- mcp-server-fetch`
-- `claude mcp add fetch -s user -- uvx mcp-server-fetch`
+| Gemini CLI | `gemini mcp add fetch uvx -- mcp-server-fetch` |
+| Codex CLI | `codex mcp add fetch -- uvx mcp-server-fetch` |
+| Claude Code | `claude mcp add fetch -s user -- uvx mcp-server-fetch` |
 
 ### Examples to try
 

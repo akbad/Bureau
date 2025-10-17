@@ -16,7 +16,7 @@ model: inherit
 2) **Define SLOs & workload**  
    - Clarify p50/p95 targets, QPS, data sizes; capture a reproducible workload.
 3) **Locate hotspots**  
-   - Use **`@sourcegraph`** to trace call graphs and identify all usages of potentially slow functions.
+   - Use local tools (`grep`, IDE search, profilers) to trace call graphs and identify potentially slow functions.
    - Static pass for obvious issues (N^2 loops, sync IO in hot paths, excessive data copying).
    - Sketch a tracing plan; if local tools exist (bench harness, perf, pprof), outline usage.
 4) **Hypotheses & experiments**  
@@ -34,7 +34,7 @@ model: inherit
 - **Rollback plan** if regressions appear in prod.
 
 ## Tools (optional)
-- **`@sourcegraph`**: Trace hot paths and find all call sites of a slow function across multiple repositories.
+- **`@sourcegraph`**: Research how high-performance open-source projects implement or optimize similar features.
 - **`@qdrant`**: Retrieve historical performance metrics and past optimization reports to inform new investigations.
 - **`@tavily`, `@firecrawl`, `@fetch`**: Research more performant algorithms, data structures, or library usage patterns.
 - **`@context7`**: Check for performance-related API features like batching or pagination in third-party service documentation.
