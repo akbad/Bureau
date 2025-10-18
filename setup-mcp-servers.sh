@@ -480,6 +480,48 @@ check_env_var() {
     return 0
 }
 
+# Check if Rancher Desktop is running and start it if needed
+ensure_rancher_running() {
+    # Check if Docker daemon is already running
+    if docker info &> /dev/null; then
+        log_success "Docker daemon is already running"
+        return 0
+    fi
+
+    # Check if rdctl is available
+    if ! command -v rdctl &> /dev/null; then
+        log_warning "rdctl not found. Cannot auto-start Rancher Desktop."
+        log_info "Please ensure Rancher Desktop is running manually."
+        return 1
+    fi
+
+    # Rancher/Docker is not running, attempt to start it
+    log_info "Docker daemon is not running. Starting Rancher Desktop..."
+
+    if rdctl start; then
+        log_info "Waiting for Docker daemon to become ready..."
+        local elapsed=0
+
+        while [ $elapsed -lt $RANCHER_TIMEOUT ]; do
+            sleep 3
+            elapsed=$((elapsed + 3))
+
+            # Check if Docker daemon is responsive
+            if docker info &> /dev/null; then
+                log_success "Docker daemon is ready after ${elapsed}s"
+                return 0
+            fi
+        done
+
+        log_error "Docker daemon did not become ready within ${RANCHER_TIMEOUT}s"
+        log_info "You may need to wait a bit longer and run the script again."
+        return 1
+    else
+        log_error "Failed to start Rancher Desktop"
+        return 1
+    fi
+}
+
 # Install or update a Python package from git using uv tool
 install_or_update_pip_pkg_from_git() {
     local git_url=$1
@@ -582,6 +624,9 @@ start_http_server "Zen MCP" "$ZEN_MCP_PORT" "ZEN_PID" \
     env DISABLED_TOOLS="$ZEN_CLINK_DISABLED_TOOLS" ZEN_MCP_PORT="$ZEN_MCP_PORT" \
     uvx --from git+https://github.com/BeehiveInnovations/zen-mcp-server.git \
     python3 "$SCRIPT_DIR/start-zen-http.py"
+
+log_info "Ensuring Rancher Desktop is running..."
+ensure_rancher_running
 
 # Qdrant (Docker container for semantic memory backend)
 log_info "Starting Qdrant Docker container..."
