@@ -1007,25 +1007,35 @@ For personal use on a 16GB Mac, stick with the free Sourcegraph.com option inste
 
 Semgrep MCP server (version 0.9.0 as of October 2025) supports stdio, streamable HTTP, and SSE transports. The official package is `semgrep-mcp` on PyPI, with Docker images at `ghcr.io/semgrep/mcp`.
 
+**Follow [these steps for installing Semgrep via `homebrew` and using it to launch the Semgrep MCP](https://github.com/semgrep/semgrep/tree/develop/cli/src/semgrep/mcp#usage)**
+
+> These steps use the free, open-source Community Edition (Semgrep CE)
+
 #### Via `http` (when using many agents together)
 
 Semgrep recommends **streamable HTTP** (not legacy SSE) for shared deployments:
 
-1. Set the port you want the server to use:
+1. Install the Semgrep binary via homebrew:
+
+    ```bash
+    brew install semgrep
+    ```
+
+3. Set the port you want the server to use:
 
     ```bash
     export SEMGREP_MCP_PORT=8084
     ```
 
-2. Start the central server (*leave this terminal running*):
+4. Start the central server (*leave this terminal running*):
 
     ```bash
-    uvx semgrep-mcp -t streamable-http --port $SEMGREP_MCP_PORT
+    semgrep mcp -t streamable-http --port $SEMGREP_MCP_PORT
     ```
 
     By default, the server listens at `127.0.0.1:8000/mcp`. Use `--port` to customize.
 
-3. Connect agents:
+5. Connect agents:
 
     - Gemini CLI: `gemini mcp add semgrep http --url http://localhost:$SEMGREP_MCP_PORT/mcp/`
     - Claude Code: `claude mcp add --transport http semgrep http://localhost:$SEMGREP_MCP_PORT/mcp/`
