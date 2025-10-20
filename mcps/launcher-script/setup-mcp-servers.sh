@@ -246,32 +246,60 @@ start_http_server() {
     else
         log_info "Starting $server_name on port $port..."
         log_info "  → launch command: ${start_cmd[*]}"
+
+        # Start tail first (waits for file creation)
+        tail -f "$log_file" 2>/dev/null &
+        local tail_pid=$!
+
+        # Start server with output to log file (nohup ensures survival after terminal closes)
         nohup "${start_cmd[@]}" > "$log_file" 2>&1 &
         pid=$!
 
-        # Poll for port to become available (check every second, up to DEFAULT_TIMEOUT seconds)
+        # Poll for port availability, process death, or timeout
+        local status=""
         while [ $elapsed -lt $DEFAULT_TIMEOUT ]; do
             sleep 1
             elapsed=$((elapsed + 1))
 
+            # Check if process died
+            if ! kill -0 "$pid" 2>/dev/null; then
+                status="died"
+                break
+            fi
+
+            # Check if port is available (success!)
             if check_port "$port"; then
-                log_success "$server_name started (PID: $pid) after ${elapsed}s"
-                eval "$pid_var=$pid"
-                return 0
+                status="success"
+                break
             fi
         done
 
-        # If we get here, server didn't start within DEFAULT_TIMEOUT seconds
-        log_error "Failed to start $server_name within ${DEFAULT_TIMEOUT}s."
-        echo ""
-        log_error "Log file with output from failed server startup saved at this location:"
-        log_error "$log_file"
-        echo ""
-        log_error "Log file contents:"
-        log_separator
-        cat "$log_file" 2>/dev/null || echo "(log file not found or empty)"
-        log_separator
-        exit 1
+        # Stop showing output
+        kill "$tail_pid" 2>/dev/null
+
+        # Wait for the process to be fully killed, while ignoring exit code (returns 143 after being killed)
+        wait "$tail_pid" 2>/dev/null || true 
+
+        # Handle outcome
+        case "$status" in
+            success)
+                log_success "$server_name started (PID: $pid) after ${elapsed}s"
+                eval "$pid_var=$pid"
+                return 0
+                ;;
+            died)
+                log_error "$server_name process died during startup (PID: $pid)"
+                echo ""
+                log_error "Log file saved at: $log_file"
+                exit 1
+                ;;
+            *)  # timeout - process still alive but port not open
+                log_error "$server_name did not open port $port within ${DEFAULT_TIMEOUT}s (process still running)"
+                echo ""
+                log_error "Log file saved at: $log_file"
+                exit 1
+                ;;
+        esac
     fi
 }
 
