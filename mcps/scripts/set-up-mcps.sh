@@ -31,6 +31,7 @@
 #      - Qdrant MCP (local server, semantic memory with Docker backend)
 #      - Sourcegraph MCP (local server wrapper for Sourcegraph.com public search)
 #      - Semgrep MCP (local server, static analysis and security scanning)
+#      - Serena MCP (local server, semantic code analysis and editing with LSP)
 #      - Context7 MCP (remote Upstash server, always-fresh API docs)
 #      - Tavily MCP (remote Tavily server, web search/extract/map/crawl)
 #      - Firecrawl MCP (remote Firecrawl server, web scraping and crawling)
@@ -112,11 +113,15 @@ export QDRANT_DATA_DIR="$PARENT_REPO/qdrant-data"
 export SOURCEGRAPH_ENDPOINT="https://sourcegraph.com"                     # Free public search (no token needed)
 export SOURCEGRAPH_REPO_PATH="$PARENT_REPO/mcp-servers/sourcegraph-mcp"   # Where to clone the MCP server repo to
 
+# Serena MCP: semantic code analysis and editing
+export SERENA_REPO_PATH="$PARENT_REPO/mcp-servers/serena"   # Where to clone the Serena repo to
+
 # Ports for local HTTP servers
 export ZEN_MCP_PORT=8781
 export QDRANT_MCP_PORT=8782
 export SOURCEGRAPH_MCP_PORT=8783
 export SEMGREP_MCP_PORT=8784
+export SERENA_MCP_PORT=8785
 
 # Directories
 FS_ALLOWED_DIR="${FS_ALLOWED_DIR:-$PARENT_REPO}"
@@ -572,6 +577,42 @@ install_or_update_pip_pkg_from_git() {
     fi
 }
 
+# Ensure a git repository is cloned to a target path
+ensure_git_repo_cloned() {
+    local repo_name=$1
+    local repo_url=$2
+    local target_path=$3
+    local branch=${4:-""}  # Optional branch parameter
+
+    log_info "Checking $repo_name availability..."
+
+    if [[ -d "$target_path" ]]; then
+        log_success "$repo_name repository found at $target_path"
+        return 0
+    fi
+
+    log_warning "$repo_name repository not found at $target_path"
+    log_info "Cloning $repo_name repository..."
+
+    # Create parent directory if it doesn't exist
+    mkdir -p "$(dirname "$target_path")"
+
+    # Build git clone command with optional branch
+    local clone_cmd=(git clone)
+    if [[ -n "$branch" ]]; then
+        clone_cmd+=(-b "$branch")
+    fi
+    clone_cmd+=("$repo_url" "$target_path")
+
+    if "${clone_cmd[@]}"; then
+        log_success "Repository cloned successfully"
+        return 0
+    else
+        log_error "Failed to clone $repo_name repository"
+        return 1
+    fi
+}
+
 # --- CHECK DEPENDENCIES ---
 
 log_info "Checking dependencies..."
@@ -617,24 +658,9 @@ fi
 log_success "API key check complete."
 
 # Check if Sourcegraph MCP repo is available (must be cloned from GitHub)
-log_info "Checking Sourcegraph MCP availability..."
-if [[ -d "$SOURCEGRAPH_REPO_PATH" ]]; then
-    log_success "Sourcegraph MCP repository found at $SOURCEGRAPH_REPO_PATH"
+SOURCEGRAPH_AVAILABLE=false
+if ensure_git_repo_cloned "Sourcegraph MCP" "https://github.com/akbad/sourcegraph-mcp.git" "$SOURCEGRAPH_REPO_PATH" "fix/server-startup"; then
     SOURCEGRAPH_AVAILABLE=true
-else
-    log_warning "Sourcegraph MCP repository not found at $SOURCEGRAPH_REPO_PATH"
-    log_info "Cloning Sourcegraph MCP repository..."
-
-    # Create parent directory if it doesn't exist
-    mkdir -p "$(dirname "$SOURCEGRAPH_REPO_PATH")"
-
-    if git clone -b fix/server-startup https://github.com/akbad/sourcegraph-mcp.git "$SOURCEGRAPH_REPO_PATH"; then
-        log_success "Repository cloned successfully"
-        SOURCEGRAPH_AVAILABLE=true
-    else
-        log_error "Failed to clone Sourcegraph MCP repository"
-        SOURCEGRAPH_AVAILABLE=false
-    fi
 fi
 
 if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
@@ -645,6 +671,12 @@ if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
         log_error "Failed to install/sync Sourcegraph dependencies."
         SOURCEGRAPH_AVAILABLE=false
     fi
+fi
+
+# Check if Serena repo is available (must be cloned from GitHub)
+SERENA_AVAILABLE=false
+if ensure_git_repo_cloned "Serena" "https://github.com/oraios/serena" "$SERENA_REPO_PATH"; then
+    SERENA_AVAILABLE=true
 fi
 
 # ============================================================================
@@ -686,6 +718,12 @@ fi
 start_http_server "Semgrep MCP" "$SEMGREP_MCP_PORT" "SEMGREP_PID" \
     semgrep mcp -t streamable-http --port "$SEMGREP_MCP_PORT"
 
+# Serena MCP (semantic code analysis and editing)
+if [[ "$SERENA_AVAILABLE" == true ]]; then
+    start_http_server "Serena MCP" "$SERENA_MCP_PORT" "SERENA_PID" \
+        uv run --directory "$SERENA_REPO_PATH" serena start-mcp-server --transport streamable-http --port "$SERENA_MCP_PORT"
+fi
+
 # ============================================================================
 #   Configure agents to use MCP servers
 # ============================================================================
@@ -695,6 +733,7 @@ start_http_server "Semgrep MCP" "$SEMGREP_MCP_PORT" "SEMGREP_PID" \
 # - Qdrant MCP (local)
 # - Sourcegraph MCP (local wrapper for Sourcegraph.com)
 # - Semgrep MCP (local)
+# - Serena MCP (local, semantic code analysis and editing)
 # - Context7 MCP (remote Upstash - for Gemini & Claude only)
 # - Tavily MCP (remote Tavily - all agents)
 # - Firecrawl MCP (remote Firecrawl - Claude & Codex)
@@ -715,6 +754,12 @@ fi
 log_separator
 log_info "Configuring agents to use Semgrep MCP (HTTP)..."
 setup_http_mcp "semgrep" "http://localhost:$SEMGREP_MCP_PORT/mcp/"
+
+if [[ "$SERENA_AVAILABLE" == true ]]; then
+    log_separator
+    log_info "Configuring all agents to use Serena MCP (HTTP - local semantic code analysis)..."
+    setup_http_mcp "serena" "http://localhost:$SERENA_MCP_PORT/mcp/"
+fi
 
 if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
     log_separator
@@ -805,6 +850,13 @@ fi
 
 log_info "  • Semgrep MCP: http://localhost:$SEMGREP_MCP_PORT/mcp/ (PID: $SEMGREP_PID)"
 log_info "    └─ Static analysis and security scanning (5000+ rules)"
+
+if [[ "$SERENA_AVAILABLE" == true ]]; then
+    log_info "  • Serena MCP: http://localhost:$SERENA_MCP_PORT/mcp/ (PID: $SERENA_PID)"
+    log_info "    └─ Semantic code analysis and editing with LSP integration"
+    log_info "    └─ Repository: $SERENA_REPO_PATH"
+fi
+
 log_empty_line
 
 # Only show remote servers section if at least one is configured
@@ -866,6 +918,11 @@ if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
 fi
 
 log_info "  • Semgrep MCP: /tmp/mcp-Semgrep MCP-server.log"
+
+if [[ "$SERENA_AVAILABLE" == true ]]; then
+    log_info "  • Serena MCP: /tmp/mcp-Serena MCP-server.log"
+fi
+
 log_empty_line
 log_info "To verify setup:"
 log_info "  1. cd into a git repo"
@@ -877,6 +934,7 @@ log_info "To stop local HTTP servers:"
 pidlist="$ZEN_PID $SEMGREP_PID"
 [[ "$QDRANT_AVAILABLE" == "true" ]] && pidlist+=" $QDRANT_PID"
 [[ "$SOURCEGRAPH_AVAILABLE" == "true" ]] && pidlist+=" $SOURCEGRAPH_PID"
+[[ "$SERENA_AVAILABLE" == "true" ]] && pidlist+=" $SERENA_PID"
 KILL_HTTPS_CMD="kill ${pidlist}"
 log_info "  $KILL_HTTPS_CMD"
 TAKE_DOWN_FILE="take_down_mcps.sh"

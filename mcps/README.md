@@ -9,11 +9,11 @@ And other useful background stuff.
 
 > **Side effects:**
 > 
-> - Uses ports **8780-8784** for the servers/containers it starts.
+> - Uses ports **8780-8785** for the servers/containers it starts.
 >     
 >     - Pulls Qdrant DB Docker image and starts a container (to back the local Qdrant MCP)
 >
-> - Clones the Sourcegraph MCP repo locally so that it can be used to launch the server.
+> - Clones the Sourcegraph MCP and Serena repos locally so that they can be used to launch servers.
 
 ### Tools set up by the script
 
