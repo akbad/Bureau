@@ -33,7 +33,8 @@ A few of these servers have redundant/duplicate roles. This is on purpose so we 
 
 | Server | Functionality | How it's run/talked to by agents | Restrictions |
 | :----- | :------------ | :------------ | :----------- |
-| **Qdrant MCP** | *semantic memory* layer: allows agent to save things it learns/produces (code snippets, notes, links) and later retrieve them by searching *semantically* (i.e. not just by keyword); uses FastEmbed models w/ HNSW index for search | HTTP with locally-running server, backed by *Qdrant DB instance running in a local Docker container* | 
+| **Qdrant MCP** | *semantic memory* layer: allows agent to save things it learns/produces (code snippets, notes, links) and later retrieve them by searching *semantically* (i.e. not just by keyword); uses FastEmbed models w/ HNSW index for search | HTTP with locally-running server, backed by *Qdrant DB instance running in a local Docker container* | None |
+| **Memory MCP** | *structured memory* layer (knowledge graph): stores entities, relations, and observations to track *relationships* between concepts and maintain context across sessions; complements Qdrant's semantic search with explicit relationship tracking | Stdio with private client-managed instances | None (completely free, local JSONL storage) | 
 
 
 ### Other MCP servers
