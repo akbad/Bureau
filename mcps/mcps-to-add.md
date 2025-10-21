@@ -52,33 +52,6 @@
 
 
 
-## Serena MCP
-
-**Package**: `serena`
-
-**Purpose**: Language-server-powered semantic code navigation, refactoring, and editing tools for coding agents
-
-**Why add it**:
-
-- Gives agents IDE-grade symbol search (`find_symbol`, `find_referencing_symbols`) and structural edits (`insert_after_symbol`, `rename_symbol`)
-- Complements Filesystem/Git MCP by working at the semantic level instead of whole-file reads
-- Free and open-source with broad language support via LSP adapters
-- Integrates smoothly with Claude Code, Codex, Gemini CLI, Cursor, Cline, and other MCP-aware clients
-
-**How it's run**: Typically via `uvx --from git+https://github.com/oraios/serena serena start-mcp-server` (stdio transport by default; Streamable HTTP optional)
-
-**Free tier**: Completely free (runs locally; downloads language servers as needed)
-
-**Install**: `uvx --from git+https://github.com/oraios/serena serena start-mcp-server --context ide-assistant --project "$(pwd)"`
-
-**Use cases**:
-
-- Accelerate large codebase navigation and refactors with language-aware tooling
-- Offload onboarding/indexing and project memories to augment multi-session workflows
-- Provide consistent semantic editing capabilities across different LLM clients
-
-
-
 ## OpenAPI MCP server
 
 **Package**: `@janwilmake/openapi-mcp-server`
