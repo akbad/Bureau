@@ -1,17 +1,29 @@
 # Tools set up by `set-up-mcps.sh` & how to use them
 
-## Tool list
+- **List:**
 
-### MCP servers
+    - [**MCP servers**](#mcp-servers)
+    - [**Non-MCP tools**](#non-mcp-tools)
 
-| Server/tool | Functionality | How it's run/talked to by agents | Restrictions |
+- [**How to use each tool**](#how-to-use-each-tool-eg-in-prompts)
+
+---
+
+## MCP servers
+
+### MCP servers for browsing/researching/fetching stuff from the internet
+
+A few of these servers have redundant/duplicate roles. This is on purpose so we have fallback choices in case we hit rate limits.
+
+| Server | Functionality | How it's run/talked to by agents | Restrictions |
 | :----- | :------------ | :------------ | :----------- |
-| **Zen MCP *(`clink` only)*** | multi-model orchestration; CLI-to-CLI bridge (“clink”); spawn sub-agents; context threading across tools/CLIs | HTTP with locally-run server | None |
-| **Fetch MCP** | fetch HTTP/HTTPS URLs; HTML→Markdown; optional raw HTML; chunk reading via start_index; custom UA/robots handling | Stdio with private client-managed instance | None |
-| **Firecrawl MCP** | crawl/scrape/extract; search; map sites; batch/deep research | **Claude & Codex**: HTTP using Firecrawl's remote server; **Gemini CLI**: stdio with local proxy that talks to Firecrawl's remote server |
-| **Context7 MCP** | pull up-to-date, version-specific code docs & examples into prompts; works with Cursor/Claude/VS Code | Free tier used: only allows accessing *public* repos
+| **Fetch MCP** | fetch HTTP/HTTPS URLs; turns HTML into Markdown for faster/more accurate processing by LLMs (optional raw HTML); chunk reading via start_index; custom UA/robots handling | Stdio with private client-managed instance | None |
+| **Firecrawl MCP** | crawl/scrape/extract/map websites; "better" web search; batching & deep research | **Claude & Codex**: HTTP using Firecrawl's cloud-hosted server; **Gemini**: stdio with local proxy that talks to Firecrawl's cloud server | [Free plan](https://www.firecrawl.dev/pricing) used, limits are 10 `/scrape` calls/min, 1 `/crawl` call/min, each uses 1 credit. **Looks like you need to make a new account/API key after 500 total scrapes/crawls** |
+| **Context7 MCP** | pull up-to-date, version-specific API/code docs & examples into prompts | **Claude & Gemini**: HTTP using Context7's cloud-hosted server; **Codex**: stdio with local proxy that talks to Context7's cloud server | Free tier used: **only allows accessing *public* repos** | 
+| **Sourcegraph MCP** | Basically **“Google for code”**: lets your agent search across repos (and branches) using powerful filters (regex, language, and file-path), then open the matching files/line ranges to pull the exact code snippets you're looking for. Also includes **guided search prompts**, so the agent can turn a natural request (e.g., “find all places we construct HttpClient with a 5s timeout”) into precise queries and iterate until it finds what you need. | Free tier used: search covers **public repos only**; covering private/org repos requires paid plans | HTTP with locally-run server (that talks to [Sourcegraph Public Code Search](https://sourcegraph.com/search)) |
+| **Tavily MCP** | Handles searching, extracting, mapping and crawling the web, with citations | HTTP with Tavily's cloud-hosted server | Free version used: gives 1000 API credits/month (resets on 1st of month); *[click to see amount of credits used for each request type](https://docs.tavily.com/documentation/api-credits#api-credits-costs)* | 
 
-> Note: **the *Fetch* MCP does not support fetching from the GitHub website** (e.g. to look up API-/code-related info about public repos) 
+> Important: **the *Fetch* MCP does not support fetching from the GitHub website** (e.g. to look up API-/code-related info about public repos) 
 > 
 > Instead, tell the agent to use one of these solutions, depending on what you need from GitHub: 
 > 
@@ -19,6 +31,58 @@
 > 2. Use Sourcegraph MCP
 > 3. Clone repos locally and use Git MCP to go through them**
 
-### Non-MCP tools
+### MCP memory servers
+
+| Server | Functionality | How it's run/talked to by agents | Restrictions |
+| :----- | :------------ | :------------ | :----------- |
+| **Qdrant MCP** | *semantic memory* layer: allows agent to save things it learns/produces (code snippets, notes, links) and later retrieve them by searching *semantically* (i.e. not just by keyword); uses FastEmbed models w/ HNSW index for search | HTTP with locally-running server, backed by *Qdrant DB instance running in a local Docker container* | 
+
+
+### Other MCP servers
+
+| Server | Functionality | How it's run/talked to by agents | Restrictions |
+| :----- | :------------ | :------------ | :----------- |
+| **Zen MCP *(`clink` only)*** | multi-model orchestration; CLI-to-CLI bridge (“clink”); spawn sub-agents; context threading across tools/CLIs | HTTP with locally-run server | None |
+| **Filesystem MCP** | read/write/edit files; create/list/delete/move; metadata; secure roots/allowlist & path validation | stdio with private client-managed instances | None |
+| **Git MCP** | handles basically all Git operations (git status/diff/log; add/commit/reset; branch/checkout/show; targeted compare) | stdio with private client-managed instances (**parent agent must be run at the root dir of the Git repo**) | None |
+| **Semgrep MCP** | lets your agent **(1)** scan source code locally (no code leaves your machine) using AST-aware, pattern-based rules to *catch security issues, bugs, and risky anti-patterns across many languages* **(2)** run targeted scans (a file, dir, or diff) or full-repo checks **(3)** choose rulesets (built-in or custom YAML rules you write in code-like patterns) **(4)** get structured findings back, by file/line, rule ID, severity, message, code snippet **(5)** autofix suggestions when a rule defines a fix | HTTP with locally-running instance of *Semgrep's free "community edition" server* | Free "community edition" used: see *[full list of Semgrep community edition features](https://semgrep.dev/docs/semgrep-pro-vs-oss)* |
+
+## Non-MCP tools
+
+| Tool | Type | Functionality |
+| :--- | :--- | :------------ |
+| **[GitHub SpecKit](https://github.github.io/spec-kit/) *(amazing, your agents will never hallucinate or get distracted again)*** | Command-line tool | Enables **Spec-Driven Development** via `specify` CLI, which allows making detailed constitution/spec/plan/tasks for each project; agent-agnostic templates (Copilot/Claude/Gemini) |
+
+> There's a bit of a learning curve for getting to use GitHub SpecKit, but it's definitely worth it
 
 ## How to use each tool (e.g. in prompts)
+
+### Sourcegraph MCP
+
+- Free tier used; thus searching covers **public repos only** (via Sourcegraph's [Public Code Search](https://sourcegraph.com/search))
+- Link to [**full guide to Sourcegraph's code search query syntax**](https://sourcegraph.com/docs/code-search/queries)
+
+**Tools this MCP server provides**
+
+| Tool | Description |
+| :--- | :---------- |
+| `search` | Search across codebases using Sourcegraph's advanced query syntax with support for regex, language filters, and boolean operators |
+| `search_prompt_guide` | Generate a context-aware guide for constructing effective search queries based on your specific objective |
+| `fetch_content` | Retrieve file contents or explore directory structures from repositories |
+
+### Qdrant MCP
+
+> **Scaling strategy for large collections/datasets of memories** 
+> 
+> 1. Pre-create the collection in Qdrant with on-disk vectors or on-disk HNSW to reduce RAM pressure
+> 2. Then, point the MCP to it (using `COLLECTION_NAME=...`). 
+> 
+> *(This is internal Qdrant DB tuning, independent of the Qdrant MCP server)*
+
+### GitHub SpecKit 
+
+**Guides/resources**
+
+- [Description: **Spec-Driven Development (SDD)**](https://github.com/github/spec-kit/blob/main/spec-driven.md)
+- [**Docs**](https://github.github.io/spec-kit/)
+- [**Repo README**](https://github.com/github/spec-kit)
