@@ -39,6 +39,7 @@
 #      - Filesystem MCP (necessary since only supports stdio transport)
 #      - Fetch MCP (necessary since only supports stdio transport)
 #      - Git MCP (necessary since needs to run specifically within *one* Git repo)
+#      - Memory MCP (knowledge graph for persistent structured memory)
 #  3. Connects coding agent CLI clients:
 #      - Gemini CLI
 #      - Claude Code
@@ -773,6 +774,10 @@ log_separator
 log_info "Configuring agents to use Git MCP (stdio)..."
 setup_stdio_mcp "git" "uvx" "mcp-server-git" "--repository" "."
 
+log_separator
+log_info "Configuring agents to use Memory MCP (stdio)..."
+setup_stdio_mcp "memory" "npx" "-y" "@modelcontextprotocol/server-memory"
+
 if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
     log_separator
     log_info "Configuring Codex to use Context7 MCP (stdio)..."
@@ -835,6 +840,8 @@ log_info "  • Fetch MCP (all agents)"
 log_info "    └─ HTML to Markdown conversion"
 log_info "  • Git MCP (all agents)"
 log_info "    └─ Uses current directory when agent is launched"
+log_info "  • Memory MCP (all agents)"
+log_info "    └─ Knowledge graph for persistent structured memory (entities, relations, observations)"
 
 if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
     log_info "  • Context7 MCP (Codex only)"

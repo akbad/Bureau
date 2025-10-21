@@ -1,30 +1,5 @@
 # Tools not in the script yet that will definitely be included
 
-## Memory MCP (Anthropic Official)
-
-**Package**: `@modelcontextprotocol/server-memory`
-
-**Purpose**: Knowledge graph for persistent structured memory across sessions
-
-**Why add it**:
-- Complements Qdrant's semantic memory with **structured relationships**
-- Creates entities, relations, and observations in a knowledge graph
-- Solves AI amnesia problem - maintains context across sessions
-- Official Anthropic implementation
-- Stores data locally in SQLite (zero cost, zero cloud dependencies)
-
-**How it's run**: Stdio with private client-managed instance
-
-**Free tier**: Completely free (local SQLite storage)
-
-**Install**: `npx @modelcontextprotocol/server-memory`
-
-**Key difference from Qdrant**:
-- Qdrant = semantic vector search (finds *similar* things)
-- Memory = knowledge graph (tracks *relationships* between things)
-
-
-
 ## Playwright/Puppeteer MCP
 
 **Package**: `@modelcontextprotocol/server-puppeteer` or `@cloudflare/playwright-mcp`
