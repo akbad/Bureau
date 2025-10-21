@@ -3,9 +3,19 @@
 ## What this script does
 
 1. Sets up [these MCPs](#mcps-used) (including running some MCPs & Docker containers locally) 
+    
+    > Uses ports **8780-8784** for the servers/containers it starts.
+
 2. Configures [these coding agent CLIs](#supported-coding-agents) to use them
 
 And other useful background stuff.
+
+### Tools set up by this script
+
+See [`tools.md`](tools.md) for:
+
+- **full list of tools** set up/made available by the script
+- **how to use them** (e.g. when writing prompts)
 
 ## Prerequisites
 
@@ -51,17 +61,15 @@ Needed for running the local Qdrant container.
 
 1. Create API key at these services' websites
 
-    - [Context7]((https://console.upstash.com/))
     - [Tavily](https://www.tavily.com/)
     - [Firecrawl](https://firecrawl.dev/app/api-keys)
 
 2. Add to and export from shell config (`.zshrc` or `.bashrc`) **with these variable names**:
 
-    - `CONTEXT7_API_KEY`
     - `TAVILY_API_KEY`
     - `FIRECRAWL_API_KEY`
 
-3. Source your shell config to be sure they're available
+3. `source` your shell config to ensure they're available
 
 ## Supported coding agents
 
@@ -69,7 +77,7 @@ Needed for running the local Qdrant container.
 - **Codex CLI**
 - **Gemini CLI**
 
-**Default: all 3 of these are set up to use the MCPs**
+**By default: all 3 of these will be set up to use the MCPs**
 
 To choose specific ones, use `-a/--agent` followed by a string containing one or more of
 
@@ -81,13 +89,6 @@ So
 - `-a c` sets up only Claude Code to use the MCPs
 - `-a gc` sets up only Claude Code and Gemini to use the MCPs
 - `-a cgx` = same as default, set up for all 3
-
-## What this script sets up
-
-See [`tools.md`](tools.md) for:
-
-- full list of tools set up/made available by the script
-- how to use them (e.g. when writing prompts)
 
 ## Useful background info 
 
