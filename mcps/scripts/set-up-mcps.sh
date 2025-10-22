@@ -75,6 +75,11 @@ CLONE_DIR="$DEFAULT_DIR/mcp-servers"
 export SOURCEGRAPH_REPO_PATH="$CLONE_DIR/sourcegraph-mcp"
 export SERENA_REPO_PATH="$CLONE_DIR/serena"
 
+# Define supported agents' printable string names but leave AGENTS array empty for now 
+# (in case -a/--agents option is provided)
+CLAUDE="Claude Code"
+CODEX="Codex CLI"
+GEMINI="Gemini CLI"
 AGENTS=()
 
 # Supported coding agents CLIs' config file locations
@@ -150,13 +155,13 @@ while [[ $# -gt 0 ]]; do
         AGENT_STRING="$2"
 
         if [[ $AGENT_STRING == *c* ]]; then
-            AGENTS+=("Claude Code")
+            AGENTS+=("$CLAUDE")
         fi
         if [[ $AGENT_STRING == *g* ]]; then
-            AGENTS+=("Gemini CLI")
+            AGENTS+=("$GEMINI")
         fi
         if [[ $AGENT_STRING == *x* ]]; then
-            AGENTS+=("Codex CLI")
+            AGENTS+=("$CODEX")
         fi
         ;;
 
@@ -177,7 +182,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ${#AGENTS[@]} == 0 ]]; then 
-    AGENTS=("Codex CLI" "Claude Code" "Gemini CLI")
+    AGENTS=("$CODEX" "$CLAUDE" "$GEMINI")
 fi
 
 # --- HELPERS ---
@@ -212,7 +217,8 @@ log_separator() {
     log_empty_line
 }
 
-# Check if a port is already in use
+# Check if a port is already in use 
+# (If it is, it's assumed to be by what this script intends to launch on it)
 check_port() {
     local port=$1
     if lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
@@ -401,7 +407,7 @@ add_mcp_to_gemini() {
 
     # Check if server already exists
     if grep -q "\"$server_name\"" "$GEMINI_CONFIG" 2>/dev/null; then
-        return 0
+        return 1
     fi
 
     python3 "$SCRIPT_DIR/add_mcp_to_gemini.py" "$transport" "$server_name" "$GEMINI_CONFIG" "$@"
@@ -417,7 +423,7 @@ add_mcp_to_codex() {
     [[ ! -f "$CODEX_CONFIG" ]] && touch "$CODEX_CONFIG"
 
     if grep -q "^\[mcp_servers.$server_name\]" "$CODEX_CONFIG" 2>/dev/null; then
-        return 0  # Already exists
+        return 1  # Already exists
     fi
 
     if [[ "$transport" == "http" ]]; then
@@ -449,14 +455,14 @@ add_http_mcp_to_agent() {
     local headers=("$@")  # Remaining args are headers (format: KEY:value)
 
     case $agent in
-        gemini)
+        "$GEMINI")
             # Use direct JSON manipulation to add server with headers
             add_mcp_to_gemini "http" "$server" "$url" "${headers[@]}"
             ;;
-        claude)
+        "$CLAUDE")
             # Check user scope config directory for existing server
             if grep -q "\"$server\"" "$CLAUDE_CONFIG"; then
-                return 0  # Already exists
+                return 1  # Already exists
             fi
 
             # Build header flags if provided (format: KEY:value)
@@ -473,7 +479,7 @@ add_http_mcp_to_agent() {
             log_empty_line
             "${claude_cmd[@]}"
             ;;
-        codex)
+        "$CODEX")
             # Codex HTTP mode doesn't support custom headers, only bearer_token
             # Skip if headers are required
             if [[ ${#headers[@]} -gt 0 ]]; then
@@ -492,13 +498,13 @@ add_stdio_mcp_to_agent() {
     local cmd_args=("$@")
 
     case $agent in
-        gemini)
+        "$GEMINI")
             add_mcp_to_gemini "stdio" "$server" "${cmd_args[@]}"
             ;;
-        claude)
+        "$CLAUDE")
             # Check user scope config directory for existing server
             if grep -q "\"$server\"" "$CLAUDE_CONFIG"; then
-                return 0  # Already exists
+                return 1 # Already exists
             fi
 
             echo "Adding $server as local stdio to Claude with the command:"
@@ -507,8 +513,8 @@ add_stdio_mcp_to_agent() {
             log_empty_line
             "${claude_cmd[@]}"
             ;;
-        codex)
-            add_mcp_to_codex "$server" "stdio" "${cmd_args[@]}"
+        "$CODEX")
+            add_mcp_to_codex "$server" "stdio" "${cmd_args[@]}" 
             ;;
     esac
 }
@@ -523,13 +529,8 @@ setup_http_mcp() {
     log_info "Setting up $server (HTTP - shared)..."
 
     for agent in "${AGENTS[@]}"; do
-        # No Codex CLI command for HTTP servers; must use config file
-        if [[ "$agent" == "Codex CLI" ]] || command -v "$agent" &> /dev/null; then
-            log_info "Configuring $agent..."
-            (add_http_mcp_to_agent "$agent" "$server" "$url" "${headers[@]}" && log_success "$agent configured") || log_warning "Already exists"
-        else
-            log_warning "$agent not found, skipping..."
-        fi
+        log_info "Configuring $agent..."
+        (add_http_mcp_to_agent "$agent" "$server" "$url" "${headers[@]}" && log_success "$agent configured") || log_warning "Already exists"
     done
 }
 
@@ -542,12 +543,8 @@ setup_stdio_mcp() {
     log_info "Setting up $server (stdio - per-agent)..."
 
     for agent in "${AGENTS[@]}"; do
-        if [[ "$agent" == "Codex CLI" ]] || command -v "$agent" &> /dev/null; then
-            log_info "Configuring $agent..."
-            (add_stdio_mcp_to_agent "$agent" "$server" "${cmd_args[@]}" && log_success "$agent configured") || log_warning "Already exists"
-        else
-            log_warning "$agent not found, skipping..."
-        fi
+        log_info "Configuring $agent..."
+        (add_stdio_mcp_to_agent "$agent" "$server" "${cmd_args[@]}" && log_success "$agent configured") || log_warning "Already exists"
     done
 }
 
@@ -702,30 +699,16 @@ configure_auto_approve() {
 
     # Configure each agent
     for agent in "${AGENTS[@]}"; do
+        log_info "→ Configuring $agent..."
         case "$agent" in
-            claude)
-                log_info "→ Configuring Claude Code..."
-                if python3 "$SCRIPT_DIR/add-claude-auto-approvals.py" "$CLAUDE_SETTINGS"; then
-                    log_success "  Claude Code settings updated"
-                else
-                    log_error "  Failed to update Claude Code settings"
-                fi
+            "$CLAUDE")
+                python3 "$SCRIPT_DIR/add-claude-auto-approvals.py" "$CLAUDE_SETTINGS"
                 ;;
-            codex)
-                log_info "→ Configuring Codex..."
-                if python3 "$SCRIPT_DIR/add-codex-auto-approvals.py" "$CODEX_CONFIG"; then
-                    log_success "  Codex config updated"
-                else
-                    log_error "  Failed to update Codex config"
-                fi
+            "$CODEX")
+                python3 "$SCRIPT_DIR/add-codex-auto-approvals.py" "$CODEX_CONFIG"
                 ;;
-            gemini)
-                log_info "→ Configuring Gemini..."
-                if python3 "$SCRIPT_DIR/add-gemini-auto-approvals.py" "$GEMINI_CONFIG" "${mcp_servers[@]}"; then
-                    log_success "  Gemini settings updated"
-                else
-                    log_error "  Failed to update Gemini settings"
-                fi
+            "$GEMINI")
+                python3 "$SCRIPT_DIR/add-gemini-auto-approvals.py" "$GEMINI_CONFIG" "${mcp_servers[@]}"
                 ;;
             *)
                 log_warning "  Unknown agent: $agent (skipping)"
@@ -922,20 +905,17 @@ if [[ "$FIRECRAWL_AVAILABLE" == true ]]; then
     if [[ -z "$firecrawl_http_url" ]]; then
         log_warning "Firecrawl API key missing; skipping Firecrawl HTTP configuration."
     else
-        log_info "Configuring Claude Code to use Firecrawl MCP (HTTP - remote streamable)..."
-        if add_http_mcp_to_agent "Claude Code" "firecrawl" "$firecrawl_http_url"; then
-            log_success "Claude Code configured"
-        fi
-
-        log_info "Configuring Codex to use Firecrawl MCP (HTTP - remote streamable)..."
-        if add_http_mcp_to_agent "Codex CLI" "firecrawl" "$firecrawl_http_url"; then
-            log_success "Codex CLI configured"
-        fi
-
-        log_info "Configuring Gemini to use Firecrawl MCP (stdio - local launcher)..."
-        if add_stdio_mcp_to_agent "Gemini CLI" "firecrawl" "env" "FIRECRAWL_API_KEY=$FIRECRAWL_API_KEY" "npx" "-y" "firecrawl-mcp"; then
-            log_success "Gemini CLI configured"
-        fi
+        for agent in "${AGENTS[@]}"; do
+        log_info "Configuring $agent to use Firecrawl MCP..."
+            case "$agent" in
+                "$CLAUDE" | "$CODEX")
+                    (add_http_mcp_to_agent "$CLAUDE" "firecrawl" "$firecrawl_http_url") || log_warning "Already exists"
+                    ;;
+                "$GEMINI")
+                    (add_stdio_mcp_to_agent "$GEMINI" "firecrawl" "env" "FIRECRAWL_API_KEY=$FIRECRAWL_API_KEY" "npx" "-y" "firecrawl-mcp") || log_warning "Already exists"
+                    ;;
+            esac
+        done
     fi
 fi
 
@@ -982,7 +962,7 @@ fi
 if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
     log_separator
     log_info "Configuring Codex to use Context7 MCP (stdio)..."
-    add_stdio_mcp_to_agent "Codex CLI" "context7" "npx" "-y" "@upstash/context7-mcp" "--api-key" "\$CONTEXT7_API_KEY"
+    (add_stdio_mcp_to_agent "$CODEX" "context7" "npx" "-y" "@upstash/context7-mcp" "--api-key" "\$CONTEXT7_API_KEY") || log_warning "Already exists"
 fi
 
 # ============================================================================
