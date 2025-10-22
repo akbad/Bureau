@@ -4,12 +4,16 @@
 #
 # Prerequisites:
 #   Required:
-#       - Node.js (for npx)
-#       - uv/uvx (for Python packages - Python 3.12 recommended)
-#       - Docker (for Qdrant container)
-#       - Homebrew (for installing semgrep binary)
-#       - Context7 API key in $CONTEXT7_API_KEY
+#       - Node.js/npm (for npx)
+#       - uv/uvx with Python 3.12 (for Python-based MCP servers)
+#       - Docker Desktop or Rancher Desktop (for Qdrant container)
+#       - Homebrew (for installing Semgrep binary)
+#
+#   API keys (for cloud-based MCP servers' free tiers):
 #       - Tavily API key in $TAVILY_API_KEY
+#       - Firecrawl API key in $FIRECRAWL_API_KEY
+#       - Brave Search API key in $BRAVE_API_KEY
+#       - Exa API key in $EXA_API_KEY
 #
 #   Optional but recommended:
 #       - Set up Zen clink config:
@@ -17,16 +21,23 @@
 #           - Subagent prompts at `~/.zen/prompts`
 #
 # Usage:
-#   ./setup-mcp-servers.sh [options]
+#   ./set-up-mcps.sh [options]
 #
 # Options:
-#   -d, --dir <path>    The directory to allow the Filesystem MCP to access.
-#                       Defaults to ~/Code.
-#   -h, --help          Show this help message.
+#   -a, --agent <str>     Choose specific agents to configure (c=Claude, x=Codex, g=Gemini).
+#                         Example: -a cg (Claude + Gemini), -a x (Codex only).
+#                         Defaults to all supported agents (Claude Code, Codex, Gemini).
+#   -f, --fsdir <path>    The directory to allow the Filesystem MCP to access.
+#                         Defaults to ~/Code.
+#   -c, --clonedir <path> The directory to clone MCP server repositories into.
+#                         Defaults to ~/Code/mcp-servers/.
+#   -y, --yes             Auto-approve all MCP tools for agents specified with -a/--agent.
+#                         Configures agents to skip permission prompts for MCP tools.
+#   -h, --help            Show this help message.
 #
 # Purpose:
 #  1. Sets up the following MCP servers in HTTP mode
-#    (i.e. shared across all agents/repos):
+#     (i.e. shared across all agents/repos):
 #      - Zen MCP (local server, clink only - for cross-CLI orchestration)
 #      - Qdrant MCP (local server, semantic memory with Docker backend)
 #      - Sourcegraph MCP (local server wrapper for Sourcegraph.com public search)
@@ -933,7 +944,7 @@ log_empty_line
 log_info "Local HTTP servers running:"
 log_info "  • Zen MCP (clink only): http://localhost:$ZEN_MCP_PORT/mcp/ (PID: $ZEN_PID)"
 log_info "  • Qdrant MCP: http://localhost:$QDRANT_MCP_PORT/mcp/ (PID: $QDRANT_PID)"
-log_info "    └─ Backend: Qdrant Docker container on port $QDRANT_PORT"
+log_info "    └─ Backend: Qdrant Docker container on port $QDRANT_DB_PORT"
 log_info "    └─ Data directory: $QDRANT_DATA_DIR"
 
 if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
