@@ -153,6 +153,56 @@
     3. multi-service/entire-repo analysis 
     4. budget-constrained projects
 - Haiku 4.5
+    
+    - **Top-tier for**: Fast, cost‑efficient agentic workflows; interactive editing and short‑horizon tasks at scale; high‑volume applications needing reliable coding + tool use with low latency
+        
+        - Highlights: near‑frontier intelligence with blazing speed; optimal cost/performance; first Haiku with Extended Thinking; context awareness; full tool support (bash, editor, browser/computer use); parallel tool execution
+    
+    - Extended thinking modes
+        - Off (default): maximum responsiveness for interactive loops (edit‑run‑fix); great for small/medium feature work, quick reviews, and incremental code edits
+        - On (extended thinking): deeper multi‑step reasoning when tasks exceed one‑prompt scope; improved plan quality and tool orchestration at the cost of higher latency/token use; set budgets to control depth
+    
+    - **Excellent for**:
+        
+        | Use case | Why |
+        |----------|-----|
+        | Real‑time applications/UI loops | Very fast responses keep developer feedback cycles tight; strong instruction following for precise edits |
+        | High‑volume automation | Favorable pricing enables scalable batch edits, code hygiene, and doc generation at scale |
+        | Sub‑agent architectures | Lightweight, responsive subagents for decomposition, with tool use and context awareness |
+        | Computer use at scale | Reliable browser/desktop automation for repeatable flows with strong tool success rates |
+        | Code editing & lint‑fix passes | Accurate, low‑latency edits with parallel tool calls; ideal for CI “fix‑up” steps |
+    
+    - **Good for**:
+        
+        | Use case | Why |
+        |----------|-----|
+        | CRUD APIs and integration glue | Generates endpoints/clients and tests quickly; extended thinking helps with versioning plans |
+        | Data/ETL scaffolding | Orchestrates pipelines and validations; fast iteration on schemas/configs |
+        | Documentation & onboarding | Produces concise, professional docs and code tours with low cost/latency |
+        | Observability basics | Generates dashboards/runbooks quickly; pair with traces/logs for accuracy |
+        | Security hygiene | Secret scanning/policy templates; use rules + review to reduce false positives |
+    
+    - **Moderate for**:
+        
+        | Use case | Why |
+        |----------|-----|
+        | Long‑horizon multi‑service refactors | Can plan and execute incrementally; Sonnet 4.5 often better for deeper trade‑off analysis |
+        | Heavy research/synthesis | Extended thinking improves depth, but Sonnet 4.5 stronger on complex, multi‑source synthesis |
+        | Advanced performance investigations | Finds common anti‑patterns; deep algorithmic/OS‑level tuning benefits from Sonnet or GPT‑5 |
+    
+    - **Less ideal for**:
+        
+        | Use case | Why |
+        |----------|-----|
+        | Deep architectural redesigns | Sonnet 4.5 provides more thorough trade‑off exploration and longer outputs |
+        | Strict real‑time/low‑level tuning | Hardware/kernel nuances require on‑target profiling; prefer specialized models/workflows |
+        | Highly stylized long‑form narrative | Capable, but other models may better match tone/long‑form narrative fidelity |
+    
+    - **Key limitations**:
+        - Shallower default depth than Sonnet on long‑horizon tasks; enable extended thinking or escalate when needed
+        - Extended thinking increases latency and tokens; apply budget controls and use selectively
+        - As with any model, verify multi‑file edits and infra changes via tests, CI, and policy checks
+    - **Strategic use**: Default choice for speed/cost‑sensitive agentic coding, CI “fix‑up” steps, batch code hygiene, and scalable computer‑use workflows; enable extended thinking for multi‑step tasks, and escalate to Sonnet 4.5 for deep design, complex RCA, and large refactors
 - Sonnet 4.5
     
     - **Top-tier for**: Agentic coding and multi-step computer use; long-running agents that coordinate multiple tools; complex planning/design with explicit trade-offs; research/synthesis across many sources
