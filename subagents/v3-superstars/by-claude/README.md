@@ -3,7 +3,6 @@
 - Networking & Edge Infrastructure Specialist
 - Search Engineering Specialist
 - Platform Engineering / Internal Developer Platform Builder
-- Cost Optimization / FinOps Engineer
 
 # V2 Roles Not Covered in V3
 
