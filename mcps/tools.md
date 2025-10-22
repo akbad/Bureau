@@ -1,4 +1,6 @@
-# Tools set up by [`scripts/set-up-mcps.sh`](scripts/set-up-mcps.sh) & how to use them
+# Tools set up by [`scripts/set-up-mcps.sh`](scripts/set-up-mcps.sh)
+
+> This file is meant for both humans and agents to read
 
 - [**MCP servers**](#mcp-servers)
 - [**Non-MCP tools**](#non-mcp-tools)
