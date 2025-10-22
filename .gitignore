@@ -1,2 +1,3 @@
-**/take_down_mcps.sh
+take_down_mcps.sh
 .python-version
+*.pyc
