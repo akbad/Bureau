@@ -103,7 +103,6 @@
         | Real-time systems (real-time-systems) | latency budgets, jitter control, scheduling/backpressure proposals, serialization/transport tuning. | OS/hardware nuances (NUMA/GC/interrupts) need bench validation; avoid speculative tuning. | high for design; medium for scoped code changes with budgets enforced in tests. |
         | Databases/SQL (database-specialist, sql-pro) | query/index refactors, migration plans, connection pool guidance, consistency talk-throughs. | corner-case indexing and planner heuristics; always verify with EXPLAIN/ANALYZE. | medium; high for heavy migrations and partitioning. |
         | Systems languages (cpp-pro, rust-pro, golang-pro) | scaffolds, concurrency primitives, FFI patterns, safety idioms. | UB/unsafe edges require rigorous compile/test/fuzz loops. | medium/high depending on safety and concurrency complexity. |
-        | | . | high increases tokens and latency—reserve for problems that truly need deep planning and justification. |  |
     
 - Gemini 2.5 Pro
   - **Top-tier for**: Math/science reasoning (88% AIME 2025, 86.4% GPQA), large codebase analysis (1M context), agentic coding (67.2% SWE-bench), code editing (82.2% Aider), web development generation
