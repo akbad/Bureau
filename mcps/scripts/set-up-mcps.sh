@@ -232,11 +232,12 @@ kill_port() {
     fi
 }
 
-# Build a streamable HTTP URL for cloud-hosted MCP servers with API key authentication.
+# Build a streamable HTTP URL for cloud-hosted MCP servers with API key authentication 
+#   and outputs it via `echo` (does *not* return it)
 # Supports different URL patterns:
 #   - Firecrawl: API key embedded in path (base/api_key/path)
 #   - Exa: API key as query parameter (base/path?exaApiKey=api_key)
-# Returns an empty string if no API key is provided so callers can detect the issue
+# Returns without outputting anything if no API key is provided, so callers can detect the issue
 # without the script exiting (since set -e is enabled globally).
 #
 # Usage: build_mcp_http_url <service> <api_key>
