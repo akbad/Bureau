@@ -3,12 +3,15 @@
 - Networking & Edge Infrastructure Specialist
 - Platform Engineering / Internal Developer Platform Builder
 
-## Criteria checklists for roles
+## Criteria checklists for agent files
 
 > **Instructions**
 > 
 > - If a file for a role below does not yet exist (will be indicated in the header, and you can check by examining the files in this directory), then **create** a file for the role satisfying the criteria
 > - Otherwise, **verify** the role satisfies the criteria, if a file exists for that role
+>       - If/when adding content to the file to satisfy the criteria, take care to not overwrite other useful content/guidance in the file unless it is
+>           - Redundant
+>           - Conflicting (e.g. in terms of methodology the agent should follow) and *clearly* of inferior quality
 
 ### AI/ML Engineering & MLOps Specialist
 
