@@ -53,41 +53,80 @@
     | Math-Heavy Research | Strong (94.6% AIME) but Gemini 2.5 Pro faster and free with comparable math capabilities |
 
 - **Key advantages**:
-    - **GPT-5-Codex variant**: Purpose-built for agentic software engineering with exceptional multi-file refactoring (91% success)
-    - **Adaptive thinking**: Dynamic reasoning allocation - fast when possible, deep when needed (Low/Medium/High modes)
-    - **Refactoring excellence**: Best-in-class at large-scale code changes with dependency awareness
-    - **Architectural clarity**: Produces clearer plans and tighter architectural analysis than competitors
-    - **Lower hallucination rate**: Better at reducing invented issues/code compared to earlier models
-    - **Multimodal strength**: Strong visual input analysis for UI/diagram review
+    - **GPT-5-Codex variant**:
+        - Purpose-built for agentic software engineering with exceptional multi-file refactoring (91% success)
+    - **Adaptive thinking**:
+        - Dynamic reasoning allocation - fast when possible, deep when needed (Low/Medium/High modes)
+    - **Refactoring excellence**:
+        - Best-in-class at large-scale code changes with dependency awareness
+    - **Architectural clarity**:
+        - Produces clearer plans and tighter architectural analysis than competitors
+    - **Lower hallucination rate**:
+        - Better at reducing invented issues/code compared to earlier models
+    - **Multimodal strength**:
+        - Strong visual input analysis for UI/diagram review
 
 - **Key limitations**:
-    - **Context window**: 400k tokens vs Gemini's 1M - limits whole-repo/multi-service analysis
-    - **High mode risks**: May "overthink" or invent issues on High thinking mode - keep grounded with tests/artifacts
-    - **Cost**: Paid tiers required vs Gemini's free unlimited tier
-    - **Creative writing**: Claude Sonnet 4.5 produces more engaging, natural documentation
-    - **Speed trade-off**: High thinking mode significantly slower (52min vs Sonnet's 39min on complex tasks)
+    - **Context window**:
+        - 400k tokens vs Gemini's 1M - limits whole-repo/multi-service analysis
+    - **High mode risks**:
+        - May "overthink" or invent issues on High thinking mode - keep grounded with tests/artifacts
+    - **Cost**:
+        - Paid tiers required vs Gemini's free unlimited tier
+    - **Creative writing**:
+        - Claude Sonnet 4.5 produces more engaging, natural documentation
+    - **Speed trade-off**:
+        - High thinking mode significantly slower (52min vs Sonnet's 39min on complex tasks)
 
 - **Thinking mode guidance**:
-    - **Low**: Single-file features, docstrings, small tests, formatting - balances speed with light planning
-    - **Medium (default)**: Cross-file changes, API glue, query edits - best baseline for most subagent roles
-    - **High**: Complex migrations, concurrency design, recovery flows, architectural redesign - reserve for truly complex problems requiring deep planning
+    - **Low**:
+        - Single-file features, docstrings, small tests, formatting
+        - Balances speed with light planning
+    - **Medium (default)**:
+        - Cross-file changes, API glue, query edits
+        - Best baseline for most subagent roles
+    - **High**:
+        - Complex migrations, concurrency design, recovery flows, architectural redesign
+        - Reserve for truly complex problems requiring deep planning
 
-- **Strategic use**: First choice for: (1) large-scale refactoring/migrations (2) architecture reviews needing clarity (3) code quality requiring low hallucination (4) teams already on ChatGPT Pro (unlimited access)
+- **Strategic use**:
+
+    - First choice for:
+
+        - Large-scale refactoring/migrations
+        - Architecture reviews needing clarity
+        - Code quality requiring low hallucination
+        - Teams already on ChatGPT Pro (unlimited access)
 
 #### GPT-5-Codex (Low, Medium and High Thinking modes)
     
-- Positioning: specialized for agentic coding with strong multi-file editing, refactors, and CLI/tool orchestration; defaults to safe, sandboxed execution with good traceability.
+- Positioning: specialized for agentic coding with:
+
+    - Strong multi-file editing, refactors, and CLI/tool orchestration
+    - Defaults to safe, sandboxed execution with good traceability
 - Thinking effort guide
 
-    - minimal: quickest for deterministic edits (formatting, extraction, small regex fixes, snapshot updates); weakest at synthesis or multi-hop reasoning.
-    - low: good for single-file features, docstrings, small tests; balances speed with light planning; may miss cross-cutting constraints.
-    - medium (default): reliable for cross-file changes, API glue, query edits; best baseline for most subagent roles.
-    - high: use for complex migrations, concurrency design, recovery flows; higher latency/cost; occasionally “overthinks” or invents issues—keep it grounded with concrete artifacts and tests.
+    - minimal:
+        - Quickest for deterministic edits (formatting, extraction, small regex fixes, snapshot updates)
+        - Weakest at synthesis or multi-hop reasoning
+    - low:
+        - Good for single-file features, docstrings, small tests
+        - Balances speed with light planning
+        - May miss cross-cutting constraints
+    - medium (default):
+        - Reliable for cross-file changes, API glue, query edits
+        - Best baseline for most subagent roles
+    - high:
+        - Use for complex migrations, concurrency design, recovery flows
+        - Higher latency/cost
+        - Occasionally "overthinks" or invents issues—keep it grounded with concrete artifacts and tests
 
 - Cost/latency trade-offs
 
-    - minimal/low keep costs and latency down for everyday edits
-    - high increases tokens and latency—reserve for problems that truly need deep planning and justification
+    - minimal/low:
+        - Keep costs and latency down for everyday edits
+    - high:
+        - Increases tokens and latency—reserve for problems that truly need deep planning and justification
 
 - Task category breakdown
 
@@ -148,25 +187,47 @@
   | Prompt Engineering | Not meta-optimized for prompt crafting compared to GPT-5 or Claude |
 
 - **Key limitations**:
-  - Can modify unrelated files/code during complex changes (precise instructions required)
-  - Security testing shows 7 OWASP Top 10 / MITRE ATLAS vulnerabilities
-  - Some code integration issues reported in multi-file edits
-- **Cost advantage**: Free tier with practically unlimited usage - use liberally for research, prototyping, large-scale analysis
-- **Strategic use**: first choice for
-  1. tasks needing 100k+ token context
-  2. math-heavy work 
-  3. multi-service/entire-repo analysis 
-  4. budget-constrained projects
+
+    - Can modify unrelated files/code during complex changes (precise instructions required)
+    - Security testing shows 7 OWASP Top 10 / MITRE ATLAS vulnerabilities
+    - Some code integration issues reported in multi-file edits
+
+- **Cost advantage**:
+
+    - Free tier with practically unlimited usage - use liberally for research, prototyping, large-scale analysis
+
+- **Strategic use**:
+
+    - First choice for:
+
+        - Tasks needing 100k+ token context
+        - Math-heavy work
+        - Multi-service/entire-repo analysis
+        - Budget-constrained projects
 
 ### Haiku 4.5
-    
-- **Top-tier for**: Fast, cost‑efficient agentic workflows; interactive editing and short‑horizon tasks at scale; high‑volume applications needing reliable coding + tool use with low latency
+
+- **Top-tier for**:
+    - Fast, cost‑efficient agentic workflows
+    - Interactive editing and short‑horizon tasks at scale
+    - High‑volume applications needing reliable coding + tool use with low latency
    
-   - Highlights: near‑frontier intelligence with blazing speed; optimal cost/performance; first Haiku with Extended Thinking; context awareness; full tool support (bash, editor, browser/computer use); parallel tool execution
+   - Highlights:
+       - Near‑frontier intelligence with blazing speed
+       - Optimal cost/performance
+       - First Haiku with Extended Thinking
+       - Context awareness
+       - Full tool support (bash, editor, browser/computer use)
+       - Parallel tool execution
 
 - Extended thinking modes
-   - Off (default): maximum responsiveness for interactive loops (edit‑run‑fix); great for small/medium feature work, quick reviews, and incremental code edits
-   - On (extended thinking): deeper multi‑step reasoning when tasks exceed one‑prompt scope; improved plan quality and tool orchestration at the cost of higher latency/token use; set budgets to control depth
+   - Off (default):
+       - Maximum responsiveness for interactive loops (edit‑run‑fix)
+       - Great for small/medium feature work, quick reviews, and incremental code edits
+   - On (extended thinking):
+       - Deeper multi‑step reasoning when tasks exceed one‑prompt scope
+       - Improved plan quality and tool orchestration at the cost of higher latency/token use
+       - Set budgets to control depth
 
 - **Excellent for**:
    
@@ -205,20 +266,42 @@
    | Highly stylized long‑form narrative | Capable, but other models may better match tone/long‑form narrative fidelity |
 
 - **Key limitations**:
-   - Shallower default depth than Sonnet on long‑horizon tasks; enable extended thinking or escalate when needed
-   - Extended thinking increases latency and tokens; apply budget controls and use selectively
-   - As with any model, verify multi‑file edits and infra changes via tests, CI, and policy checks
-- **Strategic use**: Default choice for speed/cost‑sensitive agentic coding, CI “fix‑up” steps, batch code hygiene, and scalable computer‑use workflows; enable extended thinking for multi‑step tasks, and escalate to Sonnet 4.5 for deep design, complex RCA, and large refactors
+
+    - Shallower default depth than Sonnet on long‑horizon tasks; enable extended thinking or escalate when needed
+    - Extended thinking increases latency and tokens; apply budget controls and use selectively
+    - As with any model, verify multi‑file edits and infra changes via tests, CI, and policy checks
+
+- **Strategic use**:
+
+    - Default choice for speed/cost‑sensitive agentic coding, CI "fix‑up" steps, batch code hygiene, and scalable computer‑use workflows
+    - Enable extended thinking for multi‑step tasks
+    - Escalate to Sonnet 4.5 for deep design, complex RCA, and large refactors
 
 ### Sonnet 4.5
+
+- **Top-tier for**:
+    - Agentic coding and multi-step computer use
+    - Long-running agents that coordinate multiple tools
+    - Complex planning/design with explicit trade-offs
+    - Research/synthesis across many sources
     
-- **Top-tier for**: Agentic coding and multi-step computer use; long-running agents that coordinate multiple tools; complex planning/design with explicit trade-offs; research/synthesis across many sources
-    
-    - Highlights: 200K context window; up to 64K output tokens; state-of-the-art coding and computer-use benchmarks (e.g., strong SWE‑bench Verified and OSWorld results); advanced tool coordination and context management
+    - Highlights:
+        - 200K context window
+        - Up to 64K output tokens
+        - State-of-the-art coding and computer-use benchmarks (e.g., strong SWE‑bench Verified and OSWorld results)
+        - Advanced tool coordination and context management
 
 - Extended thinking modes
-    - Off (default): near‑instant responses; concise, direct style; ideal for interactive editing, reviews, quick fixes, short-form planning
-    - On (extended thinking): step‑by‑step visible reasoning; better accuracy on long‑horizon, multi‑step coding, and complex research/analysis; higher latency and token usage; streamed thinking can arrive in “chunky” bursts; budget control recommended
+    - Off (default):
+        - Near‑instant responses
+        - Concise, direct style
+        - Ideal for interactive editing, reviews, quick fixes, short-form planning
+    - On (extended thinking):
+        - Step‑by‑step visible reasoning
+        - Better accuracy on long‑horizon, multi‑step coding, and complex research/analysis
+        - Higher latency and token usage
+        - Streamed thinking can arrive in "chunky" bursts
+        - Budget control recommended
 
 - **Excellent for**:
     
@@ -258,17 +341,28 @@
     | Pure creative/narrative long-form | Competent; however other models may be preferred for highly stylized narrative work |
 
 - **Key limitations**:
+
     - Extended thinking increases latency and token use; use budgets and enable only when depth is needed
-    - Streaming of extended thinking can be “chunky” with intermittent delays between events
+    - Streaming of extended thinking can be "chunky" with intermittent delays between events
     - Concise communication style may skip verbose summaries after tool calls unless prompted
     - Hardware/OS‑level performance claims still require profiling and tests on target systems
-- **Strategic use**: Default to Sonnet 4.5 for agentic coding and computer use; keep extended thinking off for interactive edits and on for long-horizon work, incident RCAs, end‑to‑end refactors, and multi‑service planning
+
+- **Strategic use**:
+
+    - Default to Sonnet 4.5 for agentic coding and computer use
+    - Keep extended thinking:
+
+        - **Off** for interactive edits
+        - **On** for long-horizon work, incident RCAs, end‑to‑end refactors, and multi‑service planning
 
 ### Opus 4.1
     
 - **Top-tier for**: Maximum depth reasoning, high‑stakes reviews, formal write‑ups, and contentious design/security decisions where precision and justification matter more than speed/cost
     
-    - Highlights: frontier‑level analytical quality and argumentation; excels at long‑form synthesis and rigorous trade‑off analysis; best used sparingly due to stricter weekly limits and higher latency/cost
+    - Highlights:
+        - Frontier‑level analytical quality and argumentation
+        - Excels at long‑form synthesis and rigorous trade‑off analysis
+        - Best used sparingly due to stricter weekly limits and higher latency/cost
 
 - **Excellent for**:
     
@@ -309,11 +403,16 @@
     | Browser/computer use at scale | Tool success is strong but quotas limit large‑scale runs; Sonnet/Haiku preferred |
 
 - **Key limitations**:
+
     - Strict, low weekly limits in many environments; reserve for highest‑impact tasks
     - Higher latency and cost per token; not suited for frequent interactive loops
     - Can over‑elaborate; prompt for concise outputs and explicit constraints
     - As with all models, validate code/infra changes via tests, policy checks, and reviews
-- **Strategic use**: Use Opus 4.1 as the “final say” model—finalize RFCs, threat models, decision records, and executive narratives. Prototype/explore with Haiku/Sonnet (or GPT‑5‑Codex for mass edits), then escalate to Opus for polished, defensible write‑ups and sign‑offs
+
+- **Strategic use**:
+
+    - Use Opus 4.1 as the "final say" model—finalize RFCs, threat models, decision records, and executive narratives
+    - Prototype/explore with Haiku/Sonnet (or GPT‑5‑Codex for mass edits), then escalate to Opus for polished, defensible write‑ups and sign‑offs
 
 ## Condensed decision guides
 
@@ -325,7 +424,10 @@
 
 #### GPT-5-Codex
 
-- Positioning: specialized for agentic coding with strong multi-file editing, refactors, and CLI/tool orchestration; defaults to safe, sandboxed execution with traceability.
+- Positioning: specialized for agentic coding with:
+
+    - Strong multi-file editing, refactors, and CLI/tool orchestration
+    - Defaults to safe, sandboxed execution with traceability
 
 - Thinking effort guide
     
@@ -336,7 +438,22 @@
     | medium (default) | cross-file changes, API glue, query edits | best baseline for most roles |
     | high | complex migrations, concurrency design, recovery flows | higher latency/cost; can “overthink” without concrete artifacts/tests |
 
-- Best-fit categories (see full table above for details): architecture/design, large migrations/refactors, API/integration, data/ML pipelines, frontend/design systems, platform/devops/infra, observability/incident, reliability/scalability, security/privacy, testing/verification, performance optimization, real-time systems, databases/SQL, systems languages.
+- Best-fit categories (see full table above for details):
+
+    - Architecture/design
+    - Large migrations/refactors
+    - API/integration
+    - Data/ML pipelines
+    - Frontend/design systems
+    - Platform/devops/infra
+    - Observability/incident
+    - Reliability/scalability
+    - Security/privacy
+    - Testing/verification
+    - Performance optimization
+    - Real-time systems
+    - Databases/SQL
+    - Systems languages
 
 #### Gemini 2.5 Pro
 
@@ -378,17 +495,38 @@
     | Language Specialists (C++/Rust/Go) | Competent but GPT-5-Codex or Claude Sonnet show better idioms |
     | Prompt Engineering | Not meta-optimized vs GPT-5 or Claude |
 
-- Key limitations: may modify unrelated files in complex changes; security test weaknesses reported; occasional multi-file integration issues.
-- Cost advantage: extremely generous free tier; use liberally for research, prototyping, large-scale analysis.
-- Strategic use: first choice for 100k+ token context, math-heavy work, multi-service analysis, budget-constrained projects.
+- Key limitations:
+
+    - May modify unrelated files in complex changes
+    - Security test weaknesses reported
+    - Occasional multi-file integration issues
+
+- Cost advantage:
+
+    - Extremely generous free tier; use liberally for research, prototyping, large-scale analysis
+
+- Strategic use:
+
+    - First choice for:
+
+        - 100k+ token context
+        - Math-heavy work
+        - Multi-service analysis
+        - Budget-constrained projects
 
 #### Haiku 4.5
 
-- Top-tier for: fast, cost‑efficient agentic workflows; interactive editing and short‑horizon tasks at scale; high‑volume applications with low latency needs.
+- Top-tier for:
+    - Fast, cost‑efficient agentic workflows
+    - Interactive editing and short‑horizon tasks at scale
+    - High‑volume applications with low latency needs
 
 - Extended thinking
-    - Off: maximum responsiveness for edit‑run‑fix and incremental changes.
-    - On: deeper multi‑step reasoning for tasks exceeding one prompt; higher latency/tokens—use budgets.
+    - Off:
+        - Maximum responsiveness for edit‑run‑fix and incremental changes
+    - On:
+        - Deeper multi‑step reasoning for tasks exceeding one prompt
+        - Higher latency/tokens—use budgets
 
 - Excellent for
     
@@ -426,16 +564,36 @@
     | Strict real‑time/low‑level tuning | Hardware/kernel nuances need on‑target profiling |
     | Highly stylized long‑form narrative | Other models may better match tone/fidelity |
 
-- Key limitations: shallower default depth than Sonnet on long‑horizon tasks; extended thinking adds latency/tokens; always verify multi‑file/infra changes via tests and policy.
-- Strategic use: default for speed/cost‑sensitive agentic coding, CI fix‑ups, batch hygiene, and scalable computer use; enable extended thinking for multi‑step tasks; escalate to Sonnet for deep design/RCA/large refactors.
+- Key limitations:
+
+    - Shallower default depth than Sonnet on long‑horizon tasks
+    - Extended thinking adds latency/tokens
+    - Always verify multi‑file/infra changes via tests and policy
+
+- Strategic use:
+
+    - Default for speed/cost‑sensitive agentic coding, CI fix‑ups, batch hygiene, and scalable computer use
+    - Enable extended thinking for multi‑step tasks
+    - Escalate to Sonnet for deep design/RCA/large refactors
 
 #### Sonnet 4.5
 
-- Top-tier for: agentic coding and multi-step computer use; long-running agents coordinating multiple tools; complex planning/design; research/synthesis across many sources.
+- Top-tier for:
+    - Agentic coding and multi-step computer use
+    - Long-running agents coordinating multiple tools
+    - Complex planning/design
+    - Research/synthesis across many sources
 
 - Extended thinking
-    - Off: near‑instant responses; concise, direct; ideal for interactive edits, reviews, quick fixes, short‑form planning.
-    - On: visible step‑by‑step reasoning; better accuracy on long‑horizon coding and complex research/analysis; higher latency/tokens; streaming can be “chunky.”
+    - Off:
+        - Near‑instant responses
+        - Concise, direct
+        - Ideal for interactive edits, reviews, quick fixes, short‑form planning
+    - On:
+        - Visible step‑by‑step reasoning
+        - Better accuracy on long‑horizon coding and complex research/analysis
+        - Higher latency/tokens
+        - Streaming can be "chunky"
 
 - Excellent for
     
@@ -485,6 +643,7 @@
 
     - Default choice for agentic coding and computer use
     - Keep extended thinking: 
+
         - **Off** for interactive edits
         - **On** for long-horizon work, RCAs, end‑to‑end refactors, multi‑service planning.
 
@@ -530,8 +689,17 @@
     | Massive mechanical refactors | Prefer GPT‑5‑Codex or Sonnet for speed/tooling |
     | Browser/computer use at scale | Tool success is strong but quotas limit large‑scale runs |
 
-- Key limitations: strict weekly limits; higher latency/cost; can over‑elaborate—prompt for concise outputs; always validate code/infra changes via tests/policy/review.
-- Strategic use: the “final say” model—finalize RFCs, threat models, decision records, executive narratives; explore with Haiku/Sonnet or GPT‑5‑Codex, then escalate to Opus for polished, defensible sign‑offs.
+- Key limitations:
+
+    - Strict weekly limits
+    - Higher latency/cost
+    - Can over‑elaborate—prompt for concise outputs
+    - Always validate code/infra changes via tests/policy/review
+
+- Strategic use:
+
+    - The "final say" model—finalize RFCs, threat models, decision records, executive narratives
+    - Explore with Haiku/Sonnet or GPT‑5‑Codex, then escalate to Opus for polished, defensible sign‑offs
 
 ### By task category
 
@@ -691,9 +859,13 @@
 
 #### Cost / latency trade‑offs
 
-- GPT‑5‑Codex: minimal/low keep costs/latency down for everyday edits; high for deep planning only when needed.
+- GPT‑5‑Codex:
+    - minimal/low keep costs/latency down for everyday edits
+    - high for deep planning only when needed
 - Haiku 4.5: default choice for speed/cost‑sensitive loops and batch hygiene.
-- Sonnet 4.5: enable extended thinking only when depth is required; otherwise keep interactive loops fast.
+- Sonnet 4.5:
+    - enable extended thinking only when depth is required
+    - otherwise keep interactive loops fast
 - Gemini 2.5 Pro: leverage for long‑context analysis when it replaces multiple shorter runs.
 - Opus 4.1: reserve for highest‑impact documents/decisions due to quotas and latency.
 - GPT‑5: scale thinking effort (low/medium/high) to match task complexity and latency budgets.
@@ -716,3 +888,58 @@
 | Testing / verification | GPT‑5‑Codex | Sonnet 4.5; Gemini 2.5 Pro; Haiku 4.5; Opus 4.1 (strategy docs); GPT‑5 (high effort invariants) |
 | Real‑time systems | GPT‑5‑Codex | Sonnet 4.5; Gemini 2.5 Pro; GPT‑5 (high effort) |
 | Systems languages (C++/Rust/Go) | GPT‑5‑Codex | Sonnet 4.5; Haiku 4.5; Opus 4.1 (docs); Gemini 2.5 Pro |
+
+### Precise settings by task
+
+- Sonnet 4.5 extended thinking
+
+    - Off:
+        - Interactive edits, reviews, quick fixes, short‑form planning
+    - On:
+        - Long‑horizon coding, complex research, multi‑service planning, incident RCAs
+        - Expect higher latency and token use
+        - Consider budgets
+
+- Haiku 4.5 extended thinking
+
+    - Off:
+        - Maximum responsiveness for edit‑run‑fix loops, CI "fix‑ups," batch hygiene
+    - On:
+        - Multi‑step tasks that exceed one prompt
+        - Enable selectively due to latency/token trade‑offs
+
+- GPT‑5 thinking effort
+
+    - Low:
+        - Simple reasoning, single‑file tasks
+        - Fast responses
+    - Medium:
+        - Default for most work
+        - Balanced depth and latency
+    - High:
+        - Complex designs, tricky invariants, deep trade‑offs
+        - Higher latency—pair with concrete artifacts and tests
+
+- GPT‑5‑Codex effort mapping
+
+    - Minimal:
+        - Deterministic edits (formatting, extraction, small regex, snapshot updates)
+    - Low:
+        - Single‑file features, docstrings, small tests
+        - Quick glue work
+    - Medium:
+        - Cross‑file changes, API glue, query edits
+        - Baseline for most refactors
+    - High:
+        - Complex migrations, concurrency/recovery design
+        - Use with tests and verification passes
+
+- Gemini 2.5 Pro usage tip
+
+    - Prefer when 100k+ context consolidates many smaller runs (whole‑repo/service analysis, math‑heavy reasoning)
+    - Watch for unrelated edits in complex changes
+
+- Opus 4.1 usage tip
+
+    - Reserve for "final say" documents and high‑stakes reviews (RFCs, threat models, decision records)
+    - Stricter weekly limits and higher latency/cost
