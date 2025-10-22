@@ -1,30 +1,56 @@
-# *MCP and CLI tools suite*: how-tos and [setup script](scripts/set-up-mcps.sh)
+# *MCP and CLI tools suite*: essential must-read information
 
-## What the script does
+**Contents:**
+- [What the setup script does](#what-the-setup-script-does)
+  - [Side effects](#side-effects)
+- [Tools set up by the script](#tools-set-up-by-the-script)
+  - [Important: ensuring tools work properly](#important-ensuring-tools-work-properly)
+- [Using the script](#using-the-script)
+  - [Prerequisites](#prerequisites)
+  - [Running the script](#running-the-script)
+
+--- 
+
+## What the [setup script](./scripts/set-up-mcps.sh) does
 
 1. Sets up a series of essential MCPs and CLI tools (including running some MCPs & Docker containers locally) 
 2. Configures [these coding agent CLIs](#supported-coding-agents) to use them
 
 And other useful background stuff.
 
-> **Side effects:**
-> 
-> - Uses ports **8780-8785** for the servers/containers it starts.
->     
->     - Pulls Qdrant DB Docker image and starts a container (to back the local Qdrant MCP)
->
-> - Clones the Sourcegraph MCP and Serena repos locally so that they can be used to launch servers.
+### Side effects
 
-### Tools set up by the script
+- Uses ports **8780-8785** for the servers/containers it starts.
+    
+    - Pulls Qdrant DB Docker image and starts a container (to back the local Qdrant MCP)
+
+- Clones the Sourcegraph MCP and Serena repos locally so that they can be used to launch servers.
+
+## Tools set up by the script
 
 See [`tools.md`](tools.md) for:
 
 - **full list of tools** set up/made available by the script
 - **how to use them** (e.g. when writing prompts)
 
-## Prerequisites
+### Important: ensuring tools work properly
+ 
+ - When using the Serena MCP with agents, you **need to activate the project *first* by providing the prompt `Activate the current dir as project using Serena`**.
+     
+     - Best to *always do this* when launching an agent, since Serena makes agents much more reliable & efficient at static analysis and syntax-related stuff
 
-### npm/Node
+ - API keys (used for free tiers of cloud-hosted MCP servers) for the following services need to be replaced with an API key from a **new account** once credits have been used up *(since these services' free tiers provide one-time free trial usage rather than monthly limits)*:
+
+     | Cloud service used via MCP | Free tier allowance (need to make new account after using this up) |
+     | :--- | :--- |
+     | [**Firecrawl**](https://www.firecrawl.dev/) | 500 free scrapes/crawls total |
+     | [**EXA**](https://exa.ai/) | $10 in one-time usage, then pay-as-you-go afterwards |
+
+## Using the script
+
+### Prerequisites
+
+#### npm/Node
 
 - Convenient to use [nvm](https://github.com/nvm-sh/nvm) to install/manage Node versions for you
 - To install nvm and use it to install the newest long-term-supported version of Node & npm:
@@ -35,11 +61,11 @@ See [`tools.md`](tools.md) for:
         nvm use --lts
     ```
 
-### [Homebrew](https://brew.sh)
+#### [Homebrew](https://brew.sh)
 
 Needed for checking for/installing Semgrep.
 
-### [uv](https://github.com/astral-sh/uv) with Python 3.12
+#### [uv](https://github.com/astral-sh/uv) with Python 3.12
     
 1. Install uv on Mac and Linux:
 
@@ -53,159 +79,69 @@ Needed for checking for/installing Semgrep.
     uv python install 3.12 && uv python pin 3.12
     ```
 
-### Rancher Desktop or Docker Desktop 
+#### Rancher Desktop or Docker Desktop 
 
 Needed for running the local Qdrant container.
 
-### API keys
+#### API keys
 
-> - **Free tiers are used in this script for each service/MCP server** that isn't free/open-source in the first place
-> - The services just offer extra features/usage on top of the regular free tier as a bonus for signing up and using an API key  
-
-#### Steps
+> - **Free tiers are used in this script for each service/MCP server** that isn't free/open-source in the first place; these API keys aren't used for any payments
+> - API keys created here are because either:
+>
+>     - The service's free tier requires an API key
+>     - The service offers bonus features/usage on top of the regular free tier as a bonus for signing up and using an API key  
 
 1. Create API key at these services' websites
 
     - [Tavily](https://www.tavily.com/)
     - [Firecrawl](https://firecrawl.dev/app/api-keys)
+    - [Brave](https://brave.com/search/api/)
+    - [Exa](https://exa.ai/)
 
-2. Add to and export from shell config (`.zshrc` or `.bashrc`) **with these variable names**:
+2. Add to as exports from shell config (`.zshrc` or `.bashrc`) **with these variable names**:
 
-    - `TAVILY_API_KEY`
-    - `FIRECRAWL_API_KEY`
+    ```bash
+    export TAVILY_API_KEY=<...>
+    export FIRECRAWL_API_KEY=<...>
+    export BRAVE_API_KEY=<...>
+    export EXA_API_KEY=<...>
+    ```
 
 3. `source` your shell config to ensure they're available
 
-## Supported coding agents
+### Running the script
 
-- **Claude Code**
-- **Codex CLI**
-- **Gemini CLI**
+```bash
+scripts/set-up-mcps.sh [options]
+```
 
-**By default: all 3 of these will be set up to use the MCPs**
+#### Options
 
-To choose specific ones, use `-a/--agent` followed by a string containing one or more of
+- `-a/--agent <str>`: for choosing specific agents to set up/configure to use the tools
 
-- `c` for Claude Code
-- `x` for Codex
-- `g` for Gemini
+    - **Supported agents: Claude Code, Codex CLI, Gemini CLI**
 
-So
-- `-a c` sets up only Claude Code to use the MCPs
-- `-a gc` sets up only Claude Code and Gemini to use the MCPs
-- `-a cgx` = same as default, set up for all 3
+        - **Default: all supported agents will be set up**
 
-## Useful background info 
+    - To choose specific ones, use `-a/--agent` followed by a string containing one or more of
 
-### MCP server types
+        - `c` for Claude Code
+        - `x` for Codex
+        - `g` for Gemini
 
-- **Official/reference** servers are developed and maintained by the creators of MCP
+    - For example:
+
+        - `-a c` sets up only Claude Code to use the MCPs
+        - `-a gc` sets up only Claude Code and Gemini to use the MCPs
+        - `-a cgx` = same as default, set up for all 3
+
+- `-y/--yes`: additionally configures agents chosen with `-a/--agent` above (or all supported agents by default) to have **auto-approved use of all the MCP tools set up here** *(so you don't get asked for permission each time/for each new tool you try to use)*
+
+- `-f/--fsdir <path>`: for specifying the directory that the Filesystem MCP is allowed to make edits within
     
-    - Are standard, primary implementations that serve as models for how to build new MCPs  
+    - **Default: `~/Code`**
 
-- **Community** servers are developed by the community
+- `-c/--clonedir <path>`: for specifying the directory that you want to place the cloned MCP servers' repos in
 
-### Ways of running MCP servers
+    - **Default: `~/Code/mcp-servers/`**
 
-Most MCP servers are run as **client-managed `stdio` servers**: 
-
-- You configure your coding agent (e.g. using `claude mcp add ...`) to use that MCP, telling the command to use to run the server (usually something like `npx -y ...`)
-- Then, the coding agent will start its own private instance of the server when launched and stop it when it's exited.
-
-Some servers support being accessed remotely (being run either as a locally-running process or by an online service that you access with a URL + API key), which allows them to be reused by many agents.
-
-| Method of talking to remote MCP servers | Use case | How it works |
-| --- | --- | --- |
-| **HTTP** | Best for MCPs whose toolcalls are quick & synchronous | Run the server once, `mcp add` command provides the server's URL; client then initiates exchanges w/ server via HTTP |
-| **SSE *(deprecated in a lot of places, better to just always use HTTP)*** | Best for MCPs whose tools run for a long time, thus making progress updates useful; Agent CLI *and* MCP server **must support SSE** | Similar to `http`, except connection remains open instead of closing after each request. Client then stays listening, and server can "push" messages (via events) to the client whenever new data is available |
-
-### Adding MCPs to coding agents
-
-> The `/mcp` command in each of the agent CLIs below will **list currently-active servers** *(useful for verifying setup was successful)*
-
-#### Gemini CLI
-
-> [***Full Gemini MCP guide***](https://geminicli.com/docs/tools/mcp-server/)
-> 
-> → [*Shortcut: guide to `gemini mcp` commands*](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md#managing-mcp-servers-with-gemini-mcp)
-
-- Add servers with `gemini mcp add <name> <commandOrUrl> [args...]` 
-    
-    - Scope used determines which config file is changed: 
-
-        - **Project scope *(default)*** → `~/.gemini/settings.json`
-        - **User scope** → `~/.gemini/settings.json`
-            
-            - Use via `-s user` option
-
-#### Claude Code
-
-> [***Full Claude Code MCP guide***](https://docs.claude.com/en/docs/claude-code/mcp)
-
-- **Support for SSE servers is deprecated**; prefer HTTP servers instead 
-- Can add MCP servers at these scopes (with `--scope <local|project|user>`):
-
-    - **Local (*default*)**: for current repo
-    - **Project**: changes current repo's `.mcp.json` so collaborators can reuse the same MCP setup
-    - **User**: for Claude Code anywhere on your device (changes config in `~/.claude`)
-
-- Listing and using available MCPs:
-
-    - Type `@` to see available resources from all connected MCP servers (alongside files)
-    - Use the format **`@server:protocol://resource/path`** to reference a resource, for example:
-
-        > `Compare @postgres:schema://users with @docs:file://database/user-model`
-
-#### Codex
-
-> [***Full Codex MCP guide***](https://developers.openai.com/codex/mcp)
-
-- Adding MCP servers:
-    
-    - Options for `stdio` servers:
-
-        1. **Edit `~/.codex/config.toml` config file** with this format:
-
-            ```toml
-            [mcp_servers.<server-name>]
-            command = <server launch command>  # required
-            args = <args for launch command>   # optional
-            env = { "ENV_VAR" = "VALUE" }      # optional: env vars for server to use
-
-            # alternate way of adding any env vars for server to use
-            [mcp_servers.<server-name>.env]
-            ENV_VAR = "VALUE"                 
-            # ... repeat for each variable
-            ```
-
-            - Example:
-
-                ```toml
-                [mcp_servers.context7]
-                command = "npx"
-                args = ["-y", "@upstash/context7-mcp"]
-
-                [mcp_servers.context7.env]
-                SUNRISE_DIRECTION = "EAST"
-                ```
-            
-        2. **Use shortcut command** (creates config entry for you): 
-
-            ```bash
-            codex mcp add <server-name> [--env <VAR=VALUE>]... -- <server launch command>
-            ```
-    
-    - For `http` servers: **must edit `~/.codex/config.toml`** config file with this format:
-
-        ```toml
-        # optional: add this line if you want to use RMCP client to connect to server
-        #           enables auth via OAuth for HTTP servers
-        experimental_use_rmcp_client = true 
-
-        [mcp_servers.<server-name>]
-        url = <server URL>      # required
-        bearer_token = <token>  # optional: bearer token to use in an `Authorization` header 
-                                #           (if not using OAuth via RMCP above)
-        ``` 
-
-    - **Doesn't support SSE**; use HTTP servers instead
