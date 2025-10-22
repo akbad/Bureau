@@ -13,6 +13,7 @@
 >
 > 1.  The **Specifier** creates the research plan.
 > 2.  The **Executor** executes the plan to gather all raw findings.
+>     - It delegates per-source summarization and extraction tasks to the **Extractor**.
 > 3.  The **Synthesizer** takes the Executor's raw findings and produces the final, synthesized answer(s).
 
 ### [Research specifier](research-specifier.md)
