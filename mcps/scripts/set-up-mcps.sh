@@ -704,7 +704,7 @@ configure_auto_approve() {
         log_info "→ Configuring $agent..."
         case "$agent" in
             "$CLAUDE")
-                python3 "$SCRIPT_DIR/add-claude-auto-approvals.py" "$CLAUDE_SETTINGS"
+                python3 "$SCRIPT_DIR/add-claude-auto-approvals.py" "$CLAUDE_SETTINGS" "${mcp_servers[@]}"
                 ;;
             "$CODEX")
                 python3 "$SCRIPT_DIR/add-codex-auto-approvals.py" "$CODEX_CONFIG"

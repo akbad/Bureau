@@ -3,11 +3,11 @@
 Helper script to update Claude Code settings.json with MCP auto-approval configuration.
 
 Usage:
-    python3 add-claude-auto-approvals.py <settings_file_path>
+    python3 add-claude-auto-approvals.py <settings_file_path> <server_name_1> <server_name_2> ...
 
 This script:
 1. Creates the settings file if it doesn't exist
-2. Merges in the MCP auto-approval permissions
+2. Adds explicit mcp__<server_name> permissions for each provided server
 3. Preserves existing settings
 """
 
@@ -15,12 +15,13 @@ import sys
 from config_utils import load_json_config, save_json_config
 
 
-def update_claude_settings(settings_path: str) -> None:
+def update_claude_settings(settings_path: str, mcp_servers: list[str]) -> None:
     """
     Update Claude settings.json with MCP auto-approval configuration.
 
     Args:
         settings_path: Path to the settings.json file
+        mcp_servers: List of MCP server names to auto-approve
     """
     # Load existing settings or start with empty dict
     settings = load_json_config(settings_path, default={})
@@ -32,13 +33,21 @@ def update_claude_settings(settings_path: str) -> None:
     if 'allow' not in settings['permissions']:
         settings['permissions']['allow'] = []
 
-    # Add MCP wildcard if not already present
-    mcp_pattern = "mcp__*"
-    if mcp_pattern not in settings['permissions']['allow']:
-        settings['permissions']['allow'].append(mcp_pattern)
-        print(f"Added '{mcp_pattern}' to permissions.allow")
+    # Add explicit mcp__<server_name> permissions for each server
+    added_count = 0
+    for server in mcp_servers:
+        mcp_permission = f"mcp__{server}"
+        if mcp_permission not in settings['permissions']['allow']:
+            settings['permissions']['allow'].append(mcp_permission)
+            print(f"Added '{mcp_permission}' to permissions.allow")
+            added_count += 1
+        else:
+            print(f"'{mcp_permission}' already in permissions.allow")
+
+    if added_count > 0:
+        print(f"Added {added_count} new MCP permission(s)")
     else:
-        print(f"'{mcp_pattern}' already in permissions.allow")
+        print("All MCP permissions already present")
 
     # Add enableAllProjectMcpServers if not already set
     if 'enableAllProjectMcpServers' not in settings:
@@ -53,9 +62,10 @@ def update_claude_settings(settings_path: str) -> None:
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print("Usage: python3 update_claude_settings.py <settings_file_path>")
+    if len(sys.argv) < 2:
+        print("Usage: python3 add-claude-auto-approvals.py <settings_file_path> [server_name_1] [server_name_2] ...")
         sys.exit(1)
 
     settings_path = sys.argv[1]
-    update_claude_settings(settings_path)
+    mcp_servers = sys.argv[2:] if len(sys.argv) > 2 else []
+    update_claude_settings(settings_path, mcp_servers)
