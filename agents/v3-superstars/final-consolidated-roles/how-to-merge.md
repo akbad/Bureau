@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide provides a systematic methodology for merging two or more agent prompt files into a single, coherent, and comprehensive document. The approach ensures complete preservation of valuable content while eliminating redundancies, fixing inaccuracies, and improving overall structure.
+This guide provides a systematic methodology for merging two or more agent prompt files into a single, coherent document that is **concise, readable, and complete**. The key principle: **preserve all critical content while trusting that brief is good enough**.
 
 ## When to Merge vs. Keep Separate
 
@@ -12,11 +12,10 @@ This guide provides a systematic methodology for merging two or more agent promp
 - ✅ Significant overlap in tool usage patterns and workflows
 - ✅ Domains are complementary or represent different aspects of the same expertise
 - ✅ Practitioners often work across both domains in practice
-- ✅ Combined file would be < 3000 lines (manageable size)
+- ✅ **Merged result would be 400-800 lines (readable at one sitting)**
 
 ### Keep Separate When:
 - ❌ Files address fundamentally different domains with minimal overlap (< 20%)
-- ❌ Combined file would exceed 3500+ lines (unwieldy)
 - ❌ Domains require entirely different tool sets with no shared patterns
 - ❌ Clear naming can eliminate confusion (e.g., "frontend" vs "backend")
 - ❌ Target audiences are distinct with no crossover use cases
@@ -27,7 +26,7 @@ This guide provides a systematic methodology for merging two or more agent promp
 
 ### Step 1.1: Structural Comparison
 
-**Create a comparison table** covering:
+**Create a comparison table**:
 
 | Aspect | File A | File B | Notes |
 |--------|--------|--------|-------|
@@ -36,9 +35,7 @@ This guide provides a systematic methodology for merging two or more agent promp
 | Core responsibilities | [# items] | [# items] | Overlap level |
 | MCP tools coverage | [list] | [list] | Tool redundancy |
 | Workflow patterns | [count] | [count] | Detail level |
-| Code examples | [yes/no] | [yes/no] | Example quality |
-| Standards/compliance | [if any] | [if any] | Certification needs |
-| Deep-dive sections | [topics] | [topics] | Technical depth |
+| Code examples | [yes/no] | [yes/no] | Quality (not quantity) |
 
 **Tool usage**:
 ```bash
@@ -48,7 +45,7 @@ wc -l file_a.md file_b.md
 # Count major sections
 grep -c "^## " file_a.md file_b.md
 
-# Extract section headers for comparison
+# Extract section headers
 grep "^## " file_a.md > sections_a.txt
 grep "^## " file_b.md > sections_b.txt
 ```
@@ -57,59 +54,57 @@ grep "^## " file_b.md > sections_b.txt
 
 **Identify three categories**:
 
-1. **Overlapping Concepts** (need unification):
+1. **Overlapping Concepts** (need unification, NOT duplication):
    - List concepts that appear in both files
-   - Note how they differ in treatment/depth
    - Identify which file has superior coverage
-   - Example: "Both cover latency management but File B has detailed WCET analysis"
+   - **Critical**: You will UNIFY these, not duplicate with "Domain A Context" and "Domain B Context" subsections
 
-2. **Unique to File A**:
-   - List concepts/sections only in File A
-   - Mark as critical (must preserve) or nice-to-have
-   - Example: "Transport protocol tuning (critical), NUMA tuning (critical)"
+2. **Unique to File A** (mark as critical or nice-to-have):
+   - Only preserve critical content
+   - Nice-to-have content should be omitted unless it's truly valuable
 
-3. **Unique to File B**:
-   - List concepts/sections only in File B
-   - Mark as critical or nice-to-have
-   - Example: "Safety certification (critical), ISR patterns (critical)"
+3. **Unique to File B** (mark as critical or nice-to-have):
+   - Only preserve critical content
+   - Omit tangential or overly detailed explanations
 
 **Create overlap matrix**:
 ```
 Concept               | File A | File B | Best Source | Action
 ----------------------|--------|--------|-------------|--------
-Scheduling            | Brief  | Detail | File B      | Use B, add A's distributed context
-Lock-free algorithms  | Mention| Deep   | File B      | Use B's detailed workflow
-Latency budgeting     | Network| WCET   | Both       | Merge, distinguish contexts
-MCP Tools: Sourcegraph| Basic  | Pattern| File B      | Use B's patterns, add A's use cases
+Scheduling            | Brief  | Detail | File B      | Use B's concise explanation, add A's context as 1-liner
+Lock-free algorithms  | Mention| Deep   | File B      | Use B's pattern, skip redundant explanation
+MCP Tools: Sourcegraph| Basic  | Pattern| File B      | Merge into single unified section with domain tags
 ```
 
-### Step 1.3: Redundancy Detection
+### Step 1.3: Bloat Detection & Redundancy Check
 
-**Search for duplicated content**:
+**Critical bloat patterns to identify**:
 
-1. **Tool descriptions**:
-   - Are MCP tools described in both files?
-   - Compare description depth and accuracy
-   - Decision: Use most detailed, add unique usage patterns from other
+1. **Duplicate explanations with domain subsections**:
+   - ❌ BAD: "### Distributed Usage... ### Embedded Usage..." (doubles content)
+   - ✅ GOOD: Unified explanation with inline domain tags
 
-2. **Workflow patterns**:
-   - Similar patterns with different detail levels?
-   - Decision: Standardize on most detailed format
+2. **Verbose templates**:
+   - ❌ BAD: Every tool has "Purpose, Key Tools, Usage Strategy, Example Queries, When to Use" subsections
+   - ✅ GOOD: "**Purpose**: [one line]. **Usage**: [key points]"
 
-3. **Principles/guidelines**:
-   - Overlapping best practices or principles?
-   - Decision: Merge into unified "Fundamental Principles" section
+3. **Over-elaborated workflows**:
+   - ❌ BAD: Each step has 3-5 sub-bullets with examples and expected outputs
+   - ✅ GOOD: Numbered steps with essential information only
 
-4. **Example invocations**:
-   - Similar example types?
-   - Decision: Keep all unique examples, group by domain
+4. **Redundant "Usage Strategy" sections**:
+   - Often repeats information already in "Key Patterns" or "Purpose"
+   - Omit if not adding new information
+
+5. **Excessive code scaffolding**:
+   - ❌ BAD: Setup code, teardown code, extensive comments around every example
+   - ✅ GOOD: Minimal code showing the essential pattern
 
 **Redundancy checklist**:
-- [ ] MCP tool descriptions compared
-- [ ] Workflow pattern structures analyzed
-- [ ] Principles/guidelines consolidated
-- [ ] Communication guidelines unified
-- [ ] Success metrics merged
+- [ ] MCP tool descriptions compared (will merge, not duplicate)
+- [ ] Workflow patterns analyzed (will use concise format)
+- [ ] Principles consolidated (no redundant explanations)
+- [ ] Code examples reviewed (keep minimal, essential only)
 
 ### Step 1.4: Accuracy & Quality Audit
 
@@ -124,19 +119,15 @@ MCP Tools: Sourcegraph| Basic  | Pattern| File B      | Use B's patterns, add A'
    grep -n "deprecated\|obsolete\|legacy" file_a.md file_b.md
    ```
 
-2. **Out-of-scope content**:
-   - Operational details that don't belong in agent instructions?
-   - Tool-specific limitations that are too granular?
-   - Example: "Rate limit concerns" might be too operational
+2. **Out-of-scope content** (candidates for removal):
+   - Operational details that don't belong in agent instructions
+   - Tool-specific limitations that are too granular
+   - "Integration with other agents" sections (often out of scope)
+   - Rate limit concerns (too operational)
 
-3. **Technical inaccuracies**:
-   - Incorrect algorithm descriptions?
-   - Outdated best practices?
-   - Wrong version numbers or specifications?
-
-4. **Scope creep**:
+3. **Scope creep detection**:
    - Content that belongs in a different agent?
-   - "Integration with other agents" sections (may be out of scope)
+   - Tangential examples that don't serve the core purpose?
 
 **Create issues list**:
 ```markdown
@@ -144,524 +135,632 @@ MCP Tools: Sourcegraph| Basic  | Pattern| File B      | Use B's patterns, add A'
 1. Line 238: References GPT-5 (doesn't exist) → Fix: Use GPT-4
 2. Line 450: RDMA mentioned without context → Fix: Add qualifier "for HFT/HPC"
 
-## Minor Issues
-1. Line 125: Redundant with line 87 → Fix: Consolidate
-2. Section "Integration with Others" → Decision: Make optional/conditional
+## Bloat to Remove
+1. Section "Integration with Others" → Remove (out of scope)
+2. Lines 200-250: Verbose MCP tool template → Condense to 10 lines
+3. Workflow patterns have excessive sub-bullets → Trim to essential steps
 ```
 
 ---
 
 ## Phase 2: Unified Structure Design (20-30% of effort)
 
-### Step 2.1: Define Domain Scope
+### Step 2.1: Define Domain Scope (Concisely)
 
-**Create explicit domain classification** (if merging cross-domain files):
+**For cross-domain merges, use this CONCISE format**:
 
 ```markdown
-## Domain Classification & Scope
+## Domain Scope
 
-### Domain A
-**When This Agent Applies**:
-- [Use case 1]
-- [Use case 2]
-- [Use case 3]
+**Domain A**: [Use cases]. [Characteristics: timing, guarantees, concerns].
 
-**Characteristics**:
-- Timing scale: [microseconds/milliseconds/seconds]
-- Guarantees: [deterministic/statistical]
-- Key concerns: [list]
-- Infrastructure: [embedded/cloud/hybrid]
+**Domain B**: [Use cases]. [Characteristics: timing, guarantees, concerns].
 
-### Domain B
-[Same structure]
-
-### Cross-Domain Scenarios
-**Hybrid Systems** requiring both expertise:
-- [Scenario 1]
-- [Scenario 2]
+**Hybrid**: [Cross-domain scenarios].
 ```
+
+**Do NOT expand into**:
+- ❌ Separate ### subsections for each domain
+- ❌ Bulleted lists with 5+ items per domain
+- ❌ Detailed "Characteristics" subsections with 5 bullets each
+
+**Keep it to 3-5 lines per domain maximum.**
 
 ### Step 2.2: Design Section Hierarchy
 
-**Recommended structure for merged agent files**:
+**Recommended structure**:
 
 ```markdown
-1. Role & Purpose (unified, mentions both domains)
-2. Domain Classification & Scope (if cross-domain)
+1. Role & Purpose (2-3 paragraphs max)
+2. Domain Scope (3-5 lines per domain)
 3. Core Responsibilities
-   3.1 Shared Across Domains
-   3.2 Domain A Specific
-   3.3 Domain B Specific
-4. Available MCP Tools (unified with domain tags)
-5. Workflow Patterns (detailed, domain-specific subsections)
-6. Fundamental Concepts (shared theory/algorithms)
-7. Domain A Deep Dive (unique technical content)
-8. Domain B Deep Dive (unique technical content)
-9. Common Anti-Patterns (shared + domain-specific)
-10. Fundamental Principles (unified)
-11. Domain-Specific Standards (if applicable)
-12. Communication Guidelines (unified)
-13. Example Invocations (grouped by domain)
-14. Success Metrics (both domains)
+   - Shared (numbered list)
+   - Domain A Specific (numbered list)
+   - Domain B Specific (numbered list)
+4. Available MCP Tools (concise, unified)
+5. Workflow Patterns (numbered steps, minimal sub-bullets)
+6. Fundamentals (key concepts only)
+7. Anti-Patterns (code examples, keep brief)
+8. Domain-Specific Details (if needed, keep short)
+9. Principles (numbered list)
+10. Communication Guidelines (bullet list)
+11. Example Invocations (grouped by domain)
+12. Success Metrics (bullet list per domain)
 ```
 
-**Key principles**:
-- ✅ Put shared/fundamental content early (Roles, Responsibilities, Tools)
-- ✅ Group domain-specific deep dives together
-- ✅ Unify cross-cutting concerns (Principles, Communication, Metrics)
-- ✅ Use consistent subsection structure within domain-specific sections
+**Key principle**: Flat is better than nested. Avoid deep subsection hierarchies.
 
-### Step 2.3: MCP Tools Section Strategy
+### Step 2.3: MCP Tools Section Strategy (CRITICAL - Avoid Bloat)
 
-**Decision framework**:
+**Bloat anti-pattern to AVOID**:
+```markdown
+### Sourcegraph MCP (Critical Path Discovery)
 
-1. **If both files describe same tools**:
-   - Use most detailed descriptions as base
-   - Add unique usage patterns from other file
-   - Create domain-specific subsections within each tool
+**Purpose**: [Paragraph explaining purpose in detail]
 
-2. **Template for unified tool description**:
-   ```markdown
-   ### [Tool Name] MCP ([Primary Purpose])
+#### Distributed Systems Usage
 
-   **Purpose**: [Unified description covering both domains]
+**Key Searches**:
+- [Search 1 with explanation]
+- [Search 2 with explanation]
+- [etc]
 
-   #### Domain A Usage
-   **Key Searches/Operations**:
-   - [Pattern 1]
-   - [Pattern 2]
+**Search Pattern Library**:
+```
+[Code block with patterns that duplicate Key Searches]
+```
 
-   **Search Pattern Library**:
-   ```
-   [Code examples]
-   ```
+**Usage Strategy**:
+- [Bullet 1 repeating information from above]
+- [Bullet 2 repeating information from above]
+- [etc]
 
-   #### Domain B Usage
-   [Same structure]
+#### Embedded Systems Usage
 
-   **Shared Usage Strategy**:
-   - [Strategy applicable to both]
-   ```
+[Same verbose structure repeated]
 
-3. **For tools unique to one domain**:
-   - Place in unified section but clearly mark domain applicability
-   - Example: "### Git MCP (Applicable to both domains)"
+**Usage Strategy**:
+[More repeated information]
+```
+
+**Concise format to USE**:
+```markdown
+### Sourcegraph MCP
+
+**Purpose**: [One sentence].
+
+**Key Patterns**:
+```
+# Domain A: [pattern]
+# Domain B: [pattern]
+```
+
+**Usage**: [Brief bullets only if adding new info]
+```
+
+**Guidelines**:
+- ✅ Merge domain-specific usage into single section with inline tags
+- ✅ Use code blocks with comments to distinguish domains
+- ✅ Eliminate "Usage Strategy" if it repeats "Purpose" or "Key Patterns"
+- ✅ Keep total per tool to 15-30 lines max (not 50-70 lines)
+
+### Step 2.4: Workflow Pattern Format (Trust Brief)
+
+**Bloat anti-pattern to AVOID**:
+```markdown
+### Pattern 1: Distributed Latency Analysis
+
+**Objective**: [Detailed paragraph]
+
+**Steps**:
+1. **Establish end-to-end latency budget** from SLOs
+   - Decompose into per-hop budgets (e.g., 10ms total = 2ms producer + 3ms transport + 4ms processing + 1ms response)
+   - Document P50, P90, P99, and max targets for each hop
+   - Create spreadsheet tracking budget allocation
+   - [More sub-bullets]
+2. **Use Sourcegraph** to map critical path:
+   - Identify entry points, message producers, consumers, handlers
+   - Trace data flow through serialization, transport, deserialization
+   - Find queue handoffs and async boundaries
+   - Document call graph with latency annotations
+   - [More sub-bullets]
+[etc - 8 steps with 3-5 sub-bullets each = 100+ lines]
+```
+
+**Concise format to USE**:
+```markdown
+### Pattern 1: Distributed Latency Analysis
+
+1. Establish per-hop latency budget from SLOs
+2. Use Sourcegraph to map critical path (producer → transport → consumer)
+3. Instrument with distributed tracing (P50/P90/P99 per hop)
+4. Identify bottlenecks: serialization, network, queues, locks, GC
+5. Use Semgrep to detect blocking in async code
+6. Prototype under load, compare metrics
+7. Stage with feature flags, monitor for regression
+8. Document in Qdrant
+```
+
+**Guidelines**:
+- ✅ Numbered steps without sub-bullets (or minimal sub-bullets)
+- ✅ Each step is one line when possible
+- ✅ Trust the reader to understand details from context
+- ✅ Target 8-15 lines per workflow, not 50-100 lines
+- ❌ Don't add "Objective" if the title is clear
+- ❌ Don't add "Success Criteria" unless truly necessary
+- ❌ Don't elaborate examples in sub-bullets
 
 ---
 
 ## Phase 3: Content Merge Execution (30-40% of effort)
 
-### Step 3.1: Preparation
+### Step 3.1: Role & Purpose (Keep Concise)
 
-**Create working environment**:
-```bash
-# Create backups
-cp file_a.md file_a.md.backup
-cp file_b.md file_b.md.backup
+**Template**:
+```markdown
+## Role & Purpose
 
-# Create content extraction directory
-mkdir merge_components
-cd merge_components
+You are a **[Role]** with expertise across [N] domains:
 
-# Extract sections from both files
-grep -A 1000 "^## Role & Purpose" ../file_a.md > role_a.md
-grep -A 1000 "^## Role & Purpose" ../file_b.md > role_b.md
-# Repeat for all major sections
+1. **Domain A**: [One-line description]
+2. **Domain B**: [One-line description]
+
+You excel at [key skills - one sentence].
 ```
 
-### Step 3.2: Section-by-Section Merge
+**Target**: 2-3 paragraphs maximum (10-15 lines)
 
-**For each major section, follow this process**:
+**Avoid**:
+- ❌ Elaborating on each domain with multiple paragraphs
+- ❌ Repeating information that will appear in "Domain Scope"
 
-#### Role & Purpose
-- [ ] Draft unified role statement covering both domains
-- [ ] Mention both domain contexts explicitly
-- [ ] Keep concise (3-5 paragraphs max)
-- [ ] Example: "You are a [Role] with expertise across [Domain A] and [Domain B]"
+### Step 3.2: Core Responsibilities (Numbered Lists)
 
-#### Core Responsibilities
-- [ ] List shared responsibilities first (items common to both)
-- [ ] Create "Domain A Specific" subsection
-- [ ] Create "Domain B Specific" subsection
-- [ ] Number items for easy reference
-- [ ] Cross-reference where responsibilities overlap
+**Format**:
+```markdown
+## Core Responsibilities
 
-#### MCP Tools (critical section)
-- [ ] For each tool, use template from Step 2.3
-- [ ] Preserve ALL search patterns from both files
-- [ ] Add domain tags to usage examples
-- [ ] Consolidate "Usage Strategy" bullets
-- [ ] Include code examples from both files
+### Shared
+1. **[Responsibility]**: [Brief description]
+2. **[Responsibility]**: [Brief description]
+[etc]
 
-#### Workflow Patterns
-- [ ] Standardize on most detailed format (usually step-by-step numbered lists)
-- [ ] Expand brief workflows from one file to match detail level of other
-- [ ] Add domain-specific workflows from each file
-- [ ] Ensure consistent structure:
-   ```markdown
-   ### Pattern N: [Name]
+### Domain A Specific
+7. **[Responsibility]**: [Brief description]
+[etc]
 
-   **Objective**: [Clear goal statement]
-
-   **Steps**:
-   1. [Action with tool reference]
-      - [Sub-details]
-      - [Expected output]
-   2. [Next action]
-   ...
-
-   **Success Criteria**:
-   - [ ] [Measurable outcome]
-   ```
-
-#### Fundamental Concepts
-- [ ] Merge overlapping theoretical content
-- [ ] Preserve ALL algorithms, formulas, equations
-- [ ] Use tables for comparisons (e.g., "Hard vs Soft Real-Time")
-- [ ] Include code examples from both files
-- [ ] Add cross-references between related concepts
-
-#### Domain Deep Dives
-- [ ] Create separate subsections for each domain's unique content
-- [ ] Preserve ALL technical depth (don't summarize)
-- [ ] Include ALL code examples verbatim
-- [ ] Maintain original section structure within each domain
-- [ ] Add "Applicable to [Domain]" tags where helpful
-
-#### Anti-Patterns
-- [ ] Create "Shared Anti-Patterns" subsection
-- [ ] Create domain-specific subsections
-- [ ] Preserve ALL code examples
-- [ ] Use consistent format:
-   ```markdown
-   #### N. [Anti-Pattern Name]
-
-   **Problem**: [What goes wrong]
-
-   **Anti-Pattern**:
-   ```[language]
-   // ❌ BAD
-   [code example]
-   ```
-
-   **Solution**:
-   ```[language]
-   // ✅ GOOD
-   [code example]
-   ```
-   ```
-
-#### Principles
-- [ ] Merge overlapping principles (eliminate duplication)
-- [ ] Preserve unique principles from each file
-- [ ] Number all principles for easy reference
-- [ ] Keep concise (1-2 sentences per principle)
-
-#### Example Invocations
-- [ ] Group by domain or use case type
-- [ ] Preserve ALL examples from both files
-- [ ] Use consistent format with clear headers
-- [ ] Include expected outputs or success criteria
-
-### Step 3.3: Quality Checks During Merge
-
-**After merging each major section**:
-
-- [ ] **Completeness check**: Did I include all content from both source files?
-- [ ] **Consistency check**: Is formatting consistent with other sections?
-- [ ] **Clarity check**: Is domain applicability clear (if cross-domain)?
-- [ ] **Example check**: Are code examples properly formatted and accurate?
-- [ ] **Reference check**: Do internal cross-references still work?
-
-**Use grep to verify content inclusion**:
-```bash
-# Check that key concepts from File A are present
-grep -q "key_concept_from_a" merged_file.md && echo "✓ Found" || echo "✗ Missing"
-
-# Check that all code examples were preserved
-grep -c "```" file_a.md
-grep -c "```" merged_file.md  # Should be >= sum of both files
+### Domain B Specific
+10. **[Responsibility]**: [Brief description]
+[etc]
 ```
+
+**Guidelines**:
+- ✅ Each responsibility is one line
+- ✅ Number continuously across subsections
+- ❌ Don't expand into paragraphs
+- ❌ Don't add examples or elaboration
+
+### Step 3.3: MCP Tools (Unified, Concise)
+
+**For each tool**:
+
+1. Read both source files' descriptions
+2. Write one-sentence "Purpose"
+3. **Merge domain-specific patterns** into single code block with inline comments
+4. Add "Usage" bullets ONLY if they add new information not in patterns
+5. Keep total to 15-30 lines per tool
+
+**Example**:
+```markdown
+### Context7 MCP
+
+**Purpose**: Get framework/protocol documentation.
+
+**Topics**:
+- Domain A: [List 3-5 topics]
+- Domain B: [List 3-5 topics]
+
+**Usage**: [2-3 bullets max]
+```
+
+**Total for all 9 tools**: Target 100-150 lines (not 400+ lines)
+
+### Step 3.4: Workflow Patterns (Trust Brief)
+
+**For each workflow**:
+
+1. Identify if one source has the pattern, or both
+2. If both have it, choose the more concise version as base
+3. **Do NOT expand** brief bullet points into multi-level sub-bullets
+4. Use numbered steps (8-15 per workflow)
+5. Each step should be one line when possible
+
+**Avoid**:
+- ❌ Sub-bullets explaining what each step does
+- ❌ "Expected output" or "Example" subsections
+- ❌ Repeating tool names with full explanations (just say "Use Sourcegraph")
+
+**Total for 5-6 workflows**: Target 60-100 lines (not 300+ lines)
+
+### Step 3.5: Fundamentals (Essential Theory Only)
+
+**Include**:
+- ✅ Key algorithms with formulas (RMS, EDF)
+- ✅ Critical comparisons (hard vs soft RT) in table format
+- ✅ Essential definitions (2-3 sentences each)
+
+**Exclude**:
+- ❌ Extensive code examples (save for Anti-Patterns section)
+- ❌ Detailed derivations or proofs
+- ❌ Redundant explanations of concepts covered elsewhere
+
+**Example format**:
+```markdown
+### Scheduling Algorithms
+
+**Rate Monotonic (RMS)**: Static priority by period. Schedulable if U ≤ n(2^(1/n) - 1). Optimal for fixed-priority.
+
+**EDF**: Dynamic priority by deadline. Schedulable if U ≤ 1.0. Higher utilization than RMS, more overhead.
+
+**PIP**: Low-priority holding mutex inherits priority of blocked high-priority. Prevents inversion.
+```
+
+**Target for entire Fundamentals section**: 60-100 lines (not 200-400 lines)
+
+### Step 3.6: Anti-Patterns (Code + Brief Explanation)
+
+**Format per anti-pattern**:
+```markdown
+### N. [Pattern Name]
+
+**Problem**: [One sentence].
+
+**Solution**: [One sentence or brief code example].
+
+```[language]
+// ❌ BAD: [minimal bad example]
+
+// ✅ GOOD: [minimal good example]
+```
+```
+
+**Guidelines**:
+- ✅ Keep code examples to 3-10 lines each
+- ✅ Focus on the essential difference
+- ❌ Don't add extensive setup/teardown code
+- ❌ Don't explain what the code does line-by-line (trust the reader)
+
+**Target for 7-10 anti-patterns**: 80-120 lines (not 300+ lines)
+
+### Step 3.7: Domain-Specific Details (Minimal)
+
+**Only include if truly unique** and not covered in earlier sections.
+
+**Format**:
+```markdown
+### Domain A: [Topic]
+
+**[Subtopic]**: [Brief description with key details]
+
+**[Subtopic]**: [Brief description with key details]
+```
+
+**Example**:
+```markdown
+### Distributed: Transport & Serialization
+
+**TCP Tuning**: `TCP_NODELAY`, buffer sizes, BBR congestion control.
+
+**QUIC**: 0-RTT resumption, multiplexing without head-of-line blocking.
+
+**Serialization**: FlatBuffers/Cap'n Proto (zero-copy), Protocol Buffers (compact), ensure bounded sizes.
+```
+
+**Target for domain details**: 30-60 lines total (not 150+ lines)
+
+### Step 3.8: Example Invocations (Grouped, Concise)
+
+**Format**:
+```markdown
+## Example Invocations
+
+**Domain A**: "[Concise request with key requirements]"
+
+**Domain B**: "[Concise request with key requirements]"
+
+**Cross-domain**: "[Hybrid scenario]"
+```
+
+**Guidelines**:
+- ✅ Each example is 1-3 sentences
+- ❌ Don't elaborate with multiple paragraphs
+- ❌ Don't include expected outputs (trust the reader)
+
+**Target**: 20-40 lines for 5-8 examples (not 100+ lines)
 
 ---
 
 ## Phase 4: Verification & Refinement (10-20% of effort)
 
-### Step 4.1: Completeness Verification
+### Step 4.1: Length Verification (Critical)
 
-**Create verification checklist**:
-
-```bash
-# Extract all section headers from source files
-grep "^##" file_a.md | sort > sections_a_sorted.txt
-grep "^##" file_b.md | sort > sections_b_sorted.txt
-
-# For each section in source files, verify presence in merged file
-while read section; do
-    grep -q "$section" merged_file.md && echo "✓ $section" || echo "✗ MISSING: $section"
-done < sections_a_sorted.txt
-```
-
-**Content verification matrix**:
-
-| Source | Section | In Merged? | Location | Notes |
-|--------|---------|-----------|----------|-------|
-| File A | [Section 1] | Yes | Line [X] | Complete |
-| File A | [Section 2] | Yes | Line [Y] | Merged with B's version |
-| File B | [Section 3] | Yes | Line [Z] | Complete |
-
-### Step 4.2: Accuracy Verification
-
-**Run automated checks**:
+**Target merged length**: **40-60% of combined source files**
 
 ```bash
-# Check for broken internal references
-grep -n "\[.*\](#.*)" merged_file.md | while read line; do
-    ref=$(echo "$line" | sed 's/.*](#\(.*\)).*/\1/')
-    grep -q "^## $ref\|^### $ref" merged_file.md || echo "Broken reference: $line"
-done
+# Calculate target range
+total=$(($(wc -l < file_a.md) + $(wc -l < file_b.md)))
+min=$((total * 40 / 100))
+max=$((total * 60 / 100))
 
-# Check for placeholder text
-grep -n "TODO\|FIXME\|XXX\|TBD" merged_file.md
+echo "Source files: $total lines"
+echo "Target range: $min - $max lines"
 
-# Check for inaccuracies caught during analysis
-grep -n "GPT-5\|GPT-6" merged_file.md  # Should return nothing
+# Check merged file
+merged=$(wc -l < merged_file.md)
+echo "Merged file: $merged lines"
 
-# Verify code block closure
-awk '/^```/ {count++} END {if (count % 2 != 0) print "Unclosed code block!"}' merged_file.md
+if [ $merged -gt $max ]; then
+    echo "⚠️ WARNING: Merged file is too long! Look for bloat."
+fi
 ```
 
-**Manual accuracy checks**:
-- [ ] All model names are accurate (GPT-4, Claude 3.5, etc.)
-- [ ] All library/framework versions are current
-- [ ] All URLs are valid (if any)
-- [ ] All code examples are syntactically correct
-- [ ] All acronyms are defined on first use
+**If merged file exceeds 60% of combined length**:
+- 🚨 You likely have bloat - review for verbose templates, duplicated domain sections, over-elaborated workflows
 
-### Step 4.3: Structural Verification
+**If merged file is less than 30% of combined length**:
+- ⚠️ May be missing critical content - verify completeness
 
-**Check document flow**:
+**Sweet spot**: 40-50% of combined length (true merge, not accumulation)
+
+**Example**:
+- Source A: 182 lines
+- Source B: 951 lines
+- Combined: 1,133 lines
+- **Target: 450-680 lines** (40-60%)
+- **Actual good result: 447 lines** (39% - acceptable, concise and complete)
+- **Bloated first attempt: 2,360 lines** (208% - massive over-elaboration)
+
+### Step 4.2: Bloat Pattern Detection
+
+**Run these checks on merged file**:
+
 ```bash
-# Verify section numbering is consistent
-grep "^## " merged_file.md | nl
+# Check for verbose subsections
+grep -n "^#### " merged_file.md | wc -l
+# If > 20 subsections, you likely have over-nested structure
 
-# Check for appropriate section hierarchy
-awk '/^#/ {print length($1), $0}' merged_file.md | sort -n
+# Check for repeated "Usage Strategy" sections
+grep -c "Usage Strategy" merged_file.md
+# Should be 0-2, not 9+ (one per tool)
 
-# Verify all major sections are present
-required_sections=(
-    "Role & Purpose"
-    "Core Responsibilities"
-    "Available MCP Tools"
-    "Workflow Patterns"
-    "Example Invocations"
-    "Success Metrics"
-)
+# Check average workflow pattern length
+awk '/^### Pattern [0-9]/{p=1; count++; lines=0; next} p && /^###/{p=0; total+=lines} p{lines++} END{print total/count " lines per workflow"}' merged_file.md
+# Should be 10-20 lines, not 50-100 lines
 
-for section in "${required_sections[@]}"; do
-    grep -q "^## $section" merged_file.md && echo "✓ $section" || echo "✗ MISSING: $section"
-done
+# Check for domain duplication
+grep -c "#### Distributed.*Usage\|#### Embedded.*Usage" merged_file.md
+# Should be 0 (unified format) not 18+ (duplicated)
 ```
 
-**Logical flow checklist**:
-- [ ] Introduction before details (Role → Responsibilities → Tools)
-- [ ] Theory before practice (Concepts → Workflows → Examples)
-- [ ] Shared before specific (Common concepts → Domain deep dives)
-- [ ] Abstract before concrete (Principles → Anti-patterns with code)
+### Step 4.3: Completeness Verification
 
-### Step 4.4: Length & Readability Check
+**Verify all critical content present**:
 
-**Assess final length**:
 ```bash
-# Line count
-wc -l merged_file.md
+# Create content checklist from source files
+echo "## Critical Content Checklist" > checklist.txt
 
-# Word count
-wc -w merged_file.md
+# Extract unique responsibilities
+grep "^\*\*.*:\*\*" file_a.md file_b.md | sort -u >> checklist.txt
 
-# Estimate reading time (250 words/min)
-words=$(wc -w < merged_file.md)
-echo "Estimated reading time: $((words / 250)) minutes"
+# For each critical item, verify in merged file
+while read item; do
+    grep -q "$item" merged_file.md && echo "✓ $item" || echo "✗ MISSING: $item"
+done < checklist.txt
 ```
 
-**Guidelines**:
-- ✅ **1500-2500 lines**: Ideal for comprehensive agent (like our merge)
-- ⚠️ **2500-3500 lines**: Acceptable but consider if anything can be trimmed
-- ❌ **3500+ lines**: Too long, consider splitting or removing tangential content
+**Manual checks**:
+- [ ] All core responsibilities present
+- [ ] All MCP tools covered
+- [ ] Key algorithms/formulas preserved
+- [ ] Essential code examples included
+- [ ] Domain-specific critical content preserved
+
+### Step 4.4: Quality Checks
+
+**Verify conciseness without loss**:
+- [ ] Each section serves a purpose (no filler)
+- [ ] Code examples are minimal but complete
+- [ ] No redundant explanations between sections
+- [ ] Cross-references work (if any)
+- [ ] No "TODO" or placeholder text
 
 **Readability checks**:
 - [ ] Headers use consistent capitalization
-- [ ] Code blocks have language tags (```python, ```c, etc.)
-- [ ] Lists use consistent formatting (bullets vs numbers)
+- [ ] Code blocks have language tags
 - [ ] Tables are properly formatted
-- [ ] No paragraphs exceed 10 lines
-- [ ] Technical terms defined or linked on first use
-
-### Step 4.5: Domain Clarity Check (if cross-domain merge)
-
-**Verify domain applicability is clear**:
-
-```bash
-# Count domain-specific markers
-grep -c "Distributed Systems" merged_file.md
-grep -c "Embedded Systems" merged_file.md
-
-# Check for ambiguous sections
-grep -n "^### " merged_file.md | grep -v "Distributed\|Embedded\|Shared\|Both" | head
-```
-
-**Domain clarity checklist**:
-- [ ] "Domain Classification & Scope" section present and clear
-- [ ] Each workflow pattern indicates applicable domain(s)
-- [ ] Domain-specific sections clearly labeled
-- [ ] Example invocations grouped by domain
-- [ ] Success metrics specify which domain they apply to
+- [ ] No paragraphs exceed 8 lines
+- [ ] Lists are formatted consistently
 
 ---
 
 ## Phase 5: Documentation & Handoff
 
-### Step 5.1: Create Summary Report
-
-**Document the merge** in comments at the top of the merged file or in a separate `MERGE_NOTES.md`:
+### Step 5.1: Create Merge Summary
 
 ```markdown
 # Merge Summary
 
 **Source Files**:
-- `file_a.md` (182 lines) - Focused on [Domain A]
-- `file_b.md` (951 lines) - Focused on [Domain B]
+- `file_a.md` ([X] lines) - Focused on [Domain A]
+- `file_b.md` ([Y] lines) - Focused on [Domain B]
 
-**Merged File**: `merged_file.md` (2360 lines)
-
-**Merge Date**: [YYYY-MM-DD]
+**Merged File**: `merged_file.md` ([Z] lines = [%] of combined)
 
 **Key Changes**:
-1. **Fixed Inaccuracies**:
-   - Line 238, 243: Changed GPT-5 → GPT-4 (doesn't exist)
-   - Line 70: Added qualifier for RDMA (HFT/HPC specific)
+1. **Fixed Inaccuracies**: [List]
+2. **Eliminated Bloat**:
+   - Unified domain-specific subsections → inline tags
+   - Condensed verbose MCP tool templates → concise format
+   - Trimmed workflow patterns → essential steps only
+3. **Content Preserved**: All critical content retained
 
-2. **Structure Improvements**:
-   - Added "Domain Classification & Scope" section
-   - Unified MCP Tools descriptions (eliminated duplication)
-   - Standardized workflow pattern format
-
-3. **Content Additions**:
-   - Merged scheduling algorithms from both files
-   - Added cross-domain scenarios section
-   - Expanded code examples
-
-4. **Content Removed**:
-   - Duplicate MCP tool descriptions
-   - Redundant principles (consolidated)
-   - [Anything else removed]
-
-**Content Preservation**:
-- ✅ ALL technical depth from File B preserved
-- ✅ ALL distributed systems content from File A preserved
-- ✅ ALL code examples from both files included
-- ✅ ALL workflow patterns expanded to detailed format
-```
-
-### Step 5.2: Create Migration Notes (if replacing existing files)
-
-**If this merge replaces existing agent files**:
-
-```markdown
-# Migration Guide
-
-**Old Files** → **New File**:
-- `real-time-systems-engineering.md` (DEPRECATED)
-- `realtime-systems-specialist.md` (DEPRECATED)
-→ `realtime-systems-specialist.md` (NEW, consolidated)
-
-**For Users**:
-- Use new consolidated file for both distributed and embedded real-time systems
-- Domain applicability clearly marked in "Domain Classification" section
-- All previous functionality preserved
-
-**Breaking Changes**: None (fully backward compatible in capabilities)
-
-**Recommended Actions**:
-1. Update any references to old files
-2. Review new "Domain Classification" section for clarity
-3. Bookmark relevant workflow patterns for your use case
+**Size Comparison**:
+- Source total: [X+Y] lines
+- Merged: [Z] lines ([%] of source)
+- Target was: 40-60% ✓ or ✗
 ```
 
 ---
 
-## Common Merge Scenarios & Solutions
+## Critical Anti-Patterns to Avoid
 
-### Scenario 1: Different Detail Levels
+### 1. Domain Duplication Bloat ❌
 
-**Problem**: File A has brief bullet points, File B has detailed workflows.
-
-**Solution**: Standardize on detailed format
-- Use File B's detailed structure as template
-- Expand File A's brief points into step-by-step workflows
-- Add missing details: expected outputs, tool usage, success criteria
-
-### Scenario 2: Conflicting Best Practices
-
-**Problem**: Files recommend different approaches to same problem.
-
-**Solution**: Present both with context
+**DON'T DO THIS**:
 ```markdown
-### [Problem]: Two Approaches
+### Tool Name
 
-**Approach 1** (from [Domain A]):
-- [Description]
-- **When to use**: [Context]
-- **Trade-offs**: [Pros/cons]
+#### Distributed Systems Usage
+[Full explanation]
+[Patterns]
+**Usage Strategy**: [Bullets]
 
-**Approach 2** (from [Domain B]):
-- [Description]
-- **When to use**: [Context]
-- **Trade-offs**: [Pros/cons]
-
-**Recommendation**: [Guidance on which to choose when]
+#### Embedded Systems Usage
+[Full explanation - often 80% same as above]
+[Patterns]
+**Usage Strategy**: [Bullets repeating information]
 ```
 
-### Scenario 3: Overlapping But Different Terminology
-
-**Problem**: Same concept called different names in each file.
-
-**Solution**: Unify terminology with aliases
+**DO THIS INSTEAD** ✅:
 ```markdown
-### [Preferred Term] (also known as [Alternative Term])
+### Tool Name
 
-[Unified description using preferred term]
+**Purpose**: [One sentence for both domains].
 
-**Note**: File A referred to this as "[Term A]", File B as "[Term B]".
-We use "[Preferred Term]" for clarity.
+**Key Patterns**:
+```
+# Distributed: [pattern]
+# Embedded: [pattern]
 ```
 
-### Scenario 4: Outdated vs Current Information
-
-**Problem**: Files have conflicting information due to age difference.
-
-**Solution**: Use most current, note deprecation
-```markdown
-### [Topic]
-
-[Current, accurate information]
-
-**Historical Note**: Earlier versions of this guidance recommended [old approach],
-but current best practice is [new approach] due to [reason].
+**Usage**: [Unified bullets, domain-tagged if needed]
 ```
 
-### Scenario 5: Missing Cross-References
+**Impact**: Reduces 60-80 lines to 15-20 lines without loss.
 
-**Problem**: Merged content creates opportunities for new internal links.
+### 2. Verbose Workflow Elaboration ❌
 
-**Solution**: Add cross-references during merge
+**DON'T DO THIS**:
 ```markdown
-### [Section A]
-
-[Content that relates to Section B]
-
-*See also*: [Section B](#section-b) for related patterns.
+1. **Establish latency budget** from SLOs
+   - Decompose into per-hop budgets
+   - Example: 10ms total = 2ms producer + 3ms transport + 4ms processing + 1ms response
+   - Document P50, P90, P99, and max targets for each hop
+   - Create spreadsheet or dashboard tracking allocations
+   - Review with stakeholders for approval
 ```
+
+**DO THIS INSTEAD** ✅:
+```markdown
+1. Establish per-hop latency budget from SLOs
+```
+
+**Impact**: Trust the reader knows or can infer details. 1 line vs 6 lines per step.
+
+### 3. Redundant "Usage Strategy" Sections ❌
+
+**DON'T DO THIS**:
+```markdown
+**Purpose**: Search code for patterns.
+
+**Key Patterns**:
+```
+"pattern1"
+"pattern2"
+```
+
+**Usage Strategy**:
+- Use pattern1 to find X
+- Use pattern2 to find Y
+- Compare results across files
+```
+
+**DO THIS INSTEAD** ✅:
+```markdown
+**Purpose**: Search code for patterns.
+
+**Key Patterns**:
+```
+"pattern1"  # Finds X
+"pattern2"  # Finds Y
+```
+```
+
+**Impact**: Eliminate section that just repeats pattern purpose in different words.
+
+### 4. Over-Scaffolded Code Examples ❌
+
+**DON'T DO THIS**:
+```c
+// Initialize system components
+initializeHardware();
+configureInterrupts();
+
+// ❌ BAD: Dynamic allocation in ISR
+void ISR_Handler(void) {
+    // Allocating memory at runtime
+    uint8_t *buffer = malloc(256);
+
+    // Process data
+    processData(buffer);
+
+    // Clean up
+    free(buffer);
+}
+
+// Proper cleanup and system shutdown
+shutdownHardware();
+```
+
+**DO THIS INSTEAD** ✅:
+```c
+// ❌ NEVER in ISR
+void ISR_Handler(void) {
+    uint8_t *buf = malloc(256);  // FORBIDDEN
+}
+
+// ✅ Use pre-allocated pool or static buffer
+```
+
+**Impact**: 3-5 lines vs 15+ lines. Reader understands the point without scaffolding.
+
+### 5. Excessive "Objective" and "Success Criteria" ❌
+
+**DON'T DO THIS**:
+```markdown
+### Pattern 3: Lock-Free Implementation
+
+**Objective**: Implement deterministic shared data access without locks to eliminate contention and ensure predictable performance in both distributed and embedded real-time systems.
+
+[Workflow steps]
+
+**Success Criteria**:
+- ✓ No data races detected by sanitizers
+- ✓ Deterministic performance under contention
+- ✓ Progress guarantees documented
+- ✓ Test coverage > 95%
+- ✓ Benchmark results show improvement over mutex-based approach
+```
+
+**DO THIS INSTEAD** ✅:
+```markdown
+### Pattern 3: Lock-Free Implementation
+
+[Workflow steps]
+```
+
+**Impact**: Title is self-explanatory. Success criteria are obvious. Save 8-10 lines.
 
 ---
 
@@ -669,35 +768,32 @@ but current best practice is [new approach] due to [reason].
 
 ### Quantitative Metrics
 
-✅ **Completeness**:
-- All sections from source files present in merged file
-- All code examples preserved
-- All technical details intact
+✅ **Conciseness**: Merged file is **40-60% of combined source length**
+- Below 30%: Possibly missing content
+- 40-50%: Ideal (true merge, well-consolidated)
+- 60-80%: Acceptable but check for bloat
+- Above 80%: Almost certainly has bloat
 
-✅ **Efficiency**:
-- Merged file length ≈ 80-120% of (File A + File B) length
-- (If < 80%: possibly missing content; if > 120%: possibly redundant)
+✅ **Section Length Targets**:
+- MCP Tools: 100-150 lines total (not 400+)
+- Workflow Patterns: 60-100 lines total (not 300+)
+- Anti-Patterns: 80-120 lines (not 300+)
+- Fundamentals: 60-100 lines (not 200+)
+- Domain Details: 30-60 lines (not 150+)
 
-✅ **Accuracy**:
-- Zero factual errors introduced
-- All inaccuracies from source files corrected
+✅ **Completeness**: All critical content from source files present
+
+✅ **Accuracy**: Zero factual errors introduced, all inaccuracies fixed
 
 ### Qualitative Metrics
 
-✅ **Clarity**:
-- Domain applicability obvious for all sections
-- Consistent terminology throughout
-- Logical flow from introduction to examples
+✅ **Clarity**: Domain applicability obvious, consistent terminology
 
-✅ **Usability**:
-- Easy to find relevant information
-- Clear examples for all major concepts
-- Actionable guidance (not just theory)
+✅ **Usability**: Easy to find information, actionable guidance
 
-✅ **Maintainability**:
-- Consistent structure enables future updates
-- Clear section boundaries
-- Well-documented merge decisions
+✅ **Trust**: Brief explanations without over-elaboration
+
+✅ **Maintainability**: Flat structure, consistent format, easy to update
 
 ---
 
@@ -706,39 +802,38 @@ but current best practice is [new approach] due to [reason].
 ### Pre-Merge
 - [ ] Read both files completely
 - [ ] Create structural comparison table
-- [ ] Identify overlaps, unique content, redundancies
+- [ ] Identify overlaps (will unify), unique content (will preserve if critical)
+- [ ] Detect bloat patterns in source files
 - [ ] Audit for inaccuracies and out-of-scope content
-- [ ] Design unified structure
-- [ ] Create backup copies of source files
+- [ ] Set target length: 40-60% of combined
+- [ ] Create backup copies
 
-### During Merge
-- [ ] Merge Role & Purpose (unified statement)
-- [ ] Create Domain Classification section (if cross-domain)
-- [ ] Merge Core Responsibilities (shared + specific)
-- [ ] Unify MCP Tools section (preserve all patterns)
-- [ ] Merge Workflow Patterns (standardize on detailed format)
-- [ ] Merge Fundamental Concepts (preserve all theory)
-- [ ] Integrate domain-specific deep dives
-- [ ] Consolidate anti-patterns and principles
-- [ ] Merge example invocations (group by domain)
-- [ ] Unify success metrics
+### During Merge - Apply Conciseness Principles
+- [ ] Role & Purpose: 2-3 paragraphs max
+- [ ] Domain Scope: 3-5 lines per domain
+- [ ] Core Responsibilities: Numbered lists, one line each
+- [ ] MCP Tools: Unified format, 15-30 lines per tool
+- [ ] Workflow Patterns: Numbered steps, minimal sub-bullets
+- [ ] Fundamentals: Essential theory only
+- [ ] Anti-Patterns: Brief code examples
+- [ ] Domain Details: Only if truly unique
+- [ ] Example Invocations: 1-3 sentences each
+
+### During Merge - Avoid These Mistakes
+- [ ] ❌ No domain duplication with separate subsections
+- [ ] ❌ No verbose workflow elaboration with multi-level bullets
+- [ ] ❌ No redundant "Usage Strategy" sections
+- [ ] ❌ No over-scaffolded code examples
+- [ ] ❌ No unnecessary "Objective" or "Success Criteria"
+- [ ] ❌ No deep subsection nesting (#### and beyond)
 
 ### Post-Merge Verification
-- [ ] Completeness: All source content present
-- [ ] Accuracy: No errors introduced, inaccuracies fixed
-- [ ] Structure: Logical flow, consistent hierarchy
-- [ ] Length: Within acceptable range (1500-3500 lines)
-- [ ] Clarity: Domain applicability clear throughout
-- [ ] Code: All examples properly formatted and correct
-- [ ] References: Internal links working
-- [ ] Documentation: Merge notes and migration guide created
-
-### Final Steps
-- [ ] Run automated verification checks
-- [ ] Manual review of critical sections
-- [ ] Create summary report
-- [ ] Update any external references
-- [ ] Archive or deprecate source files (if applicable)
+- [ ] Length check: 40-60% of combined ✓
+- [ ] Bloat pattern detection (subsection count, repeated sections)
+- [ ] Completeness: All critical content present
+- [ ] Accuracy: No errors, inaccuracies fixed
+- [ ] Quality: Concise, readable, actionable
+- [ ] Create merge summary documenting size and changes
 
 ---
 
@@ -748,16 +843,15 @@ but current best practice is [new approach] due to [reason].
 ```bash
 # Line and word counts
 wc -l file.md
-wc -w file.md
 
-# Section counting
-grep -c "^##" file.md
+# Count major sections
+grep -c "^## " file.md
 
 # Extract all headers
 grep "^#" file.md
 
-# Find code blocks
-grep -n "^```" file.md
+# Check for bloat: subsection count
+grep -c "^#### " file.md  # Should be minimal
 ```
 
 ### Content Verification
@@ -765,57 +859,49 @@ grep -n "^```" file.md
 # Check for specific content
 grep -n "keyword" file.md
 
-# Case-insensitive search
-grep -in "keyword" file.md
-
 # Count occurrences
 grep -c "keyword" file.md
 
-# Check if content exists (silent)
+# Verify content exists
 grep -q "keyword" file.md && echo "Found" || echo "Not found"
 ```
 
-### Structure Validation
+### Length & Bloat Checks
 ```bash
-# Verify balanced code blocks
-awk '/^```/ {count++} END {print count " code block markers (should be even)"}' file.md
+# Calculate target length
+total=$(($(wc -l < file_a.md) + $(wc -l < file_b.md)))
+echo "Target: $((total * 40 / 100)) - $((total * 60 / 100)) lines"
 
-# Check section hierarchy
-awk '/^#/ {print length($1), $0}' file.md
+# Check merged length
+wc -l merged_file.md
 
-# Find potential issues
-grep -n "TODO\|FIXME\|XXX\|TBD\|\\[\\]" file.md
-```
+# Detect domain duplication bloat
+grep -c "#### Distributed.*Usage\|#### Embedded.*Usage" merged_file.md
 
-### Comparison
-```bash
-# Compare section headers
-diff <(grep "^##" file_a.md) <(grep "^##" file_b.md)
-
-# Find common lines
-comm -12 <(sort file_a.md) <(sort file_b.md)
-
-# Find unique to each file
-comm -23 <(sort file_a.md) <(sort file_b.md)  # Unique to A
-comm -13 <(sort file_a.md) <(sort file_b.md)  # Unique to B
+# Detect redundant sections
+grep -c "Usage Strategy" merged_file.md
 ```
 
 ---
 
 ## Final Thoughts
 
-**Merging agent files is an art and a science**. The science is the systematic analysis, verification, and structural design. The art is knowing when to preserve verbatim, when to paraphrase, and when to restructure entirely.
+**The core principle**: **Trust that brief is good enough.**
 
-**Key Principles for Successful Merges**:
+**Common mistakes that lead to bloat**:
+1. **Being too conservative**: Trying to keep everything from both files verbatim
+2. **Adding unnecessary structure**: Creating verbose templates for every section
+3. **Not trusting the reader**: Over-explaining what can be inferred from context
+4. **Duplicating instead of merging**: Separate "Domain A" and "Domain B" subsections instead of unified format
 
-1. **Preservation First**: When in doubt, preserve content rather than remove
-2. **Clarity Always**: Make domain/context applicability explicit
-3. **Consistency Matters**: Standardize formats, terminology, structure
-4. **Verify Everything**: Assume nothing, check everything
-5. **Document Decisions**: Explain why you merged the way you did
+**The goal** is not just to combine files, but to create a **superior unified resource** that is:
+- **Concise**: Respects the reader's time
+- **Complete**: Preserves all critical content
+- **Readable**: Can be consumed in one sitting (400-800 lines)
+- **Actionable**: Provides clear, brief guidance
 
-**Remember**: The goal is not just to combine files, but to create a **superior unified resource** that serves users better than either source file alone.
+**Remember**: If your merged file is larger than 60% of the combined source files, you have bloat. Go back and apply these principles more aggressively.
 
 ---
 
-*This methodology was developed through the successful merge of `real-time-systems-engineering.md` (182 lines) and `realtime-systems-specialist.md` (951 lines) into a comprehensive 2,360-line consolidated agent file.*
+*This methodology was refined through real-world application, where an initial bloated merge of 2,360 lines (208% of source) was successfully trimmed to 447 lines (39% of source) while preserving 100% of critical content.*
