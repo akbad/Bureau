@@ -15,29 +15,29 @@
 
 ### AI/ML Engineering & MLOps Specialist
 
-- [ ] Model training, experimentation, hyperparameter tuning
-- [ ] Feature engineering and feature stores
-- [ ] Model deployment and serving (TorchServe, TensorFlow Serving, ONNX)
-- [ ] A/B testing models in production
-- [ ] Model monitoring, drift detection, retraining pipelines
-- [ ] MLOps automation (MLflow, Kubeflow, SageMaker)
-- [ ] Model optimization (quantization, pruning, distillation)
-- [ ] Vector databases and embedding strategies (beyond just Qdrant usage)
-- [ ] LLM fine-tuning, prompt engineering at scale, RAG systems
-- [ ] Responsible AI (bias detection, explainability, fairness)
+- [x] Model training, experimentation, hyperparameter tuning
+- [x] Feature engineering and feature stores
+- [x] Model deployment and serving (TorchServe, TensorFlow Serving, ONNX)
+- [x] A/B testing models in production
+- [x] Model monitoring, drift detection, retraining pipelines
+- [x] MLOps automation (MLflow, Kubeflow, SageMaker)
+- [x] Model optimization (quantization, pruning, distillation)
+- [x] Vector databases and embedding strategies (beyond just Qdrant usage)
+- [x] LLM fine-tuning, prompt engineering at scale, RAG systems
+- [x] Responsible AI (bias detection, explainability, fairness)
 
 ### Mobile Engineering Architect
 
-- [ ] Native iOS (Swift/SwiftUI) and Android (Kotlin/Jetpack Compose) architecture
-- [ ] Cross-platform frameworks (React Native, Flutter, Xamarin)
-- [ ] Mobile-specific performance (battery optimization, memory management, startup time)
-- [ ] App store deployment, release management, TestFlight/Beta
-- [ ] Mobile CI/CD pipelines (Fastlane, Bitrise)
-- [ ] Push notifications, deep linking, universal links
-- [ ] Offline-first architecture and sync strategies
-- [ ] Mobile security (certificate pinning, jailbreak detection, secure storage)
-- [ ] Mobile testing (XCTest, Espresso, Appium)
-- [ ] App analytics and crash reporting
+- [x] Native iOS (Swift/SwiftUI) and Android (Kotlin/Jetpack Compose) architecture
+- [x] Cross-platform frameworks (React Native, Flutter, Xamarin)
+- [x] Mobile-specific performance (battery optimization, memory management, startup time)
+- [x] App store deployment, release management, TestFlight/Beta
+- [x] Mobile CI/CD pipelines (Fastlane, Bitrise)
+- [x] Push notifications, deep linking, universal links
+- [x] Offline-first architecture and sync strategies
+- [x] Mobile security (certificate pinning, jailbreak detection, secure storage)
+- [x] Mobile testing (XCTest, Espresso, Appium)
+- [x] App analytics and crash reporting
 
 ### Platform Engineering / Internal Developer Platform Builder
 
@@ -57,16 +57,16 @@
 
 > Critical for any organization at scale
 
-- [ ] Cloud cost analysis across AWS/Azure/GCP
-- [ ] Resource right-sizing recommendations
-- [ ] Reserved instances, savings plans, spot instances strategy
-- [ ] Cost allocation, tagging strategies, chargeback models
-- [ ] Budget alerts and forecasting
-- [ ] Multi-cloud cost comparison and optimization
-- [ ] TCO (Total Cost of Ownership) calculations
-- [ ] Waste detection (zombie resources, orphaned volumes)
-- [ ] Cost-aware architecture decisions
-- [ ] FinOps culture and governance
+- [x] Cloud cost analysis across AWS/Azure/GCP
+- [x] Resource right-sizing recommendations
+- [x] Reserved instances, savings plans, spot instances strategy
+- [x] Cost allocation, tagging strategies, chargeback models
+- [x] Budget alerts and forecasting
+- [x] Multi-cloud cost comparison and optimization
+- [x] TCO (Total Cost of Ownership) calculations
+- [x] Waste detection (zombie resources, orphaned volumes)
+- [x] Cost-aware architecture decisions
+- [x] FinOps culture and governance
 
 ### Real-time Systems Engineering Specialist
 
@@ -87,72 +87,72 @@
 
 > Since many systems need sophisticated search
 
-- [ ] Elasticsearch/Solr/Meilisearch/Typesense architecture
-- [ ] Search relevance tuning and scoring algorithms
-- [ ] Full-text search optimization
-- [ ] Vector search and semantic search (embeddings)
-- [ ] Faceted search and aggregations
-- [ ] Search analytics (query analysis, click-through rate)
-- [ ] Index management, sharding, and replication
-- [ ] Search-as-you-type and autocomplete
-- [ ] Multilingual search
-- [ ] Search result ranking ML models
+- [x] Elasticsearch/Solr/Meilisearch/Typesense architecture
+- [x] Search relevance tuning and scoring algorithms
+- [x] Full-text search optimization
+- [x] Vector search and semantic search (embeddings)
+- [x] Faceted search and aggregations
+- [x] Search analytics (query analysis, click-through rate)
+- [x] Index management, sharding, and replication
+- [x] Search-as-you-type and autocomplete
+- [x] Multilingual search
+- [x] Search result ranking ML models
 
-### Observability Engineering Specialist *(not written yet)*
+### Observability Engineering Specialist
 
 > Deeper than the DevOps agent's monitoring
 
-- [ ] Distributed tracing architecture (Jaeger, Zipkin, Tempo)
-- [ ] Metrics aggregation at scale (Prometheus federation, Thanos)
-- [ ] Log aggregation and analysis at massive scale
-- [ ] Alerting strategy and alert fatigue reduction
-- [ ] SLI/SLO/SLA definition and tracking
-- [ ] Error budgets and burn rate
-- [ ] Incident management workflows and runbooks
-- [ ] On-call rotation management
-- [ ] Observability as code
-- [ ] Chaos engineering integration with observability
+- [x] Distributed tracing architecture (Jaeger, Zipkin, Tempo)
+- [x] Metrics aggregation at scale (Prometheus federation, Thanos)
+- [x] Log aggregation and analysis at massive scale
+- [x] Alerting strategy and alert fatigue reduction
+- [x] SLI/SLO/SLA definition and tracking
+- [x] Error budgets and burn rate
+- [x] Incident management workflows and runbooks
+- [x] On-call rotation management
+- [x] Observability as code
+- [x] Chaos engineering integration with observability
 
 ### Networking & Edge Infrastructure Specialist
 
 > Covers the deep networking layer
 
-- [ ] CDN configuration and optimization (Cloudflare, Fastly, Akamai)
-- [ ] Advanced load balancing strategies (Global Server Load Balancing)
-- [ ] DNS architecture (anycast, GeoDNS, DNS failover)
-- [ ] Service mesh deep dive (Istio, Linkerd, Consul Connect)
-- [ ] Network security (DDoS mitigation, WAF rules)
-- [ ] Edge computing (Cloudflare Workers, Lambda@Edge)
-- [ ] Network performance optimization (TCP tuning, connection pooling)
-- [ ] Multi-region traffic routing
-- [ ] Anycast and BGP for global distribution
+- [x] CDN configuration and optimization (Cloudflare, Fastly, Akamai)
+- [x] Advanced load balancing strategies (Global Server Load Balancing)
+- [x] DNS architecture (anycast, GeoDNS, DNS failover)
+- [x] Service mesh deep dive (Istio, Linkerd, Consul Connect)
+- [x] Network security (DDoS mitigation, WAF rules)
+- [x] Edge computing (Cloudflare Workers, Lambda@Edge)
+- [x] Network performance optimization (TCP tuning, connection pooling)
+- [x] Multi-region traffic routing
+- [x] Anycast and BGP for global distribution
 
 ### Database Internals & Query Optimization Specialist
 
 > Goes an extra mile beyond the data engineering agent
 
-- [ ] Query optimizer internals and tuning
-- [ ] Storage engine design and selection
-- [ ] Index strategies at expert level (covering indexes, partial indexes)
-- [ ] Database sharding and partitioning strategies
-- [ ] Vacuum/maintenance optimization
-- [ ] Custom database extensions (PostgreSQL, MySQL)
-- [ ] Database replication lag troubleshooting
-- [ ] Query plan analysis and optimization
-- [ ] Database kernel tuning
+- [x] Query optimizer internals and tuning
+- [x] Storage engine design and selection
+- [x] Index strategies at expert level (covering indexes, partial indexes)
+- [x] Database sharding and partitioning strategies
+- [x] Vacuum/maintenance optimization
+- [x] Custom database extensions (PostgreSQL, MySQL)
+- [x] Database replication lag troubleshooting
+- [x] Query plan analysis and optimization
+- [x] Database kernel tuning
 
 ###  Technical Debt & Legacy Modernization Strategist
 
 > Separate from and complementary to the migration agent
 
-- [ ] Technical debt quantification and tracking
-- [ ] Code archaeology and legacy understanding
-- [ ] Strangler fig pattern implementation strategies
-- [ ] Modernization roadmaps with ROI analysis
-- [ ] Risk assessment for legacy system changes
-- [ ] Dependency analysis and extraction
-- [ ] Incremental refactoring strategies
-- [ ] Legacy system documentation generation
+- [x] Technical debt quantification and tracking
+- [x] Code archaeology and legacy understanding
+- [x] Strangler fig pattern implementation strategies
+- [x] Modernization roadmaps with ROI analysis
+- [x] Risk assessment for legacy system changes
+- [x] Dependency analysis and extraction
+- [x] Incremental refactoring strategies
+- [x] Legacy system documentation generation
 
 ### Computer Vision / Image Processing Specialist
 
