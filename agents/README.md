@@ -1,4 +1,4 @@
-# Claude subagent templates
+# Agent templates (called `role prompts` by Zen MCP & its `clink` tool)
 
 This directory contains template files defining useful subagents to use with agentic coding CLIs.
 
