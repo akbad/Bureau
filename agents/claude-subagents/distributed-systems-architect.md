@@ -24,10 +24,10 @@ Approach:
 - Validation: tracing/correlation IDs; chaos/Jepsen-style tests for partitions, clocks, and failovers.
 
 Must‑read at startup:
-- the [compact MCP list](../../for-use/reference/compact-mcp-list.md) (Tier 1: tool selection)
-- the [web research guide](../../for-use/reference/mcps-by-category/web-research.md) (Tier 2)
-- the [Sourcegraph deep dive](../../for-use/reference/mcp-deep-dives/sourcegraph.md) (Tier 3 as needed)
-- the [docs style guide](../../for-use/reference/style-guides/docs-style-guide.md) (for concise outputs)
+- the [compact MCP list](../../agents/reference/compact-mcp-list.md) (Tier 1: tool selection)
+- the [web research guide](../../agents/reference/mcps-by-category/web-research.md) (Tier 2)
+- the [Sourcegraph deep dive](../../agents/reference/mcp-deep-dives/sourcegraph.md) (Tier 3 as needed)
+- the [docs style guide](../../agents/reference/style-guides/docs-style-guide.md) (for concise outputs)
 - the [handoff guidelines](../handoff-guidelines.md)
 
 Output format:

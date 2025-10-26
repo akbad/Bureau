@@ -70,12 +70,12 @@
 > ---
 > 
 > You are a senior code reviewer. Before starting, read these files:
-> - `for-use/reference/compact-tool-list.md` – Tier 1 tool quick ref
-> - `for-use/must-reads/style-guide.md` – Project coding standards
-> - `for-use/must-reads/handoff-guidelines.md` – When to delegate
+> - `agents/reference/compact-tool-list.md` – Tier 1 tool quick ref
+> - `agents/must-reads/style-guide.md` – Project coding standards
+> - `agents/must-reads/handoff-guidelines.md` – When to delegate
 > 
 > If you need detailed Semgrep usage, read:
-> - `for-use/reference/mcps/semgrep.md` – Tier 3 deep dive
+> - `agents/reference/mcps/semgrep.md` – Tier 3 deep dive
 > 
 > [Rest of role prompt body...]
 > ```
@@ -86,11 +86,11 @@
 > You are a research synthesis specialist.
 > 
 > At startup, read:
-> - for-use/reference/compact-tool-list.md (tier 1: tool selection)
-> - for-use/must-reads/handoff-guidelines.md (delegation rules)
+> - agents/reference/compact-tool-list.md (tier 1: tool selection)
+> - agents/must-reads/handoff-guidelines.md (delegation rules)
 > 
 > When comparing web research tools, read:
-> - for-use/reference/category/web-research.md (tier 2: Tavily vs Exa vs Fetch)
+> - agents/reference/category/web-research.md (tier 2: Tavily vs Exa vs Fetch)
 > 
 > [Rest of role prompt body...]
 > ```
@@ -156,7 +156,7 @@
 
 ## Using with Zen's `clink`
 
-This repo’s role bodies in `for-use/clink-role-prompts/` can be used as clink roles across any project. clink loads CLI client configs and role prompt files at startup.
+This repo’s role bodies in `agents/clink-role-prompts/` can be used as clink roles across any project. clink loads CLI client configs and role prompt files at startup.
 
 - Prereqs
     - Run Zen MCP with clink enabled (for example via this repo’s setup script). Endpoint typically: `http://localhost:8781/mcp/`.
@@ -168,7 +168,7 @@ This repo’s role bodies in `for-use/clink-role-prompts/` can be used as clink 
     - User overrides: `~/.zen/cli_clients`
 
 - Map roles to these prompt files
-    - Option A (absolute paths): point `prompt_path` at files in `for-use/clink-role-prompts/`.
+    - Option A (absolute paths): point `prompt_path` at files in `agents/clink-role-prompts/`.
     - Option B (symlink + relative): symlink this folder under `~/.zen/cli_clients/systemprompts/` and use a relative `prompt_path`.
 
 Example (`~/.zen/cli_clients/gemini.json`):
@@ -181,10 +181,10 @@ Example (`~/.zen/cli_clients/gemini.json`):
   "env": {},
   "roles": {
     "frontend": {
-      "prompt_path": "/ABSOLUTE/PATH/TO/REPO/my-agent-files/for-use/clink-role-prompts/frontend.md"
+      "prompt_path": "/ABSOLUTE/PATH/TO/REPO/my-agent-files/agents/clink-role-prompts/frontend.md"
     },
     "testing": {
-      "prompt_path": "/ABSOLUTE/PATH/TO/REPO/my-agent-files/for-use/clink-role-prompts/testing.md"
+      "prompt_path": "/ABSOLUTE/PATH/TO/REPO/my-agent-files/agents/clink-role-prompts/testing.md"
     }
   }
 }
@@ -194,7 +194,7 @@ Or using a symlinked layout:
 
 ```bash
 mkdir -p ~/.zen/cli_clients/systemprompts/clink
-ln -s "$PWD/my-agent-files/for-use/clink-role-prompts" \
+ln -s "$PWD/my-agent-files/agents/clink-role-prompts" \
       ~/.zen/cli_clients/systemprompts/clink/for-use-prompts
 ```
 
@@ -225,11 +225,11 @@ ln -s "$PWD/my-agent-files/for-use/clink-role-prompts" \
     - The clink tool schema enumerates available `cli_name` and `role` values—use it to confirm your roles are loaded.
     - The example JSONs include permissive flags (for example, Codex `--dangerously-bypass-approvals-and-sandbox`). Remove or adjust them for stricter guardrails.
 
-Tip: Keep role bodies short and reference Tier‑1/2/3 docs from `for-use/reference/` in the prompt text (don’t inline).
+Tip: Keep role bodies short and reference Tier‑1/2/3 docs from `agents/reference/` in the prompt text (don’t inline).
 
 ## Using with Claude Code subagents
 
-This repo’s subagent files in `for-use/claude-subagents/` are ready to install.
+This repo’s subagent files in `agents/claude-subagents/` are ready to install.
 
 - Where they live (precedence)
     - Project: `.claude/agents/` (overrides user for same `name`)
@@ -239,8 +239,8 @@ This repo’s subagent files in `for-use/claude-subagents/` are ready to install
 
 ```bash
 mkdir -p ~/.claude/agents
-ln -s "$PWD/my-agent-files/for-use/claude-subagents/frontend.md" ~/.claude/agents/frontend.md
-ln -s "$PWD/my-agent-files/for-use/claude-subagents/testing.md" ~/.claude/agents/testing.md
+ln -s "$PWD/my-agent-files/agents/claude-subagents/frontend.md" ~/.claude/agents/frontend.md
+ln -s "$PWD/my-agent-files/agents/claude-subagents/testing.md" ~/.claude/agents/testing.md
 ```
 
 - Minimal, correct frontmatter (already included):
@@ -276,4 +276,4 @@ claude --agents '{
 }'
 ```
 
-Note: Role bodies should reference `for-use/reference/compact-mcp-list.md` (Tier 1) and any relevant Tier‑2/3 guides. We’ll add `for-use/handoff-guidelines.md` next and reference it as a must‑read for delegation rules.
+Note: Role bodies should reference `agents/reference/compact-mcp-list.md` (Tier 1) and any relevant Tier‑2/3 guides. We’ll add `agents/handoff-guidelines.md` next and reference it as a must‑read for delegation rules.
