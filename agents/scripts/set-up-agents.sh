@@ -61,15 +61,6 @@ print_success "Symlinked clink-role-prompts to ~/.zen/cli_clients/systemprompts/
 cp "$AGENTS_DIR/configs/"*.json ~/.zen/cli_clients/
 print_success "Copied CLI configs (*.json) to ~/.zen/cli_clients/"
 
-# Create global context file for Gemini
-mkdir -p ~/.gemini
-ln -sf "$AGENTS_DIR/configs/AGENTS.md" ~/.gemini/GEMINI.md
-print_success "Symlinked AGENTS.md to ~/.gemini/GEMINI.md"
-
-# Create global context file for Codex (via hierarchical discovery)
-ln -sf "$AGENTS_DIR/configs/AGENTS.md" ~/AGENTS.md
-print_success "Symlinked AGENTS.md to ~/AGENTS.md (discovered by Codex hierarchically)"
-
 echo ""
 
 # ============================================================================
@@ -88,10 +79,6 @@ for agent_file in "$AGENTS_DIR/claude-subagents"/*.md; do
 done
 print_success "Symlinked all Claude subagent files to ~/.claude/agents/"
 
-# Symlink global CLAUDE.md context file
-ln -sf "$AGENTS_DIR/configs/CLAUDE.md" ~/.claude/CLAUDE.md
-print_success "Symlinked CLAUDE.md to ~/.claude/CLAUDE.md"
-
 echo ""
 
 # ============================================================================
@@ -100,15 +87,9 @@ echo ""
 echo -e "${GREEN}✓ Agent setup complete!${NC}"
 echo ""
 echo "Next steps:"
-echo "  1. Restart Zen MCP server to reload clink configs"
-echo "  2. Verify Claude Code agents with: claude (then run /agents)"
-echo "  3. Install claude-mem plugin:"
+echo "  1. Run the configs setup script: configs/scripts/set-up-configs.sh"
+echo "  2. Restart Zen MCP server to reload clink configs"
+echo "  3. Verify Claude Code agents with: claude (then run /agents)"
+echo "  4. Install claude-mem plugin:"
 echo "     > /plugin marketplace add thedotmack/claude-mem"
 echo "     > /plugin install claude-mem"
-echo ""
-echo "All three CLIs now have access to:"
-echo "  - Handoff guidelines (delegation rules)"
-echo "  - Compact MCP list (tool selection guide)"
-echo ""
-echo "Note: Codex discovers ~/AGENTS.md via hierarchical parent search."
-echo "      Works for any project under your home directory."
