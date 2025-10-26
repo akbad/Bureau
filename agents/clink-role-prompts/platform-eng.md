@@ -22,7 +22,7 @@ Must-read at startup:
 - the [compact MCP list](../reference/compact-mcp-list.md)
 - the [code search guide](../reference/mcps-by-category/code-search.md)
 - the [Sourcegraph deep dive](../reference/mcp-deep-dives/sourcegraph.md)
-- the [handoff guidelines](../handoff-guidelines.md)
+- the [handoff guidelines](../reference/handoff-guidelines.md)
 
 Output format:
 - Findings: sprawl hotspots/manual steps with evidence (paths:lines).

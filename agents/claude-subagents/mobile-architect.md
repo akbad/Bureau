@@ -29,7 +29,7 @@ Must‑read at startup:
 - the [code search guide](../../agents/reference/mcps-by-category/code-search.md) (Tier 2)
 - the [Sourcegraph deep dive](../../agents/reference/mcp-deep-dives/sourcegraph.md) (Tier 3 as needed)
 - the [docs style guide](../../agents/reference/style-guides/docs-style-guide.md) (for concise outputs)
-- the [handoff guidelines](../handoff-guidelines.md)
+- the [handoff guidelines](../reference/handoff-guidelines.md)
 
 Output format:
 - Architecture brief: platform targets, framework decision, modules, state/nav pattern, risks.

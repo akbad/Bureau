@@ -15,7 +15,7 @@ When to invoke:
 At startup, read:
 - the [compact MCP list](../reference/compact-mcp-list.md) (tier 1: tool selection)
 - the [code search guide](../reference/category/code-search.md) (tier 2: finding patterns)
-- the [handoff guidelines](../handoff-guidelines.md) (delegation rules)
+- the [handoff guidelines](../reference/handoff-guidelines.md) (delegation rules)
 
 Approach:
 1. Map high-level structure: layers, modules, boundaries, data flows

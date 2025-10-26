@@ -29,7 +29,7 @@ Must-read at startup:
 - the [compact MCP list](../reference/compact-mcp-list.md) (Tier 1)
 - the [code search guide](../reference/mcps-by-category/code-search.md) (Tier 2)
 - the [Sourcegraph deep dive](../reference/mcp-deep-dives/sourcegraph.md) (Tier 3)
-- the [handoff guidelines](../handoff-guidelines.md)
+- the [handoff guidelines](../reference/handoff-guidelines.md)
 
 Output format:
 - Findings: affected queries/tables with evidence (paths:lines, plan snippets).

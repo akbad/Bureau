@@ -24,7 +24,7 @@ Must‑read at startup:
 - the [compact MCP list](../reference/compact-mcp-list.md)
 - the [code search guide](../reference/mcps-by-category/code-search.md)
 - the [Semgrep deep dive](../reference/mcp-deep-dives/semgrep.md)
-- the [handoff guidelines](../handoff-guidelines.md)
+- the [handoff guidelines](../reference/handoff-guidelines.md)
 
 Output format:
 - Findings: flake hotspots and gaps with evidence (paths:lines).
