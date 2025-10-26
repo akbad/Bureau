@@ -1,7 +1,6 @@
 ---
 name: db-internals
 description: Use proactively when queries are slow, locks/timeouts spike, bloat or replication lag appear, or after schema changes/upgrades; deliver safe, measurable DB fixes.
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

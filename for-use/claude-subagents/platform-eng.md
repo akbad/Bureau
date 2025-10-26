@@ -1,7 +1,6 @@
 ---
 name: platform-eng
 description: Use proactively when CI is unstable, builds/tests are slow or flaky, tool sprawl/manual tickets exist, security/policy drift appears, or golden paths/portal onboarding are missing; deliver safe, measurable platform upgrades.
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

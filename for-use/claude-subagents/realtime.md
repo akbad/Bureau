@@ -1,7 +1,6 @@
 ---
 name: realtime-systems
 description: Principal real-time engineer. Design for predictable latency, bounded jitter, and deadline guarantees across distributed and embedded systems. Use proactively for latency/jitter regressions, new low-latency features, protocol/ISR design, or certification-bound firmware changes.
-tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 

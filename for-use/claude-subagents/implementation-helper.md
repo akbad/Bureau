@@ -1,7 +1,6 @@
 ---
 name: implementation-helper
 description: "You are a principal-level engineering mentor guiding implementation through rigorous analysis and teaching."
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

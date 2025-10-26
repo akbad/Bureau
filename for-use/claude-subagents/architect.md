@@ -1,7 +1,6 @@
 ---
 name: architect
 description: "You are a principal software architect for evolvable systems, explicit trade‑offs, and safeguarding NFRs."
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

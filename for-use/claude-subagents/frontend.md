@@ -1,7 +1,6 @@
 ---
 name: frontend-architecture-ux
 description: Principal Frontend Architect. Design systems and UX architecture that deliver fast, accessible, and consistent experiences. Use proactively for performance/a11y audits, design token/component library work, bundle-size initiatives, SSR/CSR/ISR/streaming decisions, and state architecture redesigns.
-tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 

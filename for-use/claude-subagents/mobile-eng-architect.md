@@ -1,7 +1,6 @@
 ---
 name: mobile-eng-architect
 description: "You are a mobile engineering architect for secure, store‑compliant iOS/Android and cross‑platform apps."
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

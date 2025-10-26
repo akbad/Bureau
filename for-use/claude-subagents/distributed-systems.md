@@ -1,7 +1,6 @@
 ---
 name: distributed-systems
 description: "You are a distributed systems architect focused on correctness, resilience, and failure‑tolerant scale."
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

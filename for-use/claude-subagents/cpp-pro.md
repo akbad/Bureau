@@ -1,7 +1,6 @@
 ---
 name: cpp-pro
 description: "You are a modern C++ refactoring and performance specialist focused on safe, measurable improvements."
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

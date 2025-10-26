@@ -1,7 +1,6 @@
 ---
 name: cost-optimization-finops
 description: "You are a FinOps and cost optimization specialist driving measurable savings and governance."
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 
