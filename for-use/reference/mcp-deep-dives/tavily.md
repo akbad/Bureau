@@ -16,7 +16,7 @@ Primary web research tool with search, extract, map, and crawl capabilities. Inc
 - `search_depth` - "basic" | "advanced"
 - `topic` - "general" | "news" | "finance"
 - `include_domains` / `exclude_domains` - Filter by domain
-- `include_raw_content` (bool) - Include cleaned HTML
+- `include_raw_content` (bool | "markdown" | "text") - Include cleaned HTML
 - `include_images` / `include_image_descriptions` (bool)
 - `time_range` - "day" | "week" | "month" | "year"
 - `start_date` / `end_date` - "YYYY-MM-DD" format
@@ -26,7 +26,7 @@ Primary web research tool with search, extract, map, and crawl capabilities. Inc
 
 **Best for:** General web research with credible sources
 
-**Credits:** 1-5 per search (basic), more for advanced
+**Credits:** Basic = 1 credit; Advanced = 2 credits
 
 ### 2. `tavily_extract` - Content Extraction from URLs
 
@@ -60,12 +60,13 @@ Primary web research tool with search, extract, map, and crawl capabilities. Inc
 - `format` - "markdown" | "text"
 
 **Returns:** Content from multiple pages (truncated to 500 chars/page)
+**Returns:** Extracted content (raw content) from multiple pages
 
 **Best for:** Gathering info from related pages (5-20 pages)
 
-**Credits:** Based on pages crawled
+**Credits:** Mapping cost + Extraction cost (sum)
 
-**Note:** Content truncated - use `tavily_map` + `tavily_extract` for full content
+**Note:** Crawl combines mapping and extraction. For tighter control, use `tavily_map` to discover URLs first, then `tavily_extract` on selected pages.
 
 ### 4. `tavily_map` - Website Structure Discovery
 
@@ -78,7 +79,7 @@ Primary web research tool with search, extract, map, and crawl capabilities. Inc
 - `select_domains` / `exclude_domains` - Domain filters
 - `instructions` - Crawler guidance
 
-**Returns:** Array of discovered URLs with relationships
+**Returns:** Array of discovered URLs
 
 **Best for:** Understanding site structure before extraction
 
@@ -96,8 +97,7 @@ Primary web research tool with search, extract, map, and crawl capabilities. Inc
 ### Disadvantages
 ❌ Monthly limit (1k credits)
 ❌ Credits vary by operation complexity
-❌ Crawl truncates content (500 chars/page)
-❌ No semantic search (use Exa for that)
+❌ Not a code/repository search engine (use Sourcegraph)
 
 ## Common Pitfalls: When NOT to Use
 
@@ -127,7 +127,7 @@ Good: exa_search("concepts similar to CQRS")
 
 **Example:**
 ```
-Bad:  tavily_crawl(url, limit=100)  # Truncated content
+Bad:  tavily_crawl(url, limit=100)  # Less control, higher cost
 Good: tavily_map(url) → tavily_extract([specific_urls])
 ```
 
@@ -194,7 +194,7 @@ Good: brave_web_search
 1. `tavily_map` → Discover URLs (lower cost)
 2. Filter relevant URLs
 3. `tavily_extract` → Get full content from specific pages
-4. **Don't use `tavily_crawl` for full content** (truncated)
+4. Use `tavily_crawl` to combine mapping+extraction when you want an end-to-end crawl; prefer Map → Extract for selective, full-content control
 
 **When to use each tool:**
 - **Search:** Discovery, research, current info
@@ -210,16 +210,16 @@ Good: brave_web_search
 ## Quick Reference
 
 **Total budget:** 1,000 credits/month
-**Rate limits:** Varies by operation (1-5+ credits)
+**Rate limits:** Development 100 RPM; Production 1,000 RPM (Production keys require paid plan or PAYGO)
 **Reset:** 1st of every month
 **Cost:** Free tier
 
 **Credit costs:**
-- Basic search: ~1-2 credits
-- Advanced search: ~3-5 credits
-- Extract: Varies by content
-- Map: Lower than crawl
-- Crawl: Based on pages
+- Basic search: 1 credit
+- Advanced search: 2 credits
+- Extract: Basic 1 credit per 5 successful URLs; Advanced 2 credits per 5 successful URLs
+- Map: 1 credit per 10 pages; with `instructions`: 2 credits per 10 pages
+- Crawl: Mapping cost + Extraction cost (sum)
 
 **Links:**
 - [Credit costs detail](https://docs.tavily.com/documentation/api-credits#api-credits-costs)

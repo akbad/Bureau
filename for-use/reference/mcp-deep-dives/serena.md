@@ -159,10 +159,11 @@ Language-server-powered semantic code navigation, refactoring, and editing. IDE-
 
 **Parameters:**
 - `relative_path` (required)
-- `offset` / `limit` - For large files
+- `start_line` (optional, 0-based) - First line index to read
+- `end_line` (optional, 0-based, inclusive) - Last line index to read
 - `max_answer_chars`
 
-**Returns:** File content with line numbers
+**Returns:** File content text (line numbers not guaranteed)
 
 **Best for:** Reading after finding symbols
 
@@ -184,13 +185,13 @@ Standard directory listing and file search operations.
 
 ### Memory & Project Tools
 
-**13-17. Memory operations**: write_memory, read_memory, list_memories, delete_memory
+**13-16. Memory operations**: write_memory, read_memory, list_memories, delete_memory
 
-**18. execute_shell_command** - Run commands safely
+**17. execute_shell_command** - Run commands safely
 
-**19-20. activate_project, switch_modes** - Project/mode management
+**18-19. activate_project, switch_modes** - Project/mode management
 
-**21-24. Thinking tools** - task adherence, information collection, completion check
+**20-22. Thinking tools** - think_about_task_adherence, think_about_collected_information, think_about_whether_you_are_done
 
 ## Tradeoffs
 
@@ -300,11 +301,11 @@ Good: get_symbols_overview → understand structure → find_symbol
 **Add new method:**
 ```
 insert_after_symbol(
-  name_path="UserService",
+  name_path="UserService/authenticate",
   relative_path="src/auth.ts",
   body="\n  async logout(userId) {\n    ...\n  }\n"
 )
-→ Adds after UserService class
+→ Inserts inside the UserService class, immediately after authenticate()
 ```
 
 **Rename safely:**
