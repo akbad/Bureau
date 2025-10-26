@@ -45,6 +45,75 @@ A few of these servers have redundant/duplicate roles. This is on purpose so we 
 | **Qdrant MCP** | *semantic memory* layer: allows agent to save things it learns/produces (code snippets, notes, links) and later retrieve them by searching *semantically* (i.e. not just by keyword); uses FastEmbed models w/ HNSW index for search | HTTP with locally-running server, backed by *Qdrant DB instance running in a local Docker container* | None |
 | **Memory MCP** | *structured memory* layer (knowledge graph): stores entities, relations, and observations to track *relationships* between concepts and maintain context across sessions; complements Qdrant's semantic search with explicit relationship tracking | Stdio with private client-managed instances | None (completely free, local JSONL storage) | 
 
+#### Claude-only: `claude-mem` context management plugin
+
+**What it is**: A persistent memory compression system that automatically preserves context across Claude Code sessions. Unlike Qdrant/Memory MCPs which require manual saving, claude-mem operates fully automatically through Claude Code's plugin hook system. GitHub repo: [thedotmack/claude-mem](https://github.com/thedotmack/claude-mem)
+
+**How it works automatically**:
+- **5 Lifecycle Hooks** capture events without manual intervention:
+  - `SessionStart`: Injects summaries from last 10 sessions into context with progressive disclosure (token costs visible)
+  - `UserPromptSubmit`: Creates session record, saves raw user prompts for search
+  - `PostToolUse`: Fires after EVERY tool execution (Read, Write, Edit, Bash, etc.), captures observations
+  - `Stop`: Generates session summaries (request, completed, learned, next_steps)
+  - `SessionEnd`: Marks sessions complete (graceful cleanup, preserves work across `/clear`)
+- **Worker Service** (PM2-managed Express server on port 37777):
+  - Processes observations via Claude Agent SDK
+  - Extracts structured learnings: decisions, bugfixes, features, refactors, discoveries, changes
+  - Auto-starts when first session begins
+- **SQLite Database** (`~/.claude-mem/claude-mem.db`):
+  - Stores sessions, observations, summaries, and user prompts
+  - FTS5 full-text search with SQL injection protection (332 attack tests)
+  - Tracks files read/modified, concepts, types, and relationships
+- **Progressive Disclosure**: Context appears as layered timeline at session start
+  - Layer 1 (Index): See what exists with token costs (🔴 critical, 🟤 decision, 🔵 informational)
+  - Layer 2 (Details): Fetch full narratives on-demand via MCP search
+  - Layer 3 (Perfect Recall): Access source code and original transcripts
+
+**How agents can use it manually** (7 MCP search tools available in all Claude sessions):
+- `search_observations` - Full-text search across observations (title, narrative, facts, concepts)
+  - Filter by: type, concepts, files, project, date range
+  - **Always start with `format: "index"` (50-100 tokens/result) before using `format: "full"` (500-1000 tokens/result)**
+- `search_sessions` - Full-text search across session summaries
+- `search_user_prompts` - Search raw user requests (trace intent → implementation)
+- `find_by_concept` - Find observations tagged with specific concepts (e.g., "architecture", "security")
+- `find_by_file` - Find all work related to specific files (e.g., "worker-service.ts")
+- `find_by_type` - Find by observation type (decision, bugfix, feature, refactor, discovery, change)
+- `get_recent_context` - Get recent session context for debugging/recovery
+- **Citations**: All results use `claude-mem://` URIs for referencing historical context
+
+**How Codex and Gemini CLIs can replicate this with Qdrant + Memory MCPs**:
+
+Since Codex/Gemini lack Claude Code's hook system, they must manually implement similar patterns:
+
+- **Manual observation logging** (replaces automatic hooks):
+  - After reading code: Explicitly save discoveries to Qdrant (semantic search) + Memory MCP (knowledge graph)
+  - After decisions: Create entities in Memory MCP with relations (e.g., "JWT" -[chosen_for]→ "authentication" -[because]→ "stateless design")
+  - After fixes: Store bugfix observations in Qdrant with metadata (file, type, concepts)
+  - Use Qdrant for semantic retrieval ("find work related to authentication") and Memory MCP for relationship traversal
+
+- **Session summaries** (replaces Stop hook):
+  - Before ending work, manually create summary and store in Qdrant
+  - Include: request, completed, learned, next_steps (same structure as claude-mem)
+  - Tag with project name and date for filtering
+
+- **Context recovery** (replaces SessionStart hook):
+  - Start sessions by searching Qdrant for relevant past work (semantic search by project/topic)
+  - Fetch related entities from Memory MCP knowledge graph
+  - Build context progressively as needed (similar to progressive disclosure)
+
+- **File tracking** (replaces automatic file_read/file_modified tracking):
+  - Manually create Memory MCP observations when reading/modifying files
+  - Link files to concepts via relations (e.g., "auth.ts" -[implements]→ "JWT authentication")
+
+- **Key differences**:
+  - claude-mem is automatic (zero intervention), Qdrant+Memory requires agent discipline
+  - claude-mem uses FTS5 full-text search, Qdrant uses vector/semantic search (different strengths)
+  - claude-mem has typed observations (decision, bugfix, etc.), must manually tag in Qdrant/Memory
+  - claude-mem uses Claude Agent SDK for AI extraction, Qdrant+Memory requires agent self-extraction
+  - claude-mem tracks tool executions automatically, Qdrant+Memory requires explicit "save this" calls
+
+- **Advantage of manual approach**: Works across all CLI agents (Codex, Gemini, Claude), not just Claude Code
+
 
 ### Other MCP servers
 
