@@ -1,0 +1,48 @@
+# Global context for Gemini & Codex CLIs (always read first)
+
+You ***must* read these essential files** using the appropriate read tool:
+- before starting any task
+- at the beginning of any conversation
+
+## [MCP tools available: quick reference](../reference/compact-mcp-list.md)
+
+> **Read**: `@../reference/compact-mcp-list.md`
+
+Contains:
+
+   - Fast tool selection guide (Tier 1)
+   - ~330 tokens, always worth reading
+   - Covers: code search, web research, API docs, memory, file operations
+
+## [Handoff guidelines](../reference/handoff-guidelines.md)
+
+> **Read**: `@../reference/handoff-guidelines.md`
+
+Covers:
+
+   - When to delegate work to other agents/models using Zen's `clink` MCP tool
+   - How to select the model/CLI to use when spawning agents (Codex/Gemini/Claude)
+   - When to ask user vs handle directly
+   - What requires explicit approval
+
+## Further must-read notes
+
+### Read these every time, even when spawned with a specific role
+
+Even when using specialized roles, these files provide:
+
+- Critical orchestration context
+- Up-to-date tool limits and quotas
+- Delegation decision trees
+- Model-specific strengths and use cases
+
+If a specialized role is being used, it may reference additional must-read files specific to its domain. Always check the role prompt for domain-specific references.
+
+### Note for Gemini & Codex (GPT)
+
+You are running via Gemini CLI or Codex CLI, not Claude Code. This means:
+
+- Use **`clink`** for ALL delegation (never use the `Task` tool - that's Claude Code-only)
+- You have access to the same MCPs as Claude Code
+- Role prompts are loaded from `~/.zen/cli_clients/systemprompts/clink-role-prompts/`
+- Configurations are in `~/.zen/cli_clients/*.json`
