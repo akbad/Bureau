@@ -29,6 +29,22 @@
 - **Ask user when**: Requirements are ambiguous, multiple valid approaches exist, or explicit approval is needed
 - **Handle directly when**: Task is within your capabilities and requirements are clear
 
+### Critical: Which Delegation Mechanism to Use
+
+**Important context-dependent rules**:
+
+1. **If you are Claude Code (Sonnet/Haiku/Opus)**:
+   - Use **`Task` tool** ONLY when spawning other Claude Code subagents (Haiku/Sonnet/Opus)
+   - Use **`clink`** when delegating to Codex (GPT-5-Codex) or Gemini
+   - Example: "I need GPT-5-Codex for this refactoring" → use `clink` with `cli_name: "codex"`
+   - Example: "I need to explore the codebase" → use `Task` tool with Explore agent (stays in Claude Code)
+
+2. **If you are Codex CLI or Gemini CLI**:
+   - ALWAYS use **`clink`** for any subagent spawning
+   - Never use Task tool (that's Claude Code-specific)
+   - Example: Codex needs another Codex agent → use `clink` with `cli_name: "codex"`
+   - Example: Gemini needs Claude for architecture → use `clink` with `cli_name: "claude"`
+
 ---
 
 ## When to Use Clink (Cross-Model Orchestration)
@@ -74,6 +90,11 @@ Refer to [Model Selection Guide](#model-selection-guide-for-clink-roles) for det
 
 ### How to Use Clink
 
+**Who should use clink**:
+- **Claude Code agents**: Use for cross-model delegation (to Codex or Gemini)
+- **Codex CLI agents**: Use for ALL delegation (including to other Codex agents)
+- **Gemini CLI agents**: Use for ALL delegation (including to other Gemini agents)
+
 ```
 Always provide:
 - `cli_name`: "claude", "codex", or "gemini"
@@ -87,6 +108,8 @@ Always provide:
 ---
 
 ## When to Use Task Tool (Claude Code Subagents)
+
+**IMPORTANT**: The `Task` tool is **Claude Code-specific**. Only use this if you are running in Claude Code (Sonnet/Haiku/Opus). If you are Codex CLI or Gemini CLI, use `clink` instead.
 
 ### Use `Task` tool to spawn Claude Code subagents when:
 
@@ -120,6 +143,10 @@ Always provide:
 - **Specific known file paths**: Use `Read` or `Glob` directly
 - **Specific class/function definitions**: Use `Glob` directly
 - **Known 2-3 files**: Use `Read` tool directly instead of spawning an agent
+- **Cross-model delegation**: Use `clink` instead
+  - Example: Need Codex for refactoring → use `clink`, not Task tool
+  - Example: Need Gemini for long-context analysis → use `clink`, not Task tool
+- **If you are Codex or Gemini CLI**: Never use Task tool (use `clink` for all delegation)
 
 ---
 
@@ -178,8 +205,8 @@ Always provide:
 | Architecture & system design | Sonnet 4.5 | `claude` | `architect` | Trade-off aware; multi-tool planning; extended thinking for deep justification |
 | Large migrations & refactors | GPT-5-Codex | `codex` | `migration-refactoring` | 91% multi-file refactoring success; repo-wide mechanical changes |
 | API integration | GPT-5-Codex | `codex` | `api-integration` | Contract-first design; idempotency/retry patterns |
-| Data engineering / ML | Gemini 2.5 Pro | `gemini` | `ai-ml-eng` | **Only if needs 1M context** for large datasets/logs; else use codex with High thinking |
-| Database optimization | Gemini 2.5 Pro | `gemini` | `db-internals` | **Only if analyzing entire slow query logs** (1M context); else use codex |
+| Data engineering / ML | GPT-5-Codex | `codex` | `ai-ml-eng` | Superior math reasoning (94.6% vs 88%); use High thinking. **Only use Gemini** if datasets/logs exceed 400K tokens (1M context needed) |
+| Database optimization | GPT-5-Codex | `codex` | `db-internals` | Better analysis accuracy with High thinking. **Only use Gemini** if entire slow query logs exceed 400K tokens (1M context needed) |
 | Performance optimization | GPT-5-Codex | `codex` | `optimization` | Finds N+1s, blocking I/O, complexity issues; use High thinking for algorithmic redesign |
 | Frontend / design systems | GPT-5-Codex | `codex` | `frontend` | Component refactors; a11y; Storybook updates |
 | Platform / DevEx / Infra | Haiku 4.5 | `claude` | `platform-eng` | CI fix-ups; batch hygiene; cost-efficient at scale |
@@ -805,10 +832,11 @@ THEN delegate with implementation-helper role to appropriate CLI
    - Security/compliance decisions
    - Before commits/deployments
 
-3. **Use Task tool when**:
-   - Codebase exploration
-   - Multi-round research
+3. **Use Task tool when** (Claude Code ONLY):
+   - Codebase exploration (Explore agent)
+   - Multi-round research (general-purpose agent)
    - Token conservation needed
+   - **ONLY if you are Claude Code** - Codex/Gemini CLIs must use `clink` instead
 
 4. **Remember**:
    - Always reuse `continuation_id` in clink for context preservation
@@ -816,6 +844,11 @@ THEN delegate with implementation-helper role to appropriate CLI
    - Use appropriate specialized roles (see available roles for each CLI: `architect`, `migration-refactoring`, `api-integration`, `security-compliance`, etc.)
    - Mark todos throughout implementation
    - Be explicit about thinking effort (minimal/low/medium/high) when relevant
+
+   **Delegation mechanics by CLI**:
+   - **Claude Code**: Use `Task` tool for Claude subagents (Explore, etc.); use `clink` for Codex/Gemini
+   - **Codex CLI**: Use `clink` for ALL delegation (never Task tool)
+   - **Gemini CLI**: Use `clink` for ALL delegation (never Task tool)
 
 5. **Cost/Speed Strategy**:
    - Prototype → Haiku 4.5 (fast) or Gemini only if budget-constrained
