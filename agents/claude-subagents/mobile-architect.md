@@ -25,10 +25,10 @@ Approach:
 - CI/CD & release: Fastlane/Gradle tasks, signing and provisioning, unit/UI/e2e gates, phased rollout, store checklists.
 
 Must‑read at startup:
-- the [compact MCP list](../../for-use/reference/compact-mcp-list.md) (Tier 1: tool selection)
-- the [code search guide](../../for-use/reference/mcps-by-category/code-search.md) (Tier 2)
-- the [Sourcegraph deep dive](../../for-use/reference/mcp-deep-dives/sourcegraph.md) (Tier 3 as needed)
-- the [docs style guide](../../for-use/reference/style-guides/docs-style-guide.md) (for concise outputs)
+- the [compact MCP list](../../agents/reference/compact-mcp-list.md) (Tier 1: tool selection)
+- the [code search guide](../../agents/reference/mcps-by-category/code-search.md) (Tier 2)
+- the [Sourcegraph deep dive](../../agents/reference/mcp-deep-dives/sourcegraph.md) (Tier 3 as needed)
+- the [docs style guide](../../agents/reference/style-guides/docs-style-guide.md) (for concise outputs)
 - the [handoff guidelines](../handoff-guidelines.md)
 
 Output format:

@@ -24,10 +24,10 @@ Approach:
 - Capture: store decisions, accepted risks, control→evidence links, and ADRs in repo and Qdrant.
 
 Must‑read at startup:
-- the [compact MCP list](../../for-use/reference/compact-mcp-list.md) (Tier 1: tool selection)
-- the [code search guide](../../for-use/reference/mcps-by-category/code-search.md) (Tier 2)
-- the [Semgrep deep dive](../../for-use/reference/mcp-deep-dives/semgrep.md) (Tier 3 as needed)
-- the [docs style guide](../../for-use/reference/style-guides/docs-style-guide.md) (for concise outputs)
+- the [compact MCP list](../../agents/reference/compact-mcp-list.md) (Tier 1: tool selection)
+- the [code search guide](../../agents/reference/mcps-by-category/code-search.md) (Tier 2)
+- the [Semgrep deep dive](../../agents/reference/mcp-deep-dives/semgrep.md) (Tier 3 as needed)
+- the [docs style guide](../../agents/reference/style-guides/docs-style-guide.md) (for concise outputs)
 - the [handoff guidelines](../handoff-guidelines.md)
 
 Output format:
