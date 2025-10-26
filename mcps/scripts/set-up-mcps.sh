@@ -1089,7 +1089,8 @@ log_info "  $QDRANT_STOP_CMD"
 
 log_empty_line
 TAKE_DOWN_FILE="take_down_mcps.sh"
-echo "$KILL_HTTPS_CMD; $QDRANT_STOP_CMD" > "$TAKE_DOWN_FILE"
+echo "#!/usr/bin/env bash" > "$TAKE_DOWN_FILE"
+echo "$KILL_HTTPS_CMD; $QDRANT_STOP_CMD" >> "$TAKE_DOWN_FILE"
 log_info "✔︎ Stop commands also saved to $RED $TAKE_DOWN_FILE $NC for convenience"
 
 if [[ "$AUTO_APPROVE_MCP" == true ]]; then
