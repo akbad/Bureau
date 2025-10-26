@@ -10,21 +10,28 @@
 
 You don't technically have to learn what the different agents and MCPs available are (other than for setting up prerequisites), they should all be used automatically by your CLI agents when needed.
 
+> The setup script at [`scripts/set-up-agents.sh`](scripts/set-up-agents.sh) automates all the tasks below.
+> **Warning: it will overwrite any existing files at:**
+> - `~/.claude/CLAUDE.md`
+> - `~/.claude/agents/*.md` (only files matching names in `claude-subagents/`)
+> - `~/.gemini/GEMINI.md`
+> - `~/AGENTS.md`
+
 ### MCPs
 
 1. Read the [must-read information about the setup script](mcps/README.md) and ensure you have the listed prerequisites set up.
 2. Run the [setup script](mcps/scripts/set-up-mcps.sh):
     
-    ```bash
-    mcps/scripts/set-up-mcps.sh [options]
-    ```
+   ```bash
+   mcps/scripts/set-up-mcps.sh [options]
+   ```
 
 3. Set up the [`claude-mem` automatic context management plugin](https://github.com/thedotmack/claude-mem) by starting up Claude Code and running these commands:
 
-    ```
-    > /plugin marketplace add thedotmack/claude-mem
-    > /plugin install claude-mem
-    ```
+   ```
+   > /plugin marketplace add thedotmack/claude-mem
+   > /plugin install claude-mem
+   ```
 
 > **Overview of the MCP tools installed:**
 >
@@ -47,32 +54,62 @@ The two sections below set up the same agent roles on different platforms:
 #### Set up `clink` subagents
 
 1. Create the directory structure:
+
    ```bash
    mkdir -p ~/.zen/cli_clients/systemprompts
    ```
 
 2. Symlink the role prompts folder:
+
    ```bash
    ln -s agent-ecosystem/agents/clink-role-prompts ~/.zen/cli_clients/systemprompts/clink-role-prompts
    ```
 
 3. Copy the JSON configs:
+
    ```bash
    cp agent-ecosystem/agents/configs/*.json ~/.zen/cli_clients/
    ```
 
-4. Restart Zen MCP server to reload configs
+4. Symlink global context files for Gemini and Codex:
+
+   - For Gemini CLI:
+
+      ```bash
+      mkdir -p ~/.gemini
+      ln -sf "$PWD/agent-ecosystem/agents/configs/AGENTS.md" ~/.gemini/GEMINI.md
+      ```   
+
+   - For Codex CLI *(discovered via hierarchical parent directory search)*
+   
+      ```bash
+      ln -sf "$PWD/agent-ecosystem/agents/configs/AGENTS.md" ~/AGENTS.md
+      ```
+
+   This ensures both CLIs always read the [handoff guidelines](agents/reference/handoff-guidelines.md) and [compact MCP list](agents/reference/compact-mcp-list.md) at startup for any project under your home directory.
+
+5. Restart Zen MCP server to reload configs
 
 #### Set up Claude Code subagents
 
 1. Create the directory structure:
+
    ```bash
    mkdir -p ~/.claude/agents
    ```
 
 2. Symlink the Claude subagent files:
+
    ```bash
    ln -s agent-ecosystem/agents/claude-subagents/*.md ~/.claude/agents/
    ```
 
-3. Verify in Claude Code by running `/agents` to confirm the subagents appear
+3. Symlink to pre-made `CLAUDE.md` context file from your user-level Claude Code config:
+   
+   ```bash
+   ln -sf "$PWD/agent-ecosystem/agents/configs/CLAUDE.md" ~/.claude/CLAUDE.md
+   ```
+
+   This ensures Claude always reads the [handoff guidelines](agents/reference/handoff-guidelines.md) and [compact MCP list](agents/reference/compact-mcp-list.md) at startup, **even when *not* spawned using an agent file.**
+
+4. Verify in Claude Code by running `/agents` to confirm the subagents appear
