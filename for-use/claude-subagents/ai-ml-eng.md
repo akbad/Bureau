@@ -1,7 +1,6 @@
 ---
 name: ai-ml-eng
 description: Use proactively after ML code/model edits, latency/cost regressions, drift incidents, or when designing feature stores/vector DBs/RAG/fine-tuning; deliver safe, measurable ML pipeline improvements.
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

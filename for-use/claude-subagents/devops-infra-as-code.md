@@ -1,7 +1,6 @@
 ---
 name: devops-infra-as-code
 description: Principal DevOps/Infra-as-Code engineer. Design and optimize CI/CD, Kubernetes, GitOps, and platform guardrails (security, reliability, cost) using declarative, automated workflows. Use proactively for new pipelines/platform work, GitOps adoption, security/compliance audits, and infra changes impacting reliability/cost/SLOs.
-tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 

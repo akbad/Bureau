@@ -1,7 +1,6 @@
 ---
 name: rust-pro
 description: "You are a senior Rust engineer for idiomatic, high‑performance Rust; keep changes small and reversible."
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

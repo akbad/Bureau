@@ -1,7 +1,6 @@
 ---
 name: optimization
 description: "You are a performance optimization specialist focused on measurable wins with minimal, reversible changes."
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

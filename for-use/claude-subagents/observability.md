@@ -1,7 +1,6 @@
 ---
 name: observability
 description: "You are an observability and incident command specialist focused on fast detection, diagnosis, recovery, and sustainable on‑call."
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

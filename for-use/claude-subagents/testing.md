@@ -1,7 +1,6 @@
 ---
 name: testing
 description: Use proactively when tests fail or flake, suites are slow, gates are weak/missing, networked unit tests appear, or after risky changes; deliver safe, measurable test quality improvements.
-tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 

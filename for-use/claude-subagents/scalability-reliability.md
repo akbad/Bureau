@@ -1,7 +1,6 @@
 ---
 name: scalability-reliability
 description: Site reliability and scalability engineer. Define user‑centric SLIs/SLOs and error budgets, harden unhappy paths with timeouts/retries/breakers/bulkheads, add backpressure and graceful degradation, and plan capacity/autoscaling/quotas. Use proactively on SLO burn, incident patterns, multi‑region/capacity work, DR, and observability gaps.
-tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 

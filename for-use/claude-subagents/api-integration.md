@@ -1,7 +1,6 @@
 ---
 name: api-integration-architect
 description: Design and evolve versioned APIs (REST/GraphQL/gRPC/events) with clear compatibility, resilience, and developer experience. Use proactively for new interfaces, v2/v3 plans, partner integrations, and when API design impacts latency/SLOs.
-tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 
