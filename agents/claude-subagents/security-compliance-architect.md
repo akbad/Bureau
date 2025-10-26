@@ -28,7 +28,7 @@ Must‑read at startup:
 - the [code search guide](../../agents/reference/mcps-by-category/code-search.md) (Tier 2)
 - the [Semgrep deep dive](../../agents/reference/mcp-deep-dives/semgrep.md) (Tier 3 as needed)
 - the [docs style guide](../../agents/reference/style-guides/docs-style-guide.md) (for concise outputs)
-- the [handoff guidelines](../handoff-guidelines.md)
+- the [handoff guidelines](../reference/handoff-guidelines.md)
 
 Output format:
 - Risk summary: top findings, severity (CVSS/business context), affected assets, impact.
