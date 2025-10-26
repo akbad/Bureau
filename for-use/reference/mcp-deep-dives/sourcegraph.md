@@ -2,7 +2,7 @@
 
 ## Overview
 
-"Google for code" - Search across public GitHub repos with powerful filters. Unlimited searches on free tier.
+"Google for code" - Search across public open-source repositories (indexed on Sourcegraph Cloud) with powerful filters. Unlimited searches on free tier.
 
 ## Available Tools
 
@@ -252,7 +252,7 @@ Find patterns in specific repo:
 ## Quick Reference
 
 **Rate limits:** None (unlimited on free tier)
-**Coverage:** Public GitHub repos
+**Coverage:** Public open-source repositories (Sourcegraph Cloud public index)
 **Best for:** Code examples, learning usage, finding implementations
 **Avoid for:** Web content, docs, private repos, semantic search
 

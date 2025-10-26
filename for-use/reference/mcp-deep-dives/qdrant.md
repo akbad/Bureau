@@ -2,7 +2,7 @@
 
 ## Overview
 
-Semantic memory layer using vector embeddings for meaning-based retrieval. Unlimited local storage via Docker.
+ Semantic memory layer using vector embeddings for meaning-based retrieval. Persistent local storage via Docker volume (limited by host disk).
 
 ## Available Tools
 
@@ -50,7 +50,7 @@ Semantic memory layer using vector embeddings for meaning-based retrieval. Unlim
 
 ### Advantages
 ✅ **Semantic search** (find by meaning, not keywords)
-✅ **Unlimited storage** (local Docker, no limits)
+✅ **Persistent local storage** (Docker volume; limited by host disk)
 ✅ **Persistent** (survives restarts, cross-session)
 ✅ **Metadata support** (add structure to searches)
 ✅ **Fast retrieval** (HNSW index)
@@ -167,7 +167,8 @@ qdrant-find("fixing cross-origin issues")
 → Returns CORS solution (semantic similarity)
 ```
 
-**With metadata:**
+**With metadata (when filters enabled):**
+Requires enabling filters (e.g., set `QDRANT_ALLOW_ARBITRARY_FILTER=true` or configure `filterable_fields`).
 ```
 qdrant-find("authentication") + filter metadata.type="architecture"
 ```
@@ -238,6 +239,17 @@ Example:
 | Graph queries | qdrant-find | Memory MCP |
 | Keyword search | qdrant-find | Grep / Filesystem |
 | Temporary data | qdrant-store | Conversation context |
+
+## Local Setup Notes
+
+For the provided setup script (my-agent-files/mcps/scripts/set-up-mcps.sh):
+
+- Qdrant DB: `http://127.0.0.1:8780` (Docker maps host 8780 → container 6333)
+- Persistence: Docker bind mount to `$HOME/Code/qdrant-data` (by default)
+- MCP server (HTTP): `http://localhost:8782/mcp/` (transport: streamable-http)
+- Default collection: `coding-memory`
+- Embeddings: provider `fastembed`; model default `sentence-transformers/all-MiniLM-L6-v2`
+- Filters: Metadata filtering is off by default (no `QDRANT_ALLOW_ARBITRARY_FILTER` and no `filterable_fields` configured). Enable one of these to filter by payload fields.
 
 ## Quick Reference
 

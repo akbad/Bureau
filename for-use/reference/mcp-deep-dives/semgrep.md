@@ -33,21 +33,7 @@ AST-aware security/bug/anti-pattern scanning. Local scanning (code never leaves 
 
 **Rate limits:** None
 
-### 3. `semgrep_scan_supply_chain` - Dependency Scanning
-
-**What it does:** Scans for third-party security vulnerabilities
-
-**Parameters:** None (scans workspace directory)
-
-**Returns:** Supply chain vulnerabilities in dependencies
-
-**Best for:** After dependency changes, version updates, adding new packages
-
-**Rate limits:** None
-
-**Triggers:** Change dep version, add new dep, update lockfiles
-
-### 4. `semgrep_rule_schema` - Get Rule Schema
+### 3. `semgrep_rule_schema` - Get Rule Schema
 
 **What it does:** Returns schema for writing Semgrep rules
 
@@ -59,7 +45,7 @@ AST-aware security/bug/anti-pattern scanning. Local scanning (code never leaves 
 
 **Rate limits:** None
 
-### 5. `get_supported_languages` - List Supported Languages
+### 4. `get_supported_languages` - List Supported Languages
 
 **What it does:** Returns list of languages Semgrep supports
 
@@ -71,7 +57,7 @@ AST-aware security/bug/anti-pattern scanning. Local scanning (code never leaves 
 
 **Rate limits:** None
 
-### 6. `get_abstract_syntax_tree` - View AST
+### 5. `get_abstract_syntax_tree` - View AST
 
 **What it does:** Returns Abstract Syntax Tree for code
 
@@ -85,27 +71,7 @@ AST-aware security/bug/anti-pattern scanning. Local scanning (code never leaves 
 
 **Rate limits:** None
 
-### 7. `semgrep_findings` - Query Semgrep AppSec Platform
-
-**What it does:** Fetches historical findings from Semgrep AppSec Platform
-
-**Parameters:**
-- `issue_type` (default ["sast", "sca"]) - Filter by type
-- `status` (default "open") - Filter by status
-- `repos` - Filter by repository names (default: current repo)
-- `severities` - Filter by severity (e.g., ["critical", "high"])
-- `confidence` - Filter by confidence level
-- `autotriage_verdict` (default "true_positive")
-- `page` (default 0) - Pagination
-- `page_size` (default 100, min 100, max 3000)
-
-**Returns:** Historical scan results from platform
-
-**Best for:** Reviewing past scans, tracking findings over time
-
-**Rate limits:** API-based (depends on Semgrep platform limits)
-
-**Note:** Queries existing findings, does NOT perform new scan
+<!-- Removed platform-only semgrep_findings for CE-only guide -->
 
 ## Tradeoffs
 
@@ -116,7 +82,7 @@ AST-aware security/bug/anti-pattern scanning. Local scanning (code never leaves 
 ✅ **Autofix suggestions** (when rules define fixes)
 ✅ **Custom rules** (code-like pattern syntax)
 ✅ **Free community edition**
-✅ **Supply chain scanning**
+<!-- Supply chain scanning is platform-only; omitted in CE-only guide -->
 
 ### Disadvantages
 ❌ **Not runtime analysis** (static only)
@@ -166,15 +132,7 @@ Bad:  semgrep for finding slow code
 Good: Profiler, benchmark tools
 ```
 
-### ❌ New Code Scan Without Writing
-**Problem:** semgrep_findings queries existing scans only
-**Alternative:** semgrep_scan for new analysis
-
-**Example:**
-```
-Bad:  semgrep_findings for newly written code
-Good: semgrep_scan on new files
-```
+<!-- Removed platform-only pitfall related to semgrep_findings -->
 
 ## When Semgrep IS the Right Choice
 
@@ -216,16 +174,7 @@ rules:
 )
 ```
 
-**Supply chain scan (after dep changes):**
-```
-After: npm install new-package
-Or: pip install requests==2.28.0
-Or: update package.json/requirements.txt
-
-Then:
-semgrep_scan_supply_chain()
-→ Vulnerabilities in dependencies
-```
+<!-- Removed supply chain usage pattern for CE-only guide -->
 
 **Get AST for rule writing:**
 ```
@@ -236,15 +185,7 @@ get_abstract_syntax_tree(
 → JSON AST showing parser structure
 ```
 
-**Query historical findings:**
-```
-semgrep_findings(
-  repos: ["current-repo"],
-  severities: ["critical", "high"],
-  status: "open"
-)
-→ Critical/high severity open findings
-```
+<!-- Removed platform-only historical findings example -->
 
 **Check language support:**
 ```
@@ -310,10 +251,7 @@ semgrep_scan_with_custom_rule(
 - Check lockfile updates
 - Review transitive dependencies
 
-**Findings management:**
-- Use `semgrep_findings` for historical tracking
-- Filter by repo (default: current)
-- Track resolution over time
+<!-- Removed platform-only findings management guidance -->
 
 ## Integration Workflows
 
@@ -334,14 +272,7 @@ semgrep_scan_with_custom_rule(
 5. Add to CI/CD
 ```
 
-**Dependency security:**
-```
-1. Update package.json / requirements.txt
-2. npm install / pip install
-3. semgrep_scan_supply_chain()
-4. Review vulnerabilities
-5. Update/pin versions as needed
-```
+<!-- Removed dependency security workflow (supply chain) -->
 
 ## Alternatives Summary
 
@@ -351,23 +282,38 @@ semgrep_scan_with_custom_rule(
 | Formatting | semgrep | Prettier, ESLint |
 | Type checking | semgrep | Language type checkers |
 | Performance | semgrep | Profilers, benchmarks |
-| New code scan | semgrep_findings | semgrep_scan |
+<!-- Removed platform-only alternatives row -->
 
 ## Quick Reference
 
-**Rate limits:** None (local, free community edition)
-**Best for:** Security, bugs, anti-patterns, supply chain
+**Rate limits:** None (local CE scans)
+**Best for:** Security, bugs, anti-patterns
 **Avoid for:** Runtime, formatting, types, performance
 
 **Languages:** 20+ (check with get_supported_languages)
 **Rule types:** Built-in registry + custom YAML
 **Autofix:** Available when rules define fixes
 
-**Default filtering (findings):**
-- Repos: Current repo (pass repos param for others)
-- Status: "open"
-- Verdict: "true_positive"
-
 **Links:**
 - [Semgrep Pro vs OSS features](https://semgrep.dev/docs/semgrep-pro-vs-oss)
 - [Full decision guide](../../../mcps/tools-decision-guide.md)
+
+## Local Reporting (CE)
+
+Use the Semgrep CE CLI to export results for local reporting dashboards:
+
+```
+# JSON output
+semgrep scan --json --json-output=semgrep.json
+
+# SARIF output (for code scanning integrations)
+semgrep scan --sarif --sarif-output=semgrep.sarif
+
+# Plain text output
+semgrep scan --text --text-output=semgrep.txt
+
+# Combine outputs (prints SARIF to stdout, writes JSON to file)
+semgrep scan --sarif --json-output=findings.json
+```
+
+Tip: You can mix formats with --output/--<format>-output to produce multiple files in one run.
