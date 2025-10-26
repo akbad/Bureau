@@ -1,0 +1,44 @@
+{
+    "name": "claude",
+    "command": "claude",
+    "additional_args": ["--print", "--output-format", "json", "--permission-mode", "acceptEdits", "--model", "sonnet"],
+    "env": {},
+    "roles": {
+        "default": {
+            "prompt_path": "systemprompts/clink/default.txt"
+        },
+        "architect": {
+            "prompt_path": "systemprompts/clink-role-prompts/architect.md"
+        },
+        "architecture-audit": {
+            "prompt_path": "systemprompts/clink-role-prompts/architecture-audit.md"
+        },
+        "cost-optimization-finops": {
+            "prompt_path": "systemprompts/clink-role-prompts/cost-optimization-finops.md"
+        },
+        "distributed-systems": {
+            "prompt_path": "systemprompts/clink-role-prompts/distributed-systems.md"
+        },
+        "explainer": {
+            "prompt_path": "systemprompts/clink-role-prompts/explainer.md"
+        },
+        "implementation-helper": {
+            "prompt_path": "systemprompts/clink-role-prompts/implementation-helper.md"
+        },
+        "observability": {
+            "prompt_path": "systemprompts/clink-role-prompts/observability.md"
+        },
+        "platform-eng": {
+            "prompt_path": "systemprompts/clink-role-prompts/platform-eng.md"
+        },
+        "scalability-reliability": {
+            "prompt_path": "systemprompts/clink-role-prompts/scalability-reliability.md"
+        },
+        "security-compliance": {
+            "prompt_path": "systemprompts/clink-role-prompts/security-compliance.md"
+        },
+        "tech-debt": {
+            "prompt_path": "systemprompts/clink-role-prompts/tech-debt.md"
+        }
+    }
+}
