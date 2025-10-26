@@ -1,0 +1,26 @@
+{
+    "name": "gemini",
+    "command": "gemini",
+    "additional_args": ["--yolo", "-o", "json"],
+    "env": {},
+    "roles": {
+        "default": {
+            "prompt_path": "systemprompts/clink/default.txt"
+        },
+        "ai-ml-eng": {
+            "prompt_path": "systemprompts/clink-role-prompts/ai-ml-eng.md"
+        },
+        "db-internals": {
+            "prompt_path": "systemprompts/clink-role-prompts/db-internals.md"
+        },
+        "explainer": {
+            "prompt_path": "systemprompts/clink-role-prompts/explainer.md"
+        },
+        "implementation-helper": {
+            "prompt_path": "systemprompts/clink-role-prompts/implementation-helper.md"
+        },
+        "optimization": {
+            "prompt_path": "systemprompts/clink-role-prompts/optimization.md"
+        }
+    }
+}
