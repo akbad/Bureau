@@ -17,7 +17,7 @@ Privacy-focused search engine with 5 search types and generous free tier (2,000 
 - `country` - 2-char code (US, GB, etc.)
 - `search_lang` - Language preference (en, es, fr, etc.)
 - `safesearch` - "off" | "moderate" | "strict"
-- `result_filter` - Array: `["discussions", "faq", "news", "videos", "web", "locations"]`
+- `result_filter` - Array (e.g. `["web", "images", "news", "videos", "discussions", "faq"]`; other values like `"infobox"`, `"query"`, `"summarizer"`, or `"locations"` may appear depending on plan/endpoint)
 - `freshness` - "pd" | "pw" | "pm" | "py" | "YYYY-MM-DDtoYYYY-MM-DD"
 - `spellcheck` (bool, default true)
 
@@ -64,7 +64,7 @@ Privacy-focused search engine with 5 search types and generous free tier (2,000 
 **Parameters:**
 - `query` (required)
 - `count` (1-200, default 50)
-- `safesearch` - "off" | "strict" (default strict)
+- `safesearch` - "off" | "strict"
 
 **Returns:** Images with URLs, titles, properties
 
@@ -79,7 +79,7 @@ Privacy-focused search engine with 5 search types and generous free tier (2,000 
 **Parameters:**
 - `query` (required)
 - `count` (1-50, default 20)
-- `freshness` (default "pd" - past day)
+- `freshness` - "pd" | "pw" | "pm" | "py" | "YYYY-MM-DDtoYYYY-MM-DD" (no documented default)
 - `extra_snippets` (bool) - Up to 5 additional excerpts
 
 **Returns:** News articles with titles, URLs, descriptions, snippets
@@ -113,7 +113,7 @@ Privacy-focused search engine with 5 search types and generous free tier (2,000 
 ✅ Clean, structured results
 
 ### Disadvantages
-❌ Free tier limited to basic web search only
+❌ Local Search and Summarizer require Pro plan
 ❌ No advanced crawling/extraction (use Tavily/Firecrawl)
 ❌ Less AI-optimized than Exa
 ❌ Pro features require paid plan
@@ -210,9 +210,9 @@ Good: brave_web_search("restaurants in [city]")
 - Switch to Fetch for known URLs
 
 **Free tier constraints:**
-- Web search only (no local/Pro features)
-- Use `result_filter` to get news/videos/images in web results
-- Pro features (`local_search`, `summarizer`) will fail
+- Web, Image, Video, and News endpoints are available
+- Local Search and Summarizer require Pro; calls to these will fail on free tier
+- You can use `result_filter` to scope web results; for full metadata use the dedicated endpoints
 
 ## Quick Reference
 

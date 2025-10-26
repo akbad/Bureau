@@ -18,7 +18,7 @@
 
 **Best for:** Semantic/conceptual queries, knowledge discovery
 
-**Cost:** Varies per search (from $10 one-time credit)
+**Cost:** Per-request pricing. Example: Neural search $5 per 1k requests (1–25 results), $25 per 1k (26–100). Free: $10 starter credits (one-time).
 
 ### 2. `get_code_context_exa` - Code-Specific Context
 
@@ -32,7 +32,7 @@
 
 **Best for:** Library documentation, API usage, code examples
 
-**Cost:** Varies by tokens requested
+**Cost:** Standard Exa pricing (per search and any contents retrieved); not based on `tokensNum`.
 
 **Note:** Has highest quality, freshest context for programming
 
@@ -49,8 +49,8 @@
 ❌ **$10 one-time credit** (no monthly reset)
 ❌ **Permanent consumption** (like Firecrawl)
 ❌ **New account needed** after exhaustion
-❌ No citations included
-❌ No built-in extraction/crawling
+❌ Separate pricing for search, contents, and answers
+❌ Rate limits apply (e.g., `/search` 5 QPS)
 
 ## Common Pitfalls: When NOT to Use
 
@@ -85,13 +85,14 @@ Good: tavily_search("latest AI developments 2024", topic="news")
 ```
 
 ### ❌ Need Content Extraction
-**Problem:** Exa only returns search results, not extracted content
-**Alternative:** Tavily extract or Fetch
+**Problem:** If you only use the MCP search wrapper, you may not retrieve full page contents
+**Alternative:** Tavily extract (MCP) or Exa Contents/Search+Contents (API)
 
 **Example:**
 ```
 Bad:  exa_search + manual URL fetching
-Good: tavily_search + tavily_extract
+Good: tavily_search + tavily_extract   # MCP path
+Good: exa.searchAndContents(...)       # Exa API path
 ```
 
 ### ❌ Official API Documentation
@@ -150,7 +151,7 @@ Good: exa_search("CQRS, event sourcing, and saga patterns explained")
 | Keyword search | web_search_exa | Tavily / Brave |
 | Factual lookup | web_search_exa | Tavily |
 | News/current events | web_search_exa | Tavily (topic="news") |
-| Content extraction | web_search_exa | Tavily extract |
+| Content extraction | web_search_exa | Tavily extract or Exa Contents (API) |
 | API documentation | get_code_context_exa | Context7 |
 | Code examples | get_code_context_exa | Sourcegraph |
 
@@ -182,12 +183,16 @@ Good: exa_search("CQRS, event sourcing, and saga patterns explained")
 ## Quick Reference
 
 **Total budget:** $10 one-time credit
-**Rate limits:** None apparent (credit-based)
+**Rate limits:** `/search` 5 QPS; `/contents` 50 QPS; `/answer` 5 QPS; `/research` 15 concurrent tasks
 **Reset:** Never (new account required)
-**Cost:** ~$0.X per search (varies)
+**Cost:** Search $5/1k (1–25 results), $25/1k (26–100); Contents (Text/Highlights/Summary) $1/1k pages each; Answer $5/1k answers; $10 free starter credits
 
 **Best for:** Semantic search when Tavily insufficient
 **Avoid for:** Keyword search, news, factual lookup
+
+Notes:
+- Exa Answer and Research return results with citations/sources; regular search also returns URLs you can cite.
+- Exa supports contents retrieval and livecrawling (via API). Your MCP wrapper here exposes search and code-context.
 
 **Links:**
 - [Category guide: Web research](../category/web-research.md)
