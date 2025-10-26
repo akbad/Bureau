@@ -21,13 +21,23 @@ This guide gives foolproof, source-backed recommendations for how long your suba
 
     - General: 600–2,000 characters (≈100–320 words; ≈10–35 lines)
 
-    - Keep them role‑specific “deltas” instead of restating each CLI’s full developer/system message.
+    - Keep them role‑specific "deltas" instead of restating each CLI's full developer/system message.
 
     - Zen handles very large prompts via a file‑handoff path around ~50,000 characters, but shorter role prompts perform better in practice.
 
+- Must‑read files (referenced in role prompts, read via Read tool)
+
+    - Tool list (compact): 1,000–1,500 characters
+
+    - Style guide: 1,200–2,000 characters
+
+    - Handoff guidelines: 1,800–2,800 characters
+
+    - Combined maximum for typical agent: ~6,300 characters ≈ 1,600 tokens (well within MCP budget)
+
 - Model‑specific emphasis
 
-    - GPT‑5‑Codex: favor the minimum. 400–1,500 characters; “less is more.”
+    - GPT‑5‑Codex: favor the minimum. 400–1,500 characters; "less is more."
 
     - GPT‑5: 1,500–4,000 characters when extra guardrails are truly needed; avoid duplicating the CLI developer message.
 
@@ -202,7 +212,64 @@ Resolution rules:
 
 - MCP requests have a combined request+response budget around ~25k tokens. Zen automatically works around very large prompts by asking the client to save the prompt to a temporary file and resubmit with a file reference when the prompt exceeds ~50,000 characters.
 
-- This fallback is reliable, but not “ideal” for interactivity. Prefer shorter role prompts and let the subagent read files on demand.
+- This fallback is reliable, but not "ideal" for interactivity. Prefer shorter role prompts and let the subagent read files on demand.
+
+
+## must‑read files (referenced in role prompts)
+
+Key distinction:
+
+- **Role prompt**: Read once by the spawning harness, counts toward role prompt character budget
+- **Must‑read files**: Read by the spawned agent via Read tool, counts toward MCP token budget (~25k total) and context window
+
+### context files: optimal lengths
+
+**Tool list (compact)**: 1,000–1,500 characters (≈160–250 words; ≈15–25 lines)
+
+- Read by nearly every agent at startup (very high frequency)
+- Should be a scannable cheat sheet, not comprehensive documentation
+- Format: Category → When to use → First choice → Alternatives → Link to full docs
+- Typical structure: 10–12 MCP categories × 3–4 lines each ≈ 1,200 characters
+- Agents needing details follow links to full reference cards (5,000+ characters)
+- Token cost: ~250–400 tokens per read (acceptable startup overhead)
+
+**Style guide**: 1,200–2,000 characters (≈200–330 words; ≈20–35 lines)
+
+- Only code‑writing roles need this (code‑reviewer, test‑fixer; not research‑synthesizer)
+- Needs actionable detail (not generic advice like "use consistent naming")
+- Should cover: naming conventions, formatting rules, testing patterns, anti‑patterns
+- Can be language‑specific or multi‑language depending on project scope
+- Slightly longer budget justified since it's role‑specific, not universal
+- Token cost: ~300–500 tokens (reasonable for code‑editing agents)
+
+**Handoff guidelines**: 1,800–2,800 characters (≈300–470 words; ≈30–50 lines)
+
+- Most complex must‑read (decision trees, delegation matrices)
+- All agents need this (universal)
+- Critical for correct delegation behavior (token cost justified)
+- Needs 4 sections: clink usage, Task tool usage, AskUserQuestion scenarios, approval requirements
+- Each section needs examples plus decision matrix
+- Maximum stretch to 3,000 characters for complex projects, but aim for <2,500
+- Token cost: ~450–700 tokens (prevents costly delegation errors)
+
+> Use `wc -m [path]` to validate that a file has the appropriate length.
+
+### must‑read file length decision table
+
+**Tool documentation (3-tier MCP lookup):**
+
+| Tier | File Type | Ideal Length (chars) | Max Length (chars) | Read Frequency | Token Cost |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | Compact tool list | 1,000–1,500 | 1,800 | Every agent | ~250–400 |
+| 2 | Category reference | 3,500–5,000 | 6,000 | When comparing options | ~900–1,250 |
+| 3 | Per-MCP deep dive | 4,000–6,000 | 8,000 | Complex tools only | ~1,000–1,500 |
+
+**Other must-reads:**
+
+| File Type | Ideal Length (chars) | Max Length (chars) | Target Words | Read Frequency | Token Cost |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Style guide | 1,200–2,000 | 2,500 | 200–330 | Code‑writing roles | ~300–500 |
+| Handoff guidelines | 1,800–2,800 | 3,200 | 300–470 | Every agent | ~450–700 |
 
 
 ## model‑specific guidance and rationale
@@ -364,6 +431,8 @@ Constraints:
 
 ## appendix: quick decision table
 
+### role prompts
+
 | Target | Model | Ideal length (characters) | Notes |
 | :--- | :--- | :--- | :--- |
 | Claude Code subagent | Sonnet 4.5 | 1,200–5,000 | Detailed but focused; use short sections and a checklist |
@@ -374,4 +443,14 @@ Constraints:
 | clink role → Codex CLI | GPT‑5‑Codex | 400–1,500 | Minimal; do not request preambles |
 | clink role → Codex CLI | GPT‑5 | 1,500–4,000 | Only if extra guardrails are needed |
 | clink role → Gemini CLI | Gemini 2.5 Pro | 600–2,000 | Concise system instructions perform best |
+
+### must‑read files
+
+| File Type | Ideal Length (chars) | Max Length (chars) | Read Frequency | Used By |
+| :--- | :--- | :--- | :--- | :--- |
+| Tool list (compact) | 1,000–1,500 | 1,800 | Every agent | All roles |
+| Style guide | 1,200–2,000 | 2,500 | Code‑writing agents | code‑reviewer, test‑fixer, refactorer |
+| Handoff guidelines | 1,800–2,800 | 3,200 | Every agent | All roles |
+| Full tool reference (tier 2) | 4,000–6,000 | 8,000 | On‑demand | Agents needing detailed tool docs |
+| Project context (tier 2) | 3,000–5,000 | 6,000 | On‑demand | Project‑specific agents |
 
