@@ -15,6 +15,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 
+# Subdirectory name for symlinked agents
+AGENTS_SUBDIR="ecosystem-agents"
+
 echo -e "${GREEN}Agent Ecosystem Setup${NC}"
 echo -e "Repo root: $REPO_ROOT"
 echo ""
@@ -50,15 +53,15 @@ mkdir -p ~/.zen/cli_clients/systemprompts
 print_success "Created ~/.zen/cli_clients/systemprompts"
 
 # Symlink role prompts folder
-if [[ -L ~/.zen/cli_clients/systemprompts/clink-role-prompts ]]; then
-    rm ~/.zen/cli_clients/systemprompts/clink-role-prompts
-    print_success "Removed existing clink-role-prompts symlink"
+if [[ -L ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR ]]; then
+    rm ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR
+    print_success "Removed existing $AGENTS_SUBDIR symlink"
 fi
-ln -s "$AGENTS_DIR/clink-role-prompts" ~/.zen/cli_clients/systemprompts/clink-role-prompts
-print_success "Symlinked clink-role-prompts to ~/.zen/cli_clients/systemprompts/"
+ln -s "$AGENTS_DIR/clink-role-prompts" ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR
+print_success "Symlinked clink-role-prompts to ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR"
 
 # Copy JSON configs
-cp "$AGENTS_DIR/configs/"*.json ~/.zen/cli_clients/
+cp "$REPO_ROOT/configs/"*.json ~/.zen/cli_clients/
 print_success "Copied CLI configs (*.json) to ~/.zen/cli_clients/"
 
 echo ""
@@ -68,16 +71,17 @@ echo ""
 # ============================================================================
 print_step "Setting up Claude Code subagents"
 
-# Create directory structure
+# Symlink Claude subagents folder
+if [[ -L ~/.claude/agents/$AGENTS_SUBDIR ]]; then
+    rm ~/.claude/agents/$AGENTS_SUBDIR
+    print_success "Removed old symlink at ~/.claude/agents/$AGENTS_SUBDIR"
+fi
 mkdir -p ~/.claude/agents
-print_success "Created ~/.claude/agents"
+print_success "Created ~/.claude/agents directory"
 
-# Symlink all Claude subagent files individually (ln -s doesn't expand globs)
-for agent_file in "$AGENTS_DIR/claude-subagents"/*.md; do
-    agent_name="$(basename "$agent_file")"
-    ln -sf "$agent_file" ~/.claude/agents/"$agent_name"
-done
-print_success "Symlinked all Claude subagent files to ~/.claude/agents/"
+# Symlink all Claude subagent files
+ln -s "$AGENTS_DIR/claude-subagents" ~/.claude/agents/$AGENTS_SUBDIR
+print_success "Symlinked claude-subagents to ~/.claude/agents/$AGENTS_SUBDIR"
 
 echo ""
 
