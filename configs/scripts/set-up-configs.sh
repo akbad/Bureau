@@ -36,33 +36,34 @@ print_error() {
 }
 
 # Check if we're in the right place
-if [[ ! -f "$CONFIGS_DIR/AGENTS.md" ]] || [[ ! -f "$CONFIGS_DIR/CLAUDE.md" ]]; then
-    print_error "Cannot find config files. Please run this script from within the repository."
+if [[ ! -f "$CONFIGS_DIR/AGENTS.md.template" ]] || [[ ! -f "$CONFIGS_DIR/CLAUDE.md.template" ]]; then
+    print_error "Cannot find config template files. Please run this script from within the repository."
 fi
 
 # ============================================================================
-# Set up global context files for all three CLIs
+# Generate config files from templates
 # ============================================================================
-print_step "Setting up global context files"
+print_step "Generating config files from templates"
 
-# Create global context file for Gemini
+# Ensure config directories exist
 mkdir -p ~/.gemini
-ln -sf "$CONFIGS_DIR/AGENTS.md" ~/.gemini/GEMINI.md
-print_success "Symlinked AGENTS.md to ~/.gemini/GEMINI.md"
+mkdir -p ~/.codex
+mkdir -p ~/.claude
 
-# Create global context file for Codex
-ln -sf "$CONFIGS_DIR/AGENTS.md" ~/.codex/AGENTS.md
-print_success "Symlinked AGENTS.md to ~/.codex/AGENTS.md"
+# Generate GEMINI.md for Gemini CLI
+sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/AGENTS.md.template" > ~/.gemini/GEMINI.md
+print_success "Generated ~/.gemini/GEMINI.md from template"
 
-# Create global context file for Claude Code
-ln -sf "$CONFIGS_DIR/CLAUDE.md" ~/.claude/CLAUDE.md
-print_success "Symlinked CLAUDE.md to ~/.claude/CLAUDE.md"
+# Generate AGENTS.md for Codex CLI
+sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/AGENTS.md.template" > ~/.codex/AGENTS.md
+print_success "Generated ~/.codex/AGENTS.md from template"
+
+# Generate CLAUDE.md for Claude Code
+sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/CLAUDE.md.template" > ~/.claude/CLAUDE.md
+print_success "Generated ~/.claude/CLAUDE.md from template"
 
 echo ""
 
-# ============================================================================
-# Done!
-# ============================================================================
 echo -e "${GREEN}✓ Config files setup complete!${NC}"
 echo ""
 echo "Verification:"

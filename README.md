@@ -88,54 +88,47 @@ The two sections below set up the same agent roles on different platforms:
 
 ### Config files
 
-> The setup script at [`configs/scripts/set-up-configs/`](configs/scripts/set-up-configs.sh) automates all the tasks in this section.
+> The setup script at [`configs/scripts/set-up-configs.sh`](configs/scripts/set-up-configs.sh) automates the task below.
 >
 > **Warning: it will overwrite any existing agent config files at:**
-> 
+>
 > - `~/.claude/CLAUDE.md`
 > - `~/.gemini/GEMINI.md`
 > - `~/.codex/AGENTS.md`
 
-1. Symlink global context files for Gemini and Codex:
+Run the config setup script:
 
-   - For **Gemini CLI:**
+```bash
+configs/scripts/set-up-configs.sh
+```
 
-      ```bash
-      mkdir -p ~/.gemini
-      ln -sf "$PWD/agent-ecosystem/agents/configs/AGENTS.md" ~/.gemini/GEMINI.md
-      ```
+This generates config files from templates ([`AGENTS.md.template`](configs/AGENTS.md.template) and [`CLAUDE.md.template`](configs/CLAUDE.md.template)) with absolute paths to the repository, writing them directly to:
+- `~/.gemini/GEMINI.md` (for Gemini CLI)
+- `~/.codex/AGENTS.md` (for Codex CLI)
+- `~/.claude/CLAUDE.md` (for Claude Code)
 
-      > **Verify Gemini automatically reads this file:**
-      >
-      > 1. Relaunch Gemini CLI
-      > 2. You should see a line under `Using:` saying `1 GEMINI.md file`
-      > 3. Run **`/memory show`**; you should see the contents of the [symlinked file](agents/configs/AGENTS.md) printed in the Gemini CLI
+> Templates are used since the config files need absolute paths to reference files in this repo. 
+> Thus, we use templates with `{{REPO_ROOT}}` placeholders (that get replaced with the actual repository path during setup) to make the repo portable across different machines.
 
-   - For **Codex CLI:**
+#### Making sure it works
 
-      ```bash
-      ln -sf "$PWD/agent-ecosystem/agents/configs/AGENTS.md" ~/.codex/AGENTS.md
-      ```
+- **Gemini CLI:**
+  1. Relaunch Gemini CLI
+  2. You should see a line under `Using:` saying `1 GEMINI.md file`
+  3. Run **`/memory show`**; you should see the generated content
 
-      > **Verify Codex automatically reads this file:**
-      >
-      > 1. Relaunch Codex
-      > 2. Ask Codex: "What handoff guidelines were you given at startup?"
-      > 3. It should reference the clink tool and delegation rules from AGENTS.md
-      >
-      > **Note**: `/status` currently shows `AGENTS files: (none)` for the global file due to [a known display bug](https://github.com/openai/codex/issues/3793), but the file **is** being loaded and used.
+- **Codex CLI:**
+  1. Relaunch Codex
+  2. Ask Codex: `What must-read files were you told to read at startup?`
+  3. It should reference the clink tool and delegation rules
 
-   This ensures both CLIs always read the [handoff guidelines](agents/reference/handoff-guidelines.md) and [compact MCP list](agents/reference/compact-mcp-list.md) at startup for any project under your home directory.
+  > **Note**: `/status` currently shows `AGENTS files: (none)` for the global file due to [a known bug](https://github.com/openai/codex/issues/3793), but the file **is** being loaded and used.
 
-2. Symlink to pre-made `CLAUDE.md` context file from your user-level Claude Code config:
+- **Claude Code:**
+  1. Restart Claude Code
+  2. Run **`/status`**: you should see a line saying `Memory: user (~/.claude/CLAUDE.md)`
 
-   ```bash
-   ln -sf "$PWD/agent-ecosystem/agents/configs/CLAUDE.md" ~/.claude/CLAUDE.md
-   ```
+All three CLIs will now have access to:
 
-   This ensures Claude always reads the [handoff guidelines](agents/reference/handoff-guidelines.md) and [compact MCP list](agents/reference/compact-mcp-list.md) at startup, **even when *not* spawned using an agent file.**
-
-   > **Verify Claude automatically reads this file:**
-   >
-   > 1. Restart Claude Code
-   > 2. Run **`/status`**: you should see a line saying `Memory: user (~/.claude/CLAUDE.md)`
+- [Handoff guidelines](agents/reference/handoff-guidelines.md) (delegation rules)
+- [Compact MCP list](agents/reference/compact-mcp-list.md) (tool selection guide)
