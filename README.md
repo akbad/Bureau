@@ -131,10 +131,15 @@ Run the config setup script:
 configs/scripts/set-up-configs.sh
 ```
 
-   This generates config files from templates ([`AGENTS.md.template`](configs/AGENTS.md.template) and [`CLAUDE.md.template`](configs/CLAUDE.md.template)) with absolute paths to the repository, writing them directly to:
-   - `~/.gemini/GEMINI.md` (for Gemini CLI)
-   - `~/.codex/AGENTS.md` (for Codex CLI)
-   - `~/.claude/CLAUDE.md` (for Claude Code)
+This generates config files from templates ([`AGENTS.md.template`](configs/AGENTS.md.template) and [`CLAUDE.md.template`](configs/CLAUDE.md.template)) with absolute paths to the repository, writing them directly to:
+- `~/.gemini/GEMINI.md` (for Gemini CLI)
+- `~/.codex/AGENTS.md` (for Codex CLI)
+- `~/.claude/CLAUDE.md` (for Claude Code)
+
+**The result will be that each agent will always be instructed to read:**
+
+- the [compact list/decision guide of MCPs available](agents/reference/compact-mcp-list.md)
+- the [handoff guide for using various agents/models together](agents/reference/handoff-guidelines.md)
 
 > Templates are used since the config files need to use *absolute* paths to reference files in this repo. 
 > 
@@ -145,8 +150,8 @@ configs/scripts/set-up-configs.sh
 #### Gemini CLI
 
 1. Relaunch Gemini CLI
-2. You should see a line under `Using:` saying `1 GEMINI.md file`
-3. Run **`/memory show`**; you should see the generated content
+2. You should see a line under `Using:` saying `1 GEMINI.md file` (or however many you had before + 1)
+3. To be fully sure, run **`/memory show`**; you should see the content from the [`AGENTS.md.template`](configs/AGENTS.md.template) written to `~/.gemini/GEMINI.md`
 
 #### Codex CLI
 
@@ -154,7 +159,7 @@ configs/scripts/set-up-configs.sh
 2. Ask Codex: `What must-read files were you told to read at startup?`
 3. It should reference the clink tool and delegation rules
 
-> **Note**: `/status` currently shows `AGENTS files: (none)` for the global file due to [a known bug](https://github.com/openai/codex/issues/3793), but the file **is** being loaded and used.
+> **Note**: `/status` currently shows `Agents.md: <none>` (even when correclty set up) due to [a known bug](https://github.com/openai/codex/issues/3793), but the `~/.codex/AGENTS.md` file created in the setup script **is** loaded and used, as the testing steps above should confirm.
 
 #### Claude Code
 
