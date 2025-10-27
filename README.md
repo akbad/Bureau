@@ -33,7 +33,7 @@ You don't technically have to learn what the different agents and MCPs available
 >     - [`compact-mcp-list.md`](agents/reference/compact-mcp-list.md) as a file they *have* to read
 >     - Contains links to guides to MCPs [by category](agents/reference/mcps-by-category/) and [deep dive guides for the non-basic MCPs](agents/reference/mcp-deep-dives/)
 
-## Agents
+## *Sub*agents
 
 > The setup script at [`agents/scripts/set-up-agents.sh`](agents/scripts/set-up-agents.sh) automates all the tasks in this section. 
 >
@@ -165,3 +165,46 @@ This generates config files from templates ([`AGENTS.md.template`](configs/AGENT
 
 1. Restart Claude Code
 2. Run **`/status`**: you should see a line saying `Memory: user (~/.claude/CLAUDE.md)`
+
+## Agents
+
+> The instructions/scripts in this section set up the ability to **launch Claude Code, Codex and Gemini CLI using a particular agent *from launch for the main conversation*** (instead of as *subagents* that you can't interact with directly).
+
+### Strategy
+
+#### For Claude Code 
+
+- Use **slash commands** (e.g. `/architect`, `/frontend`) that inject role prompts into the current conversation. 
+- Commands are generated to `~/.claude/commands/` from the agent files in [`claude-subagents/`](agents/claude-subagents/) using the script in the instructions below.
+
+#### For Gemini & Codex CLIs
+
+- Use **wrapper scripts** installed to `~/.local/bin/` that launch the CLI with a role prompt from the [`clink-role-prompts/`](agents/clink-role-prompts/) pre-loaded in the main conversation. 
+- **Structure: `<codex/gemini>-<rolename>`** 
+    - For example, `gemini-architect` and `codex-architect` are generated from `clink-role-prompts/architect.md`
+
+### Instructions
+
+- Set up the **Claude Code slash commands:**
+
+   ```bash
+   agents/scripts/set-up-claude-slash-commands.sh
+   ```
+
+- Set up the **Gemini CLI role launchers:**
+
+   ```bash
+   agents/scripts/set-up-gemini-role-launchers.sh
+   ```
+
+- Set up the **Codex CLI role launchers:**
+
+   ```bash
+   agents/scripts/set-up-codex-role-launchers.sh
+   ```
+
+- Ensure `~/.local/bin` is in your $PATH by adding the following line to your `~/.zshrc`/`~/.bashrc`:
+
+   ```bash
+   export PATH="$HOME/.local/bin:$PATH"
+   ```
