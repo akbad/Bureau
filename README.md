@@ -1,16 +1,15 @@
-# Agent ecosystem: config + agent file setup
+# Agent ecosystem: quick setup guide
 
-| Folder | Contents |
-| :----- | :------- |
-| **`agents/`** | Agent files and docs about them |
-| **`mcps/`** | Docs & setup scripts for MCPs |
-| `agents-brainstorming/` | Docs + template files used when brainstorming agents |
-
-## Quick setup
+> **Repo structure:**
+> | Folder | Contents |
+> | :----- | :------- |
+> | **`agents/`** | Agent files and docs about them |
+> | **`mcps/`** | Docs & setup scripts for MCPs |
+> | `agent-brainstorming/` | Archived docs + template files used for brainstorming agents |
 
 You don't technically have to learn what the different agents and MCPs available are (other than for setting up prerequisites), they should all be used automatically by your CLI agents when needed.
 
-### MCPs
+## MCPs
 
 1. Read the [must-read information about the setup script](mcps/README.md) and ensure you have the listed prerequisites set up.
 2. Run the [setup script](mcps/scripts/set-up-mcps.sh):
@@ -34,11 +33,11 @@ You don't technically have to learn what the different agents and MCPs available
 >     - [`compact-mcp-list.md`](agents/reference/compact-mcp-list.md) as a file they *have* to read
 >     - Contains links to guides to MCPs [by category](agents/reference/mcps-by-category/) and [deep dive guides for the non-basic MCPs](agents/reference/mcp-deep-dives/)
 
-### Agents
+## Agents
 
 > The setup script at [`agents/scripts/set-up-agents.sh`](agents/scripts/set-up-agents.sh) automates all the tasks in this section. 
 >
-> **Warning: it will overwrite any existing files at `~/.claude/agents/*.md` (only files matching names in claude-subagents/)**
+> **Warning: it will overwrite any existing files in `~/.claude/agents/*.md` whose names match any of the filenames in [`claude-subagents/`](agents/claude-subagents/)**
 
 The two sections below set up the same agent roles on different platforms:
 
@@ -48,7 +47,7 @@ The two sections below set up the same agent roles on different platforms:
     - From Gemini and Codex CLIs
     - From Claude Code [if you want to use Gemini or GPT (Codex) models](mcps/models-decision-guide.md)
 
-#### Set up `clink` subagents
+### `clink` subagents
 
 1. Create the directory structure:
 
@@ -70,7 +69,24 @@ The two sections below set up the same agent roles on different platforms:
 
 4. Restart Zen MCP server to reload configs
 
-#### Set up Claude Code subagents
+> **Syntax for spawning (use within prompt):** `clink with [cli_name] [role] to [task]`
+>
+> Tool parameter list:
+>     
+> - `cli_name`: `gemini`, `claude`, `codex`
+> - `role`: 
+>       - [Any of the `clink` subagents set up using the steps above](agents/clink-role-prompts/)
+>       - Zen presets also available: `default`, `planner`, `codereviewer`
+> - `prompt`: The task to perform (required)
+> - `files`: Optional file paths for context
+> - `images`: Optional image paths
+> - `continuation_id`: For resuming previous clink conversations
+>
+> Links to docs:
+> - [Full usage guide for `clink` (in Zen docs)](https://github.com/BeehiveInnovations/zen-mcp-server/blob/main/docs/tools/clink.md#usage-examples)
+> - Shortcut: [examples of spawning agents in Zen `clink` docs](https://github.com/BeehiveInnovations/zen-mcp-server/blob/main/docs/tools/clink.md#usage-examples)
+
+### Claude Code subagents
 
 1. Create the directory structure:
 
@@ -86,15 +102,28 @@ The two sections below set up the same agent roles on different platforms:
 
 3. Verify in Claude Code by running `/agents` to confirm the subagents appear
 
-### Config files
-
-> The setup script at [`configs/scripts/set-up-configs.sh`](configs/scripts/set-up-configs.sh) automates the task below.
+> **How to spawn subagents in Claude Code:**
+> 
+> 1. **Mention the agent explicitly** by name in your prompt, e.g. `Have the debugger subagent investigate this error`
+> 2. Claude **automatically** invokes subagents when tasks match their descriptions*
 >
-> **Warning: it will overwrite any existing agent config files at:**
+> **Key properties:**
+> 
+> - Each subagent has its own context window (doesn't pollute main conversation)
+> - For each subagent, can choose model it uses & tools available to it
+
+## Config files
+
+> **Warning, the setup script below will overwrite any existing agent config files at:**
 >
 > - `~/.claude/CLAUDE.md`
 > - `~/.gemini/GEMINI.md`
 > - `~/.codex/AGENTS.md`
+>
+> If these files already exist in your system, instead of running the script:
+> 
+> - append the contents of [`CLAUDE.md.template`](configs/CLAUDE.md.template) to your `CLAUDE.md`
+> - append the contents of [`AGENTS.md.template`](configs/AGENTS.md.template) to your `AGENTS.md` and `GEMINI.md`
 
 Run the config setup script:
 
@@ -102,33 +131,32 @@ Run the config setup script:
 configs/scripts/set-up-configs.sh
 ```
 
-This generates config files from templates ([`AGENTS.md.template`](configs/AGENTS.md.template) and [`CLAUDE.md.template`](configs/CLAUDE.md.template)) with absolute paths to the repository, writing them directly to:
-- `~/.gemini/GEMINI.md` (for Gemini CLI)
-- `~/.codex/AGENTS.md` (for Codex CLI)
-- `~/.claude/CLAUDE.md` (for Claude Code)
+   This generates config files from templates ([`AGENTS.md.template`](configs/AGENTS.md.template) and [`CLAUDE.md.template`](configs/CLAUDE.md.template)) with absolute paths to the repository, writing them directly to:
+   - `~/.gemini/GEMINI.md` (for Gemini CLI)
+   - `~/.codex/AGENTS.md` (for Codex CLI)
+   - `~/.claude/CLAUDE.md` (for Claude Code)
 
-> Templates are used since the config files need absolute paths to reference files in this repo. 
+> Templates are used since the config files need to use *absolute* paths to reference files in this repo. 
+> 
 > Thus, we use templates with `{{REPO_ROOT}}` placeholders (that get replaced with the actual repository path during setup) to make the repo portable across different machines.
 
-#### Making sure it works
+### Making sure it works
 
-- **Gemini CLI:**
-  1. Relaunch Gemini CLI
-  2. You should see a line under `Using:` saying `1 GEMINI.md file`
-  3. Run **`/memory show`**; you should see the generated content
+#### Gemini CLI
 
-- **Codex CLI:**
-  1. Relaunch Codex
-  2. Ask Codex: `What must-read files were you told to read at startup?`
-  3. It should reference the clink tool and delegation rules
+1. Relaunch Gemini CLI
+2. You should see a line under `Using:` saying `1 GEMINI.md file`
+3. Run **`/memory show`**; you should see the generated content
 
-  > **Note**: `/status` currently shows `AGENTS files: (none)` for the global file due to [a known bug](https://github.com/openai/codex/issues/3793), but the file **is** being loaded and used.
+#### Codex CLI
 
-- **Claude Code:**
-  1. Restart Claude Code
-  2. Run **`/status`**: you should see a line saying `Memory: user (~/.claude/CLAUDE.md)`
+1. Relaunch Codex
+2. Ask Codex: `What must-read files were you told to read at startup?`
+3. It should reference the clink tool and delegation rules
 
-All three CLIs will now have access to:
+> **Note**: `/status` currently shows `AGENTS files: (none)` for the global file due to [a known bug](https://github.com/openai/codex/issues/3793), but the file **is** being loaded and used.
 
-- [Handoff guidelines](agents/reference/handoff-guidelines.md) (delegation rules)
-- [Compact MCP list](agents/reference/compact-mcp-list.md) (tool selection guide)
+#### Claude Code
+
+1. Restart Claude Code
+2. Run **`/status`**: you should see a line saying `Memory: user (~/.claude/CLAUDE.md)`
