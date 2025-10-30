@@ -329,6 +329,8 @@ start_http_server() {
         log_success "$server_name already running on port $port"
         pid=$(lsof -ti:"$port" | head -1)
         log_info "Using existing server (PID: $pid)"
+        
+        # Expands to `eval "SERVER_PID=1234"`, then executes that (global) assignment
         eval "$pid_var=$pid"
     else
         log_info "Starting $server_name on port $port..."
@@ -1074,11 +1076,18 @@ log_info "  1. cd into a git repo"
 log_info "  2. Run 'gemini', 'claude', or 'codex'"
 log_info "  3. Type '/mcp' to see available tools"
 
+# Build running PID list in startup order, only including set PIDs
 log_empty_line
 log_info "To stop local HTTP servers:"
-pidlist="$ZEN_PID $SEMGREP_PID $QDRANT_PID"
-[[ "$SOURCEGRAPH_AVAILABLE" == "true" ]] && pidlist+=" $SOURCEGRAPH_PID"
-[[ "$SERENA_AVAILABLE" == "true" ]] && pidlist+=" $SERENA_PID"
+pidlist=""
+[[ -n "$ZEN_PID" ]] && pidlist+=" $ZEN_PID"
+[[ -n "$QDRANT_PID" ]] && pidlist+=" $QDRANT_PID"
+[[ "$SOURCEGRAPH_AVAILABLE" == "true" && -n "$SOURCEGRAPH_PID" ]] && pidlist+=" $SOURCEGRAPH_PID"
+[[ -n "$SEMGREP_PID" ]] && pidlist+=" $SEMGREP_PID"
+[[ "$SERENA_AVAILABLE" == "true" && -n "$SERENA_PID" ]] && pidlist+=" $SERENA_PID"
+
+# Trim leading space and create kill command
+pidlist="${pidlist# }"
 KILL_HTTPS_CMD="kill ${pidlist}"
 log_info "  $KILL_HTTPS_CMD"
 
