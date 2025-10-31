@@ -3,6 +3,6 @@ take_down_mcps.sh
 *.pyc
 .serena/
 
-# Generated config files (use templates instead)
+# Generated machine-specific config files (use templates instead)
 configs/AGENTS.md
 configs/CLAUDE.md
