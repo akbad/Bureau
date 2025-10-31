@@ -429,4 +429,4 @@ Regex approach (better):
 
 **Links:**
 - [Category guide: Code search](../category/code-search.md)
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)

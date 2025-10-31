@@ -102,7 +102,7 @@ configs/
 ├── *.template             # Config templates with {{REPO_ROOT}} placeholders
 └── scripts/               # Generates ~/.claude/CLAUDE.md, ~/.codex/AGENTS.md, etc.
 
-mcps/
+tools/
 ├── tools.md               # Complete MCP listing
 ├── tools-decision-guide.md
 └── scripts/               # MCP installation automation

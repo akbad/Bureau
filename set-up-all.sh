@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-mcps/scripts/set-up-mcps.sh -y && \
+tools/scripts/set-up-tools.sh -y && \
 agents/scripts/set-up-agents.sh && \
 configs/scripts/set-up-configs.sh && \
 agents/scripts/set-up-claude-slash-commands.sh && \

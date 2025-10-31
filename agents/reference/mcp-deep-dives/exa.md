@@ -196,4 +196,4 @@ Notes:
 
 **Links:**
 - [Category guide: Web research](../category/web-research.md)
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)

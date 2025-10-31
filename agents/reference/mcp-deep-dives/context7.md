@@ -249,4 +249,4 @@ Step 4: tavily_search("React server components tutorial")
 
 **Links:**
 - [Category guide: Documentation](../category/documentation.md)
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)

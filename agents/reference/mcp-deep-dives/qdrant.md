@@ -242,7 +242,7 @@ Example:
 
 ## Local Setup Notes
 
-For the provided setup script (my-agent-files/mcps/scripts/set-up-mcps.sh):
+For the provided setup script (my-agent-files/tools/scripts/set-up-tools.sh):
 
 - Qdrant DB: `http://127.0.0.1:8780` (Docker maps host 8780 → container 6333)
 - Persistence: Docker bind mount to `$HOME/Code/qdrant-data` (by default)
@@ -264,4 +264,4 @@ For the provided setup script (my-agent-files/mcps/scripts/set-up-mcps.sh):
 
 **Links:**
 - [Category guide: Memory](../category/memory.md)
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)

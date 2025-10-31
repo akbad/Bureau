@@ -224,4 +224,4 @@ Good: brave_web_search
 **Links:**
 - [Credit costs detail](https://docs.tavily.com/documentation/api-credits#api-credits-costs)
 - [Category guide: Web research](../category/web-research.md)
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)

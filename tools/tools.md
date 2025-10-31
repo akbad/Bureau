@@ -1,4 +1,4 @@
-# Tools set up by [`scripts/set-up-mcps.sh`](scripts/set-up-mcps.sh)
+# Tools set up by [`scripts/set-up-tools.sh`](scripts/set-up-tools.sh)
 
 > This file is meant for both humans and agents to read
 

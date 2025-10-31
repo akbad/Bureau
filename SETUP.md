@@ -4,11 +4,11 @@ You don't technically have to learn what the different agents and MCPs available
 
 ## MCPs
 
-1. Read the [must-read information about the setup script](mcps/README.md) and ensure you have the listed prerequisites set up.
-2. Run the [setup script](mcps/scripts/set-up-mcps.sh):
+1. Read the [must-read information about the setup script](tools/README.md) and ensure you have the listed prerequisites set up.
+2. Run the [setup script](tools/scripts/set-up-tools.sh):
     
    ```bash
-   mcps/scripts/set-up-mcps.sh [options]
+   tools/scripts/set-up-tools.sh [options]
    ```
 
 3. **Claude Code only:** install the [`claude-mem` automatic context management plugin](https://github.com/thedotmack/claude-mem) and the [Obra Superpowers plugin](https://github.com/obra/superpowers) via Claude's `/plugin` commands:
@@ -23,11 +23,11 @@ You don't technically have to learn what the different agents and MCPs available
    > /plugin install superpowers@superpowers-marketplace
    ```
 
-4. **Codex only:** the setup script automatically installs the Superpowers skills library (no manual command needed). When `mcps/scripts/set-up-mcps.sh` runs, it clones or updates `obra/superpowers` under `~/.codex/superpowers`, installs dependencies, and verifies the bootstrap CLI so Codex sessions immediately load the skills. The process is idempotent, so rerunning the setup reuses the existing checkout safely.
+4. **Codex only:** the setup script automatically installs the Superpowers skills library (no manual command needed). When `tools/scripts/set-up-tools.sh` runs, it clones or updates `obra/superpowers` under `~/.codex/superpowers`, installs dependencies, and verifies the bootstrap CLI so Codex sessions immediately load the skills. The process is idempotent, so rerunning the setup reuses the existing checkout safely.
 
 > **Overview of the MCP tools installed:**
 >
-> - See [`mcps/tools.md`](mcps/tools.md) for the full list (and [`mcps/tools-decision-guide.md`](mcps/tools-decision-guide.md) for more details)
+> - See [`tools/tools.md`](tools/tools.md) for the full list (and [`tools/tools-decision-guide.md`](tools/tools-decision-guide.md) for more details)
 > - What the agents (that you'll set up in the next section) will see:
 >    
 >     - [`compact-mcp-list.md`](agents/reference/compact-mcp-list.md) as a file they *have* to read
@@ -100,7 +100,7 @@ The two sections below set up the same agent roles on different platforms:
 - Zen's `clink` is for spawning subagents (allows choosing both the role and the model used):
     
     - From Gemini and Codex CLIs
-    - From Claude Code [if you want to use Gemini or GPT (Codex) models](mcps/models-decision-guide.md)
+    - From Claude Code [if you want to use Gemini or GPT (Codex) models](tools/models-decision-guide.md)
 
 ### `clink` subagents
 
