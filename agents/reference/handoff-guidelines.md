@@ -1,67 +1,88 @@
-# Handoff Guidelines for Agents
+# *Handoff guidelines:* how and when to delegate to subagents
 
-> Purpose: A concise guide for when to delegate work vs. when to ask the user for guidance. This trimmed version consolidates duplicated guidance into single canonical sections and removes repeated reminders.
+> **Purpose**: a concise guide for when to delegate work vs. when to ask the user for guidance.
 
-## Table of Contents
+## Table of contents
 
-- [Table of Contents](#table-of-contents)
-- [Core Delegation Strategies](#core-delegation-strategies)
-  - [Delegation Mechanisms](#delegation-mechanisms)
-  - [General Principles](#general-principles)
-  - [Which Mechanism to Use](#which-mechanism-to-use)
-- [Context Window Guidance](#context-window-guidance)
-- [When to Use Clink](#when-to-use-clink)
-  - [Available Roles by CLI](#available-roles-by-cli)
-- [When to Use Task Tool (Claude Code)](#when-to-use-task-tool-claude-code)
-- [When to Ask the User (AskUserQuestion)](#when-to-ask-the-user-askuserquestion)
-- [Model Selection Guide](#model-selection-guide)
-  - [Thinking Level Optimization](#thinking-level-optimization)
-- [Handoff Patterns](#handoff-patterns)
-- [What Requires Explicit Approval](#what-requires-explicit-approval)
-- [Decision Matrix](#decision-matrix)
-  - [Critical Edge Cases](#critical-edge-cases)
-- [Practical Examples](#practical-examples)
-- [Key Takeaways](#key-takeaways)
+- [Table of contents](#table-of-contents)
+- [Terminology](#terminology)
+- [Core delegation strategies](#core-delegation-strategies)
+  - [Delegation mechanisms available](#delegation-mechanisms-available)
+  - [General principles](#general-principles)
+  - [Integration with *Superpowers* skills *(Claude and Codex only)*](#integration-with-superpowers-skills-claude-and-codex-only)
+- [Choosing *roles* and *mechanisms*](#choosing-roles-and-mechanisms)
+  - [Overall guidelines](#overall-guidelines)
+  - [When to use `clink`](#when-to-use-clink)
+  - [Special guidance for delegating to *Explore* and *Plan* agents](#special-guidance-for-delegating-to-explore-and-plan-agents)
+- [When to use Task tool *(Claude Code only)*](#when-to-use-task-tool-claude-code-only)
+- [Choosing *models* to use](#choosing-models-to-use)
+  - [General guidelines](#general-guidelines)
+  - [Detailed picks to use by task category](#detailed-picks-to-use-by-task-category)
+  - [Intra-prompt thinking level optimization (by CLI)](#intra-prompt-thinking-level-optimization-by-cli)
+- [Handoff patterns](#handoff-patterns)
+- [When to ask the user (AskUserQuestion)](#when-to-ask-the-user-askuserquestion)
+  - [General guidelines](#general-guidelines-1)
+  - [Best practices](#best-practices)
+  - [What requires explicit approval, always](#what-requires-explicit-approval-always)
 
----
+## Terminology
 
-## Core Delegation Strategies
+| Concept | Definition |
+| :------ | :--------- |
+| **Skill** | *Superpowers* workflow (e.g., `superpowers:test-driven-development`) |
+| **Subagent** | A subagent spawned by *either* the Claude Task tool or `clink` (see [Delegation mechanisms available](#delegation-mechanisms-available)) |
+| **Role** |  Personas used by subagents (e.g., `debugger`, `architect`) |
+| **MCP** | MCP servers made available for you to use; see `compact-mcp-list.md` (on your list of must-read files) for a full guide |
 
-### Delegation Mechanisms
+## Core delegation strategies
 
-1. `clink` (Zen MCP): Cross-model orchestration to Claude, Codex (GPT‑5‑Codex), Gemini
-2. `Task` tool: Spawn specialized Claude Code subagents (Claude‑only)
+### Delegation mechanisms available
+
+1. `clink` (from Zen MCP, available everywhere): Cross-model orchestration to Claude, Codex (GPT‑5‑Codex), Gemini
+2. `Task` tool (Claude‑only): Spawn specialized Claude Code subagents
 3. `AskUserQuestion`: Stop and obtain explicit user guidance
 
-### General Principles
+### General principles
 
 - Delegate when another model or role materially improves accuracy, speed, cost, or context handling.
 - Ask the user when requirements are ambiguous, multiple valid options exist, or explicit approval is required.
 - Handle directly when the task is within your capability and scope is clear.
 
-### Which Mechanism to Use
+### Integration with *Superpowers* skills *(Claude and Codex only)*
 
+#### Precedence rule when both systems apply
+
+1. **Process enforcement (*Superpowers*)**: If a *Superpowers* skill mandates a specific workflow (e.g., TDD, systematic debugging), you MUST follow it — this is non-negotiable per the skill's requirements.
+2. **Capability selection**: Within that mandated workflow, use handoff guidelines (this file) and model selection guide to choose:
+
+    - Which model/CLI to use (`clink` with appropriate role)
+    - Which MCP tools to leverage (per `compact-mcp-list.md`)
+    - When to delegate vs. handle directly
+
+#### Both systems are complementary
+
+- *Superpowers* defines ***how** to work*
+- `handoff-guidelines.md` defines ***who** does it*
+- `mcp-compact-list.md` defines ***which tools** are used*
+
+For example, suppose you are performing a debugging task. Examples of what could be enforced by each system:
+
+| System | What it enforces/leads you to do |
+| :-- | :-- |
+| Superpowers | Use `systematic-debugging` skill (4-phase investigation process) |
+| "Handoff guidelines" and "Compact MCP list" guides | Use Codex via `clink` with `debugger` role + Serena MCP for code search |
+
+## Choosing *roles* and *mechanisms*
+
+### Overall guidelines
 - If you are Claude Code (Sonnet/Haiku/Opus):
+  
   - Use `Task` tool only for Claude subagents.
   - Use `clink` for delegation to Codex or Gemini.
+
 - If you are Codex CLI or Gemini CLI: Use `clink` for all delegation (never `Task`).
 
----
-
-## Context Window Guidance
-
-- Gemini: ~1M token context; best when input truly exceeds ~400K tokens (e.g., whole repos/services, massive logs).
-- GPT‑5‑Codex: ~400K token context; preferred for most coding tasks when input fits (higher accuracy on code/manipulation).
-- Claude: typically smaller context; strong for orchestration and planning; choose when depth of chain‑of‑thought and tool coordination matter and context fits.
-
-Rule of thumb:
-- Prefer GPT‑5‑Codex for coding/refactoring/testing when the total context fits ≤400K.
-- Use Gemini when you genuinely need >400K context or when budget dominates (free tier prototyping).
-- Use Claude for complex agentic coordination, planning, and reasoning where context fits.
-
----
-
-## When to Use Clink
+### When to use `clink`
 
 Use `clink` to delegate to another model when:
 - Context window constraints require Gemini’s 1M context; otherwise prefer Codex for code accuracy.
@@ -74,55 +95,56 @@ How to use `clink` (canonical specifics):
 - Always reuse `continuation_id` to preserve conversation context.
 - Include absolute file paths when relevant.
 
-### Available Roles by CLI
+#### Available roles by CLI (when spawning subagents via `clink`)
 
 **codex**: api-client-designer, api-integration, auth-specialist, caching-specialist, chaos-engineer, code-reviewer, cpp-pro, debugger, devops-infra-as-code, event-driven, frontend, golang-pro, implementation-helper, migration-refactoring, mobile-eng-architect, networking-edge-infra, realtime, rust-pro, schema-evolution, testing
 
 **gemini**: ai-ml-eng, data-eng, db-internals, explainer, historian, implementation-helper, optimization
 
 **claude**:
-- Haiku: implementation-helper, platform-eng (+ any role for speed)
-- Sonnet: architect, architecture-audit, cost-optimization-finops, distributed-systems, explainer, implementation-helper, incident-commander, interviewer, observability, scalability-reliability, security-compliance, task-decomposer, tech-debt
-- Opus: architect, architecture-audit, security-compliance, tech-debt (+ any role for max rigor)
 
----
+- **Haiku**: implementation-helper, platform-eng (+ any role for speed)
+- **Sonnet**: architect, architecture-audit, cost-optimization-finops, distributed-systems, explainer, implementation-helper, incident-commander, interviewer, observability, scalability-reliability, security-compliance, task-decomposer, tech-debt
+- **Opus**: architect, architecture-audit, security-compliance, tech-debt (+ any role for max rigor)
 
-## When to Use Task Tool (Claude Code)
+### Special guidance for delegating to *Explore* and *Plan* agents
+
+For these agents, you can specify *thoroughness* in your prompt:
+| Thoroughness level | Result |
+| :--- | :--- |
+| "quick" | Basic pattern matching, fast lookups |
+| "medium" | Moderate exploration across multiple files |
+| "very thorough" | Comprehensive analysis across entire codebase |
+
+
+## When to use Task tool *(Claude Code only)*
 
 `Task` is Claude Code‑only. Use it to spawn Claude subagents for:
 - Codebase exploration (e.g., Explore agent with configurable thoroughness).
 - Multi‑step research tasks and token‑conserving searches.
 - Parallelizing independent search/analysis tasks.
 
-Thoroughness levels:
-- "quick": Basic pattern matching, fast lookups
-- "medium": Moderate exploration across multiple files
-- "very thorough": Comprehensive analysis across entire codebase
-
 When not to use `Task`:
 - Single known file reads or known symbol queries (use direct tools instead).
 - Cross‑model delegation (use `clink`).
 
----
+## Choosing *models* to use
 
-## When to Ask the User (AskUserQuestion)
+### General guidelines
 
-Use AskUserQuestion when:
-- Requirements are ambiguous, trade‑offs are uncited, or multiple valid approaches exist.
-- High‑impact architectural decisions are involved (system design, stack selection, breaking changes).
-- Critical information is missing (configs, environment details).
-- Security/compliance sensitivity exists (credentials, access control, retention).
-- Before destructive operations or any action listed under “Explicit Approval”.
+- Prefer **GPT‑5‑Codex** for multi‑file refactoring, mechanical changes, contract/testing, and cross‑file code accuracy when the total context fits ≤400K.
 
-Best practices:
-- Provide 2–4 clear options with concise trade‑offs; allow multi‑select when appropriate.
-- Include context about why you’re asking; keep headers short.
+    - Especially prefer **GPT-5-Codex + High thinking** for DB/ML/optimization/other math-heavy work (unless context is above >400K: see the next point).
 
----
+- Use **Gemini** ONLY when you genuinely need >400K context.
+- Use **Claude** for complex agentic coordination, planning, and reasoning where context fits.
+    
+    - **Sonnet** (with extended thinking) should be sufficient for most tasks.
+    - **Opus** has strict weekly limits; use sparingly for highest-impact work and when tasks require maximum rigour.
 
-## Model Selection Guide
+### Detailed picks to use by task category
 
-Quick reference (first picks by task category; defer to [Context Window Guidance](#context-window-guidance) for size‑driven decisions):
+Note you must also defer to [Rules of thumb](#rules-of-thumb) for size‑driven decisions.
 
 | Task Category | First Pick | CLI | Role | Why |
 | --- | --- | --- | --- | --- |
@@ -167,145 +189,73 @@ Quick reference (first picks by task category; defer to [Context Window Guidance
 | Repository/code search | Haiku 4.5 | `claude` | `searcher` | Fast exploration; summarize findings; pointers |
 | Task decomposition | Sonnet 4.5 | `claude` | `task-decomposer` | Break goals into verifiable steps, deps, risks |
 
-Model‑specific notes:
-- Codex (GPT‑5‑Codex): multi‑file refactoring, mechanical changes, contract/testing, and cross‑file code accuracy.
-- Claude (Sonnet/Haiku/Opus): orchestration, planning, coordination; Haiku for speed, Opus for maximum rigor.
-- Gemini: choose for truly large contexts (>~400K tokens) or budget‑driven prototyping.
- - Note: Opus 4.1 has strict weekly limits — use sparingly for highest‑impact work.
+### Intra-prompt thinking level optimization (by CLI)
 
-### Thinking Level Optimization
+#### Codex 
 
-**Codex** (mention in prompt):
+Within your prompt:
 - "minimal effort": formatting, regex
 - "low effort": single-file
 - default: cross-file
 - "high effort": migrations, concurrency
 
-**Claude** (mention "extended thinking" for):
+#### Claude
+
+Mention "extended thinking" for:
 - Long-horizon refactors, RCAs, multi-service planning, complex research
 
----
+## Handoff patterns
 
-## Handoff Patterns
+Follow the sequential flow of phases in the table below (in the order presented):
 
-Sequential flow with references to canonical sections rather than repeating rules:
+| Order | Phase name | Objectives | Actions to perform |
+| :--- | :--- | :--- | :--- |
+| **1** | **Research** | Understand requirements, code, and constraints | Use `Task` Explore (Claude) for codebase exploration; use direct read/glob for known files/symbols; use `clink`→Gemini for long‑context needs (>~400K). If ambiguity remains, see [AskUserQuestion](#when-to-ask-the-user-askuserquestion) |
+| **2** | **Planning** | Design the approach, break down tasks, identify risks | Outline steps; note trade‑offs; delegate complex architecture to Claude (`architect`) or refactoring planning to Codex (`migration-refactoring`) via `clink`. For large goals, use `task-decomposer` to produce verifiable substeps and dependencies. Resolve ambiguities via [AskUserQuestion](#when-to-ask-the-user-askuserquestion). Obtain approval before implementation when needed (see [What requires explicit approval, always](#what-requires-explicit-approval-always)). |
+| **3** | **Implementation** | Execute the plan and write changes | Track tasks; use Codex for wide refactors/testing; use Claude for coordination; use Gemini for long‑context codebase analysis. Leverage specialist roles as needed (e.g., `schema-evolution`, `auth-specialist`, `caching-specialist`, `event-driven`, `debugger`). For approval gates (commits/deploys/destructive ops), see [What requires explicit approval, always](#what-requires-explicit-approval-always). |
+| **4** | **Review/Verification (optional)** | Verify changes, run tests, prepare for commit | Request code review (use `code-reviewer` for structured guidance); run tests; follow the [Approval pattern](#approval-pattern) before committing/pushing. |
 
-1) Research
-- Objectives: understand requirements, code, and constraints.
-- Actions: use `Task` Explore (Claude) for codebase exploration; use direct read/glob for known files/symbols; use `clink`→Gemini for long‑context needs (>~400K). If ambiguity remains, see [AskUserQuestion](#when-to-ask-the-user-askuserquestion).
+## When to ask the user (AskUserQuestion)
 
-2) Planning
-- Objectives: design the approach, break down tasks, identify risks.
-- Actions: outline steps; note trade‑offs; delegate complex architecture to Claude (`architect`) or refactoring planning to Codex (`migration-refactoring`) via `clink`. For large goals, use `task-decomposer` to produce verifiable substeps and dependencies. Resolve ambiguities via [AskUserQuestion](#when-to-ask-the-user-askuserquestion). Obtain approval before implementation when needed (see [Explicit Approval](#what-requires-explicit-approval)).
+### General guidelines
 
-3) Implementation
-- Objectives: execute the plan and write changes.
-- Actions: track tasks; use Codex for wide refactors/testing; use Claude for coordination; use Gemini for long‑context codebase analysis. Leverage specialist roles as needed (e.g., `schema-evolution`, `auth-specialist`, `caching-specialist`, `event-driven`, `debugger`). For approval gates (commits/deploys/destructive ops), see [Explicit Approval](#what-requires-explicit-approval).
+Ask the user when:
+- Requirements are ambiguous, trade‑offs are uncited, or multiple valid approaches exist.
+- High‑impact architectural decisions are involved (system design, stack selection, breaking changes).
+- Critical information is missing (configs, environment details).
+- Security/compliance sensitivity exists (credentials, access control, retention).
+- Before destructive operations or any action listed under “Explicit Approval”.
 
-4) Review/Verification (optional)
-- Objectives: verify changes, run tests, prepare for commit.
-- Actions: request code review (use `code-reviewer` for structured guidance); run tests; follow the [Approval Pattern](#what-requires-explicit-approval) before committing/pushing.
+### Best practices
+- Provide 2–4 clear options with concise trade‑offs; allow multi‑select when appropriate.
+- Include context about why you’re asking; keep headers short.
 
----
+### What requires <ins>explicit</ins> approval, <ins>always</ins>
 
-## What Requires Explicit Approval
+- **Version control operations**: creating commits (unless explicitly told), pushing, merging, rebasing, force pushes, amending commits.
 
-Always ask before:
-- Version control operations: creating commits (unless explicitly told), pushing, merging, rebasing, force pushes, amending commits.
   - Exception: User explicitly says "commit this" or "push these changes".
-- Destructive operations: deleting files/dirs, truncating databases, dropping tables, purging caches, removing dependencies.
-  - Exception: User explicitly says "delete X" or removal is part of an explicitly approved refactoring task.
-- Production/deployment: prod deploys, prod config changes, service restarts, env var changes, prod migrations.
+
+- **Destructive operations**: deleting files/dirs, truncating databases, dropping tables, purging caches, removing dependencies.
+
+  - *Exception*: User explicitly says "delete X" or removal is part of an explicitly approved refactoring task.
+
+- **Production/deployment**: prod deploys, prod config changes, service restarts, env var changes, prod migrations.
+
   - Never assume: always ask even if user says "deploy".
-- Security/access changes: authN/Z changes, permission grants, exposing endpoints, disabling security features, handling secrets.
-- Breaking changes: public API removals, signature changes without backward compatibility, schema changes without migrations, config format changes.
-  - Exception: Proceed only with explicit user approval for the breaking change.
-- Cost‑impacting changes: adding cloud resources, increasing instance size, storage tier changes, rate‑limit changes, adding paid third‑party services.
 
-Approval pattern:
-```
-1) Clearly state what will happen
-2) List affected resources/files
-3) Explain potential risks/impacts
-4) Use AskUserQuestion with clear options
-5) Wait for explicit approval
-6) Proceed only after approval
-```
+- **Security/access changes**: authN/Z changes, permission grants, exposing endpoints, disabling security features, handling secrets.
+- **Breaking changes**: public API removals, signature changes without backward compatibility, schema changes without migrations, config format changes.
 
----
+  - *Exception*: Proceed only with explicit user approval for the breaking change.
 
-## Decision Matrix
+- **Cost‑impacting changes**: adding cloud resources, increasing instance size, storage tier changes, rate‑limit changes, adding paid third‑party services.
 
-Condensed if‑then rules referring to canonical sections:
+#### Approval pattern
 
-Context size
-```
-IF total context > ~400K tokens
-THEN use Gemini via clink (see Context Window Guidance)
-
-IF total context ≤ ~400K tokens AND coding/refactoring accuracy matters
-THEN prefer Codex (see Model Selection Guide)
-
-IF task is orchestration/planning with tool coordination and context fits
-THEN prefer Claude (Sonnet/Haiku/Opus as appropriate)
-```
-
-Discovery vs. direct reads
-```
-IF open‑ended codebase exploration
-THEN use Claude Task Explore (see Task Tool)
-
-IF specific files/symbols are known
-THEN use direct Read/Glob instead of spawning agents
-```
-
-Ambiguity and approvals
-```
-IF requirements or trade‑offs are ambiguous
-THEN use AskUserQuestion (see AskUserQuestion)
-
-IF operation is destructive, prod‑impacting, or otherwise sensitive
-THEN follow Explicit Approval and Approval Pattern
-```
-
-### Critical Edge Cases
-
-**Context thresholds**:
-- <200K: handle directly | 200K-400K: codex | >400K: gemini
-
-**DB/ML/optimization**:
-- Gemini ONLY when datasets/logs exceed 400K tokens
-- Otherwise: codex + High thinking (94.6% vs 88% AIME)
-
-**Math-heavy**:
-- Codex + High thinking preferred (94.6%)
-- Gemini (88%) only for budget or >400K context
-
----
-
-## Practical Examples
-
-Example 1: “Refactor the authentication system to use JWT”
-- Flow: Research (Explore) → AskUserQuestion for requirements → Plan → Approvals for breaking changes → Implement with Codex (`migration-refactoring`) → Approval before commit.
-
-Example 2: “Find all places where we handle errors”
-- Flow: Use Claude Task Explore (medium thoroughness) → Summarize findings.
-
-Example 3: “Optimize slow database queries in the analytics service”
-- Flow: Check context size → If >~400K, use Gemini with `db-internals`; else Codex with `db-internals` → Confirm approach via AskUserQuestion → Implement.
-
-Example 4: “Write a threat model for our payment API”
-- Flow: Gather context → Delegate to Claude Opus + `security-compliance` via `clink` → Review.
-
-Example 5: “Fix 50 linting errors across the codebase”
-- Flow: Use Claude Haiku + `implementation-helper` via `clink` for speed/cost → Approval before commit.
-
----
-
-## Key Takeaways
-
-- Prefer Codex for coding/refactoring/testing when context fits ≤~400K; use Gemini for genuinely large contexts or budget‑driven prototyping; use Claude for orchestration/planning and agentic coordination.
-- `Task` tool is Claude‑only; use it for exploration/research/parallel search—not cross‑model delegation (use `clink`).
-- Use `clink` with `cli_name`, `prompt`, `role`, and reusable `continuation_id`; include absolute file paths when helpful.
-- Follow [Explicit Approval](#what-requires-explicit-approval) for commits, destructive changes, production operations, security changes, breaking changes, and cost‑impacting actions.
-- Resolve ambiguity with [AskUserQuestion](#when-to-ask-the-user-askuserquestion) using concise options and clear trade‑offs.
+1. Clearly state what will happen
+2. List affected resources/files
+3. Explain potential risks/impacts
+4. Use AskUserQuestion with clear options
+5. Wait for explicit approval
+6. Proceed only after approval
