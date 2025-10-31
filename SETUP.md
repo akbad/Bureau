@@ -16,6 +16,9 @@ You don't technically have to learn what the different agents and MCPs available
    ```
    > /plugin marketplace add thedotmack/claude-mem
    > /plugin install claude-mem
+   ```
+   
+   ```
    > /plugin marketplace add obra/superpowers-marketplace
    > /plugin install superpowers@superpowers-marketplace
    ```
