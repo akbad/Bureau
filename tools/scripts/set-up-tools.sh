@@ -21,7 +21,7 @@
 #           - Subagent prompts at `~/.zen/prompts`
 #
 # Usage:
-#   ./set-up-mcps.sh [options]
+#   ./set-up-tools.sh [options]
 #
 # Options:
 #   -a, --agent <str>     Choose specific agents to configure (c=Claude, x=Codex, g=Gemini).

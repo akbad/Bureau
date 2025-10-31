@@ -200,5 +200,5 @@ If your client lacks automatic hooks, manually implement:
 
 ## Quick Reference Links
 
-- [Full decision guide](../../mcps/tools-decision-guide.md#memory)
+- [Full decision guide](../../tools/tools-decision-guide.md#memory)
 - [Compact tool list](../compact-mcp-list.md) *(tier 1)*

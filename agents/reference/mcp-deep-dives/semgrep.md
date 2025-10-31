@@ -296,7 +296,7 @@ semgrep_scan_with_custom_rule(
 
 **Links:**
 - [Semgrep Pro vs OSS features](https://semgrep.dev/docs/semgrep-pro-vs-oss)
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)
 
 ## Local Reporting (CE)
 

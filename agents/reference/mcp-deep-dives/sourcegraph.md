@@ -261,4 +261,4 @@ Find patterns in specific repo:
 **Links:**
 - [Sourcegraph Public Code Search](https://sourcegraph.com/search)
 - [Category guide: Code search](../category/code-search.md)
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)

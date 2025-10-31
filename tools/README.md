@@ -11,7 +11,7 @@
 
 --- 
 
-## What the [setup script](./scripts/set-up-mcps.sh) does
+## What the [setup script](./scripts/set-up-tools.sh) does
 
 1. Sets up a series of essential MCPs and CLI tools (including running some MCPs & Docker containers locally) 
 2. Configures [these coding agent CLIs](#supported-coding-agents) to use them
@@ -112,7 +112,7 @@ Needed for running the local Qdrant container.
 ### Running the script
 
 ```bash
-scripts/set-up-mcps.sh [options]
+scripts/set-up-tools.sh [options]
 ```
 
 #### Options

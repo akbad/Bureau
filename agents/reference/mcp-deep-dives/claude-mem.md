@@ -359,4 +359,4 @@ find_by_concept("security", limit: 5, format: "index")
 **Links:**
 - [GitHub repo: thedotmack/claude-mem](https://github.com/thedotmack/claude-mem)
 - [Category guide: Memory](../category/memory.md)
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)

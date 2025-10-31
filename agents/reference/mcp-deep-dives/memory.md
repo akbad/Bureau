@@ -348,4 +348,4 @@ Example:
 
 **Links:**
 - [Category guide: Memory](../category/memory.md)
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)

@@ -75,7 +75,7 @@
 > - `agents/must-reads/handoff-guidelines.md` – When to delegate
 > 
 > If you need detailed Semgrep usage, read:
-> - `agents/reference/mcps/semgrep.md` – Tier 3 deep dive
+> - `agents/reference/tools/semgrep.md` – Tier 3 deep dive
 > 
 > [Rest of role prompt body...]
 > ```

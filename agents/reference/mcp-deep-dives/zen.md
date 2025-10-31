@@ -288,4 +288,4 @@ Implement (Codex) → Review (Codex/codereviewer)
 4. Review (Codex/codereviewer)
 
 **Links:**
-- [Full decision guide](../../../mcps/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)
