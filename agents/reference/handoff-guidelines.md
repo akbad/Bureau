@@ -29,9 +29,9 @@
 
 | Concept | Definition |
 | :------ | :--------- |
-| **Skill** | *Superpowers* workflow (e.g., `superpowers:test-driven-development`) |
-| **Subagent** | A subagent spawned by *either* the Claude Task tool or `clink` (see [Delegation mechanisms available](#delegation-mechanisms-available)) |
-| **Role** |  Personas used by subagents (e.g., `debugger`, `architect`) |
+| **Skill** | *Superpowers* workflow (e.g., `superpowers:test-driven-development`) + any extra Claude/Codex skills files you define |
+| **Agent** |  Personas used by agents (e.g., `debugger`, `architect`), invoked either directly in your main chat or as subagents |
+| **Subagent** | A child **agent**, isolated from the main chat, spawned to complete a particular task by *either* (1) Claude Code first-party "subagents" feature or (2) `clink` |
 | **MCP** | MCP servers made available for you to use; see `compact-mcp-list.md` (on your list of must-read files) for a full guide |
 
 ## Core delegation strategies
