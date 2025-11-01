@@ -16,12 +16,32 @@ You don't technically have to learn what the different agents and MCPs available
    ```
    > /plugin marketplace add thedotmack/claude-mem
    > /plugin install claude-mem
-   ```
    
-   ```
    > /plugin marketplace add obra/superpowers-marketplace
    > /plugin install superpowers@superpowers-marketplace
    ```
+
+   > [!TIP]
+   > If `claude-mem` is properly set up, every time you start Claude Code, you should see output that looks like:
+   > ```bash
+   > $ claude
+   >   # ... Claude startup graphics ...
+   >  ⎿ SessionStart:startup says: Plugin hook error: 
+   >
+   >    📝 Claude-Mem Context Loaded
+   >       ℹ️  Note: This appears as stderr but is informational
+   >     only
+   >
+   >
+   >    📝 [my-agent-files] recent context
+   >    ────────────────────────────────────────────────────────
+   >
+   >    Legend: 🎯 session-request | 🔴 gotcha | 🟡 
+   >    problem-solution | 🔵 how-it-works | 🟢 what-changed | 
+   >    🟣 discovery | 🟠 why-it-exists | 🟤 decision | ⚖️ 
+   >    trade-off
+   >    # ... individual context entries will follow
+   > ```
 
 4. **Codex only:** the setup script automatically installs the Superpowers skills library (no manual command needed). When `tools/scripts/set-up-tools.sh` runs, it clones or updates `obra/superpowers` under `~/.codex/superpowers`, installs dependencies, and verifies the bootstrap CLI so Codex sessions immediately load the skills. The process is idempotent, so rerunning the setup reuses the existing checkout safely.
 
