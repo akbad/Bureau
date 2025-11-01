@@ -95,18 +95,6 @@ How to use `clink` (canonical specifics):
 - Always reuse `continuation_id` to preserve conversation context.
 - Include absolute file paths when relevant.
 
-#### Available roles by CLI (when spawning subagents via `clink`)
-
-**codex**: api-client-designer, api-integration, auth-specialist, caching-specialist, chaos-engineer, code-reviewer, cpp-pro, debugger, devops-infra-as-code, event-driven, frontend, golang-pro, implementation-helper, migration-refactoring, mobile-eng-architect, networking-edge-infra, realtime, rust-pro, schema-evolution, testing
-
-**gemini**: ai-ml-eng, data-eng, db-internals, explainer, historian, implementation-helper, optimization
-
-**claude**:
-
-- **Haiku**: implementation-helper, platform-eng (+ any role for speed)
-- **Sonnet**: architect, architecture-audit, cost-optimization-finops, distributed-systems, explainer, implementation-helper, incident-commander, interviewer, observability, scalability-reliability, security-compliance, task-decomposer, tech-debt
-- **Opus**: architect, architecture-audit, security-compliance, tech-debt (+ any role for max rigor)
-
 ### Special guidance for delegating to *Explore* and *Plan* agents
 
 For these agents, you can specify *thoroughness* in your prompt:
@@ -115,7 +103,6 @@ For these agents, you can specify *thoroughness* in your prompt:
 | "quick" | Basic pattern matching, fast lookups |
 | "medium" | Moderate exploration across multiple files |
 | "very thorough" | Comprehensive analysis across entire codebase |
-
 
 ## When to use Task tool *(Claude Code only)*
 
