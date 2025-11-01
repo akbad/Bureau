@@ -1,4 +1,4 @@
-# Agent ecosystem: setup guide
+# Bedrock: setup guide
 
 You don't technically have to learn what the different agents and MCPs available are (other than for setting up prerequisites), they should all be used automatically by your CLI agents when needed.
 
