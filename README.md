@@ -1,4 +1,4 @@
-# Agent ecosystem
+# Bedrock
 
 Unified agent infrastructure across Claude Code, Gemini CLI, and Codex CLI with shared tooling (MCPs) and role definitions.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# MCP server setup script
+# MCP server setup script for Bedrock
 #
 # Prerequisites:
 #   Required:
@@ -627,7 +627,7 @@ install_or_update_pip_pkg_from_git() {
     local git_url=$1
     local package_name=$2
 
-    # Check if package is already installed
+    # Upgrade package if already installed; otherwise, install 
     if uv tool list | grep -q "^$package_name "; then
         log_info "$package_name is already installed. Updating to latest version..."
         if uv tool install "$package_name" --force --from "git+$git_url"; then
@@ -734,11 +734,22 @@ check_dependency "uvx" "Please install uv first: https://docs.astral.sh/uv/getti
     "uvx found, will use for Git MCP (stdio mode) and Zen MCP"
 check_dependency "docker" "Please install Docker first: https://docs.docker.com/get-docker/" \
     "docker found, will use for Qdrant container"
-check_dependency "brew" "Please install Homebrew first: https://brew.sh/" \
-    "brew found, will use for Semgrep installation"
 
-# idempotently install Semgrep binary (used to launch MCP)
-brew install semgrep
+if [[ "$(uname)" == "Darwin" ]]; then
+    # macOS
+    check_dependency "brew" "Please install Homebrew first: https://brew.sh/" \
+        "brew found, will use for Semgrep installation"
+
+    # idempotently install Semgrep binary (used to launch MCP)
+    brew install semgrep
+elif [[ "$(uname)" == "Linux" ]]; then
+    # Linux
+    log_info "Installing Semgrep via uv..."
+    uv tool install semgrep
+else 
+    log_error "You are on an unsupported OS!"
+    exit 1
+fi
 
 log_success "Dependency check complete."
 

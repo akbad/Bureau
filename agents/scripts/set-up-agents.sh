@@ -18,7 +18,7 @@ REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 # Subdirectory name for symlinked agents
 AGENTS_SUBDIR="ecosystem-agents"
 
-echo -e "${GREEN}Agent Ecosystem Setup${NC}"
+echo -e "${GREEN}Bedrock Setup${NC}"
 echo -e "Repo root: $REPO_ROOT"
 echo ""
 
