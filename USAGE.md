@@ -453,8 +453,7 @@ There are 4 phases:
 1. **Specification phase:**
     - **`/speckit.specify`** to create specs, requirements, user stories
 
-        > [!IMPORTANT]
-        > *File generated:* **`specs/<xxx>/spec.md`**
+        - *File generated:* **`specs/<xxx>/spec.md`**
   
     -  **`/speckit.clarify`** to resolve underspecified requirements
 
@@ -462,15 +461,14 @@ There are 4 phases:
 
     - **`/speckit.plan`** to create technical implementation plan from spec
 
-        > [!IMPORTANT]
-        > *Files generated:*
-        >
-        > | File | What it contains |
-        > | :--- | :--- |
-        > | **`plan.md`** | Technical approach & implementation strategy |
-        > | **`data-model.md`** | Database schemas & data structures |
-        > | **`api.md`** | API contracts & endpoint definitions |
-        > | **`component.md`** | Component architecture & dependencies |
+        - *Files generated:*
+        
+            | File | What it contains |
+            | :--- | :--- |
+            | **`plan.md`** | Technical approach & implementation strategy |
+            | **`data-model.md`** | Database schemas & data structures |
+            | **`api.md`** | API contracts & endpoint definitions |
+            | **`component.md`** | Component architecture & dependencies |
 
     - **`/speckit.analyze`** to perform cross-artifact consistency checks
 
@@ -494,13 +492,11 @@ There are 4 phases:
 
   - **`/speckit.tasks`** to generate actionable task breakdown
 
-    > [!IMPORTANT]
-    > *File generated:* **`tasks.md`**
+    - *File generated:* **`tasks.md`**
 
   - **`/speckit.checklist`** to generate quality validation checklists
 
-    > [!IMPORTANT]
-    > *File generated:* **`checklists/requirements.md`**
+    - *File generated:* **`checklists/requirements.md`**
 
 4. **Implementation phase:**
 
