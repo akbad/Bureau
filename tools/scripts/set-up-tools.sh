@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# MCP server setup script for Bedrock
+# MCP server setup script for Beehive
 #
 # Prerequisites:
 #   Required:
