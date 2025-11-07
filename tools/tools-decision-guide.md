@@ -47,6 +47,10 @@
 -   **Filesystem MCP** - File operations (read/write/edit)
 -   **Git MCP** - Git operations (status/diff/commit/etc.)
 
+**Browser Automation:**
+
+-   **Playwright MCP** - Web automation (navigate, click, type, extract via accessibility tree)
+
 ---
 
 ## Detailed tool profiles
@@ -379,6 +383,28 @@ Entity: Anthropic (type: company)
 
 ---
 
+#### Playwright MCP
+
+**What it does:**
+
+-   Browser automation using Playwright's accessibility tree
+-   Fast, deterministic tool application (no vision models)
+-   Navigate, click, type, extract content from web pages
+-   Supports Chrome, Firefox, WebKit with device emulation
+-   Can run headless or headed mode
+
+**When to use:**
+
+-   Automated web testing and interaction
+-   Scraping dynamic content requiring JavaScript execution
+-   Form filling and submission automation
+-   End-to-end testing workflows
+-   Extracting data from interactive web applications
+
+**Rate limits:** None (local execution)
+
+---
+
 #### Filesystem MCP
 
 **What it does:** Bulk file reads (filtered to `read_multiple_files` only)
@@ -443,6 +469,19 @@ Need semantic understanding?
         └─ NO  → Security/bug scan → Semgrep MCP
 ```
 
+### Browser automation & web interaction
+
+```
+START
+    ↓
+Need to interact with web pages?
+    ├─ Static content (no JS) → Fetch MCP or Tavily extract
+    └─ Dynamic content or user interaction needed?
+        ├─ YES → Playwright MCP
+        │        (click, type, navigate, extract)
+        └─ NO  → Just need HTML? → Fetch MCP
+```
+
 ### Memory & knowledge storage
 
 ```
@@ -485,6 +524,7 @@ Example: Code snippet library
 | Brave | Monthly | 2000 queries | Monthly | 🟡 MEDIUM |
 | Sourcegraph | None | ∞ | N/A | 🟢 SAFE |
 | Fetch | None | ∞ | N/A | 🟢 SAFE |
+| Playwright | None | ∞ | N/A | 🟢 SAFE |
 
 ### Strategies
 
@@ -532,6 +572,14 @@ Example: Code snippet library
 2.  Tavily extract on specific URLs
 3.  Tavily map/crawl for site structure
 4.  If still insufficient, Fetch iteratively on known URLs
+
+### Dynamic web content
+
+**Use this priority:**
+
+1.  Playwright (for JS-heavy sites, form interactions, dynamic content)
+2.  Tavily extract (for simpler extractions)
+3.  Fetch MCP (for static HTML only)
 
 ### Memory & knowledge storage
 

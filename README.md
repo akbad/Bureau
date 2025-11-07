@@ -16,7 +16,7 @@ Power users rotating between these (as is often the best option, given providers
 
 **This repo solves that** by:
 
-- **Providing a unified, consistent set of 12 MCP servers (+ extra plugins)** across all 3 platforms (Sourcegraph, Semgrep, Brave, Tavily, Context7, etc.)
+- **Providing a unified, consistent set of 13 MCP servers (+ extra plugins)** across all 3 platforms (Sourcegraph, Semgrep, Brave, Tavily, Context7, etc.)
 - **Defining 39 specialized agent roles** once, usable everywhere (debugger, architect, security-compliance, etc.) and spawnable as <ins>*cross-CLI subagents*</ins>
 - **Automating context injection** teaching agents when to delegate, which tools to use, and which model fits the task
 - **Minimizing task delegation overhead** from ~5 minutes of setup to <30 seconds
@@ -46,7 +46,7 @@ Power users rotating between these (as is often the best option, given providers
     - **Codex, Gemini CLIs:** launch CLI with chosen agent active in main conversation
     - **Claude Code:** automatically activate any agent in the current conversation using slash commands
 
-### 12 MCP servers
+### 13 MCP servers
 
 Including:
 
@@ -55,6 +55,7 @@ Including:
 - API documentation (Context7)
 - Memory/persistence (Qdrant, claude-mem)
 - Security scanning (Semgrep)
+- Browser automation (Playwright)
 
 ### Automatic config injection
 

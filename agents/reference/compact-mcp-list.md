@@ -93,6 +93,12 @@
 
 - For **Git operations**: use `git` via Bash tool — git status/diff/log/add/commit/branch/checkout
 
+## Browser automation
+
+- For **web automation and testing**: use Playwright (click, type, navigate, extract content) ([deep dive](mcp-deep-dives/playwright.md))
+
+> Link: [full category guide - *browser automation*](mcps-by-category/browser-automation.md)
+
 ## Limits
 
 | Tool        | Limit                    | Reset/Notes                                    |
@@ -100,3 +106,4 @@
 | Tavily      | 1,000 credits/month      | Resets on 1st of month                        |
 | Brave       | 2,000 queries/month      | Free tier; basic web search                    |
 | Sourcegraph | Interactive limits       | use count:all to make the search exhaustive, bump timeout if needed; switch to src-cli for very large result sets beyond the UI display limit. |
+| Playwright  | None                     | Local execution, stdio transport               |

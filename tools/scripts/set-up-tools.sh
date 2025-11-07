@@ -645,7 +645,7 @@ configure_auto_approve() {
 
     # Build list of MCP server names being configured
     local mcp_servers=()
-    mcp_servers+=("zen" "qdrant" "semgrep" "fs" "fetch" "git" "memory")
+    mcp_servers+=("zen" "qdrant" "semgrep" "fs" "fetch" "git" "memory" "playwright")
 
     # Add the other servers if they're available
     [[ "$SOURCEGRAPH_AVAILABLE" == true ]] && mcp_servers+=("sourcegraph")
@@ -874,6 +874,10 @@ log_separator
 log_info "Configuring agents to use Memory MCP (stdio)..."
 setup_stdio_mcp "memory" "npx" "-y" "@modelcontextprotocol/server-memory"
 
+log_separator
+log_info "Configuring agents to use Playwright MCP (stdio)..."
+setup_stdio_mcp "playwright" "npx" "-y" "@playwright/mcp@latest"
+
 if [[ "$BRAVE_AVAILABLE" == true ]]; then
     log_separator
     log_info "Configuring agents to use Brave Search MCP (stdio)..."
@@ -944,6 +948,8 @@ log_info "  • Fetch MCP (all agents)"
 log_info "    └─ HTML to Markdown conversion"
 log_info "  • Memory MCP (all agents)"
 log_info "    └─ Knowledge graph for persistent structured memory (entities, relations, observations)"
+log_info "  • Playwright MCP (all agents)"
+log_info "    └─ Browser automation and UI interaction via Playwright"
 
 if [[ "$BRAVE_AVAILABLE" == true ]]; then
     log_info "  • Brave Search MCP (all agents)"
