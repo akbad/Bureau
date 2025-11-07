@@ -1,6 +1,6 @@
-# Bedrock
+# Beehive
 
-Unified agent infrastructure across Claude Code, Gemini CLI, and Codex CLI with shared tooling (MCPs) and role definitions.
+Versatile tools across Gemini CLI, Claude Code and Codex, with the intelligence to leverage & orchestrate them autonomously.
 
 > [!IMPORTANT]
 >
@@ -17,7 +17,7 @@ Power users rotating between these (as is often the best option, given providers
 **This repo solves that** by:
 
 - **Providing a unified, consistent set of 13 MCP servers (+ extra plugins)** across all 3 platforms (Sourcegraph, Semgrep, Brave, Tavily, Context7, etc.)
-- **Defining 39 specialized agent roles** once, usable everywhere (debugger, architect, security-compliance, etc.) and spawnable as <ins>*cross-CLI subagents*</ins>
+- **Defining 39 specialized agent roles** once, usable everywhere (debugger, architect, security-compliance, etc.) and spawnable as *cross-CLI subagents*
 - **Automating context injection** teaching agents when to delegate, which tools to use, and which model fits the task
 - **Minimizing task delegation overhead** from ~5 minutes of setup to <30 seconds
 - **Reducing the learning curve to <ins>near-zero</ins>**

@@ -1,4 +1,4 @@
-# Bedrock: setup guide
+# Beehive: setup guide
 
 You don't technically have to learn what the different agents and MCPs available are (other than for setting up prerequisites), they should all be used automatically by your CLI agents when needed.
 
@@ -133,13 +133,13 @@ The two sections below set up the same agent roles on different platforms:
 2. Symlink the role prompts folder:
 
    ```bash
-   ln -s agent-ecosystem/agents/clink-role-prompts ~/.zen/cli_clients/systemprompts/clink-role-prompts
+   ln -s beehive/agents/clink-role-prompts ~/.zen/cli_clients/systemprompts/clink-role-prompts
    ```
 
 3. Copy the JSON configs:
 
    ```bash
-   cp agent-ecosystem/agents/configs/*.json ~/.zen/cli_clients/
+   cp beehive/agents/configs/*.json ~/.zen/cli_clients/
    ```
 
 4. Restart Zen MCP server to reload configs
@@ -172,7 +172,7 @@ The two sections below set up the same agent roles on different platforms:
 2. Symlink the Claude subagent files:
 
    ```bash
-   ln -s agent-ecosystem/agents/claude-subagents/*.md ~/.claude/agents/
+   ln -s beehive/agents/claude-subagents/*.md ~/.claude/agents/
    ```
 
 3. Verify in Claude Code by running `/agents` to confirm the subagents appear
