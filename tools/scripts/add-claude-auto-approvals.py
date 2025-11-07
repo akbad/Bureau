@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Helper script to update Claude Code settings.json with MCP auto-approval configuration.
+Helper script to update Claude Code settings.json with tool auto-approval configuration
+(only if the user specifies the appropriate flag in the calling script).
 
 Usage:
     python3 add-claude-auto-approvals.py <settings_file_path> <server_name_1> <server_name_2> ...
@@ -13,6 +14,23 @@ This script:
 
 import sys
 from config_utils import load_json_config, save_json_config
+
+
+# Built-in Claude Code tools to auto-approve (non-destructive tools only)
+BUILTIN_TOOLS_AUTO_APPROVE = [
+    "WebFetch",       # Fetch web content
+    "WebSearch",      # Search the web
+    "Task",           # Launch specialized agents
+    "TodoWrite",      # Task tracking
+    "AskUserQuestion", # Ask questions during execution
+    "ExitPlanMode",   # Exit plan mode
+    "BashOutput",     # Read background shell output
+    "KillShell",      # Kill background shells
+    "Grep",           # Search file contents (read-only)
+    "Glob",           # File pattern matching (read-only)
+    "Skill",          # User-defined skills
+    "SlashCommand",   # User-defined slash commands
+]
 
 
 def update_claude_settings(settings_path: str, mcp_servers: list[str]) -> None:
@@ -43,6 +61,11 @@ def update_claude_settings(settings_path: str, mcp_servers: list[str]) -> None:
             added_count += 1
         else:
             print(f"'{mcp_permission}' already in permissions.allow")
+
+    # Add explicit auto-approvals for non-destructive built-in tools
+    for perm in BUILTIN_TOOLS_AUTO_APPROVE:
+        if perm not in settings['permissions']['allow']:
+            settings['permissions']['allow'].append(perm)
 
     if added_count > 0:
         print(f"Added {added_count} new MCP permission(s)")

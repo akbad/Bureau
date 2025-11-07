@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Helper script to update Codex config.toml with auto-approval settings.
+Helper script to update Codex config.toml with auto-approval settings
+(only if the user specifies the appropriate flag in the calling script).
 
 Usage:
     python3 add-codex-auto-approvals.py <config_file_path>
