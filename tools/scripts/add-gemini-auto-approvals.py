@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Helper script to update Gemini settings.json with auto-approved MCP tools.
+Helper script to update Gemini settings.json with auto-approved MCP tools
+(only if the user specifies the appropriate flag in the calling script).
 
 Usage:
     python3 add-gemini-auto-approvals.py <settings_file_path> <tool1> [tool2] [tool3] ...
