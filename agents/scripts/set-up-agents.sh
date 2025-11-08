@@ -13,13 +13,22 @@ NC='\033[0m' # No Color
 # Find the repo root (where this script's ancestor directory is)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CLAUDE_AGENTS_DIRNAME="claude-subagents"
+CLINK_AGENTS_DIRNAME="clink-role-prompts"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 
-# Subdirectory name for symlinked agents
-AGENTS_SUBDIR="ecosystem-agents"
+# Source agent selection library
+source "$REPO_ROOT/scripts/lib/agent-selection.sh"
 
-echo -e "${GREEN}Beehive Setup${NC}"
+# Detect installed CLIs based on directory existence (exits if none found, logs detected CLIs)
+load_agent_selection
+
+# Subdirectory name for symlinked agents
+AGENTS_SUBDIR="bees"
+
+echo -e "${GREEN}Setting up Beehive agents (\"bees\")${NC}"
 echo -e "Repo root: $REPO_ROOT"
+echo -e "Selected agents: ${AGENTS[*]}"
 echo ""
 
 # Function to print step headers
@@ -39,51 +48,84 @@ print_error() {
 }
 
 # Check if we're in the right place
-if [[ ! -d "$AGENTS_DIR/claude-subagents" ]] || [[ ! -d "$AGENTS_DIR/clink-role-prompts" ]]; then
-    print_error "Cannot find agent directories. Please run this script from within the repository."
+if [[ ! -d "$AGENTS_DIR/$CLAUDE_AGENTS_DIRNAME" ]] || [[ ! -d "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" ]]; then
+    print_error "Cannot find agent directories! ($CLAUDE_AGENTS_DIRNAME/ and $CLINK_AGENTS_DIRNAME within $AGENTS_DIR)"
 fi
 
 # ============================================================================
 # Step 1: Set up clink subagents (for Zen MCP with Gemini/Codex/Claude CLIs)
 # ============================================================================
-print_step "Setting up clink subagents for Zen MCP"
+# Only set up Zen if any agent is selected (Zen is cross-CLI, used by all)
+if [[ ${#AGENTS[@]} -gt 0 ]]; then
+    print_step "Setting up clink subagents for Zen MCP"
 
-# Create directory structure
-mkdir -p ~/.zen/cli_clients/systemprompts
-print_success "Created ~/.zen/cli_clients/systemprompts"
+    # Create directory structure
+    mkdir -p ~/.zen/cli_clients/systemprompts
+    print_success "Created ~/.zen/cli_clients/systemprompts"
 
-# Symlink role prompts folder
-if [[ -L ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR ]]; then
-    rm ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR
-    print_success "Removed existing $AGENTS_SUBDIR symlink"
+    # Symlink role prompts folder
+    if [[ -L ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR ]]; then
+        rm ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR
+        print_success "Removed existing $AGENTS_SUBDIR symlink"
+    fi
+    ln -s "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR
+    print_success "Symlinked role prompts for clink to ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR"
+
+    # Copy JSON configs
+    cp "$REPO_ROOT/configs/"*.json ~/.zen/cli_clients/
+    print_success "Copied CLI configs (*.json) to ~/.zen/cli_clients/"
+
+    echo ""
 fi
-ln -s "$AGENTS_DIR/clink-role-prompts" ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR
-print_success "Symlinked clink-role-prompts to ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR"
-
-# Copy JSON configs
-cp "$REPO_ROOT/configs/"*.json ~/.zen/cli_clients/
-print_success "Copied CLI configs (*.json) to ~/.zen/cli_clients/"
-
-echo ""
 
 # ============================================================================
 # Step 2: Set up Claude Code subagents
 # ============================================================================
-print_step "Setting up Claude Code subagents"
+if agent_enabled "Claude Code"; then
+    print_step "Setting up Claude Code subagents"
 
-# Symlink Claude subagents folder
-if [[ -L ~/.claude/agents/$AGENTS_SUBDIR ]]; then
-    rm ~/.claude/agents/$AGENTS_SUBDIR
-    print_success "Removed old symlink at ~/.claude/agents/$AGENTS_SUBDIR"
+    # Symlink Claude subagents folder
+    if [[ -L ~/.claude/agents/$AGENTS_SUBDIR ]]; then
+        rm ~/.claude/agents/$AGENTS_SUBDIR
+        print_success "Removed old symlink at ~/.claude/agents/$AGENTS_SUBDIR"
+    fi
+    mkdir -p ~/.claude/agents
+    print_success "Created ~/.claude/agents directory"
+
+    # Symlink all Claude subagent files
+    ln -s "$AGENTS_DIR/$CLAUDE_AGENTS_DIRNAME" ~/.claude/agents/$AGENTS_SUBDIR
+    print_success "Symlinked Claude subagent templates to ~/.claude/agents/$AGENTS_SUBDIR"
+
+    echo ""
+else
+    print_step "Skipping Claude Code subagents (CLI directory not found)"
+    echo ""
 fi
-mkdir -p ~/.claude/agents
-print_success "Created ~/.claude/agents directory"
 
-# Symlink all Claude subagent files
-ln -s "$AGENTS_DIR/claude-subagents" ~/.claude/agents/$AGENTS_SUBDIR
-print_success "Symlinked claude-subagents to ~/.claude/agents/$AGENTS_SUBDIR"
+# ============================================================================
+# Step 3: Set up agent launchers (slash commands and wrapper scripts)
+# ============================================================================
 
-echo ""
+# Claude Code slash commands
+if agent_enabled "Claude Code"; then
+    print_step "Setting up Claude Code slash commands"
+    "$AGENTS_DIR/scripts/set-up-claude-slash-commands.sh"
+    echo ""
+fi
+
+# Codex role launchers
+if agent_enabled "Codex"; then
+    print_step "Setting up Codex role launchers"
+    "$AGENTS_DIR/scripts/set-up-codex-role-launchers.sh"
+    echo ""
+fi
+
+# Gemini CLI role launchers
+if agent_enabled "Gemini CLI"; then
+    print_step "Setting up Gemini CLI role launchers"
+    "$AGENTS_DIR/scripts/set-up-gemini-role-launchers.sh"
+    echo ""
+fi
 
 # ============================================================================
 # Done!

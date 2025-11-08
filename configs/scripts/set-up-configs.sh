@@ -19,16 +19,8 @@ REPO_ROOT="$(cd "$CONFIGS_DIR/.." && pwd)"
 # Source agent selection library
 source "$REPO_ROOT/scripts/lib/agent-selection.sh"
 
-# Load agent selection from profile
+# Detect installed CLIs based on directory existence (exits if none found, logs detected CLIs)
 load_agent_selection
-
-# If no profile exists, default to all agents
-if [[ ${#AGENTS[@]} -eq 0 ]]; then
-    AGENTS=("Claude Code" "Codex" "Gemini CLI")
-    log_info "No CLI profile found. Generating configs for all agents."
-else
-    log_info "Using CLI profile: ${AGENTS[*]}"
-fi
 
 echo -e "${GREEN}Global Config Files Setup${NC}"
 echo -e "Repo root: $REPO_ROOT"
@@ -58,14 +50,10 @@ print_error() {
 
 # Function to safely create symlink
 # Args: $1=source (what the symlink points to), $2=target (symlink location)
+# Note: Should only be called for enabled CLIs (check via agent_enabled)
 create_safe_symlink() {
     local source="$1"
     local target="$2"
-    local target_dir
-    target_dir="$(dirname "$target")"
-
-    # Ensure target directory exists
-    mkdir -p "$target_dir"
 
     # Check if target exists
     if [[ -L "$target" ]]; then
@@ -125,21 +113,21 @@ print_step "Creating symlinks to generated config files"
 if agent_enabled "Gemini CLI"; then
     create_safe_symlink "$CONFIGS_DIR/AGENTS.md" "$HOME/.gemini/GEMINI.md"
 else
-    print_step "Skipping Gemini symlink (not in CLI profile)"
+    print_step "Skipping Gemini symlink (user-scoped CLI directory not found)"
 fi
 
 # Symlink for Codex
 if agent_enabled "Codex"; then
     create_safe_symlink "$CONFIGS_DIR/AGENTS.md" "$HOME/.codex/AGENTS.md"
 else
-    print_step "Skipping Codex symlink (not in CLI profile)"
+    print_step "Skipping Codex symlink (user-scoped CLI directory not found)"
 fi
 
 # Symlink for Claude Code
 if agent_enabled "Claude Code"; then
     create_safe_symlink "$CONFIGS_DIR/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
 else
-    print_step "Skipping Claude symlink (not in CLI profile)"
+    print_step "Skipping Claude symlink (user-scoped CLI directory not found)"
 fi
 
 echo ""

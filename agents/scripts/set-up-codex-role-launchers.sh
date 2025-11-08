@@ -14,12 +14,28 @@ NC='\033[0m' # No Color
 # Find the repo root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 CLINK_ROLES_DIR="$AGENTS_DIR/clink-role-prompts"
+
+# Source agent selection library
+source "$REPO_ROOT/scripts/lib/agent-selection.sh"
+
+# Detect installed CLIs (exits if none found, logs detected CLIs)
+load_agent_selection
+
+# Skip entirely if Codex not enabled
+if ! agent_enabled "Codex"; then
+    echo -e "${YELLOW}Codex not enabled. Skipping role launchers setup.${NC}"
+    echo "To enable Codex:"
+    echo "  mkdir -p ~/.codex"
+    echo "  Then re-run this script or agents/scripts/set-up-agents.sh"
+    exit 0
+fi
 
 # Target directory for launcher scripts
 LAUNCHERS_DIR="$HOME/.local/bin"
 
-echo -e "${GREEN}Codex CLI Role Launchers Setup${NC}"
+echo -e "${GREEN}Role launcher setup for Codex${NC}"
 echo -e "Source: $CLINK_ROLES_DIR"
 echo -e "Target: $LAUNCHERS_DIR"
 echo ""
