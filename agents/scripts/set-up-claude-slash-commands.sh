@@ -14,12 +14,28 @@ NC='\033[0m' # No Color
 # Find the repo root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 CLAUDE_SUBAGENTS_DIR="$AGENTS_DIR/claude-subagents"
+
+# Source agent selection library
+source "$REPO_ROOT/scripts/lib/agent-selection.sh"
+
+# Detect installed CLIs (exits if none found, logs detected CLIs)
+load_agent_selection
+
+# Skip entirely if Claude not enabled
+if ! agent_enabled "Claude Code"; then
+    echo -e "${YELLOW}Claude Code not enabled. Skipping slash commands setup.${NC}"
+    echo "To enable Claude Code:"
+    echo "  mkdir -p ~/.claude"
+    echo "  Then re-run this script or agents/scripts/set-up-agents.sh"
+    exit 0
+fi
 
 # Target directory for slash commands
 COMMANDS_DIR="$HOME/.claude/commands"
 
-echo -e "${GREEN}Claude Code Slash Commands Setup${NC}"
+echo -e "${GREEN}Agent slash command setup for Claude Code${NC}"
 echo -e "Source: $CLAUDE_SUBAGENTS_DIR"
 echo -e "Target: $COMMANDS_DIR"
 echo ""

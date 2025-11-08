@@ -9,6 +9,27 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# Find repo root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
+
+# Source agent selection library
+source "$REPO_ROOT/scripts/lib/agent-selection.sh"
+
+# Load agent selection from profile
+load_agent_selection
+
+# Skip entirely if Codex not selected
+if ! agent_enabled "Codex"; then
+    echo -e "${YELLOW}Codex not in CLI profile. Skipping Superpowers setup.${NC}"
+    echo "To enable Codex, run:"
+    echo "  tools/scripts/set-up-tools.sh -a x    # Codex only"
+    echo "  tools/scripts/set-up-tools.sh -a cx   # Codex + Claude"
+    echo "  tools/scripts/set-up-tools.sh -a cgx  # All agents"
+    exit 0
+fi
+
 REPO_URL="https://github.com/obra/superpowers.git"
 TARGET_DIR="${HOME}/.codex/superpowers"
 SKILLS_DIR="${HOME}/.codex/skills"

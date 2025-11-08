@@ -8,6 +8,7 @@
   - [Features](#features)
   - [Repo-specific definitions](#repo-specific-definitions)
 - [Using agents: quick guide](#using-agents-quick-guide)
+  - [Managing CLI agent selection](#managing-cli-agent-selection)
   - [Direct use](#direct-use)
   - [As subagents](#as-subagents)
 - [Tools available: overview](#tools-available-overview)
@@ -17,7 +18,7 @@
   - [Memory + Qdrant MCPs: main workflow for cross-CLI memory sharing](#memory--qdrant-mcps-main-workflow-for-cross-cli-memory-sharing)
 - [Tool-specific guides](#tool-specific-guides)
   - [How the tools below integrate with the rest of the repo](#how-the-tools-below-integrate-with-the-rest-of-the-repo)
-  - [Using Superpowers *(Claude Code/Codex only)*](#using-superpowers-claude-codecodex-cli-only)
+  - [Using Superpowers *(Claude Code/Codex only)*](#using-superpowers-claude-codecodex-only)
   - [Using `claude-mem` *(Claude Code only)*](#using-claude-mem-claude-code-only)
   - [Using GitHub SpecKit CLI](#using-github-speckit-cli)
 
@@ -77,10 +78,35 @@
 > - **Read through the files to see the full list of roles available for use.**
 > - Prompts for the <ins>same role</ins> have the <ins>same body across both locations</ins> *(the `claude-subagents` files simply have some extra header YAML that makes them smoother to use with Claude Code)*
 
-> [!TIP] 
+> [!TIP]
 > Read [`handoff-guidelines.md`](agents/reference/handoff-guidelines.md) to see the guidance that the CLIs will read at startup that will teach them:
 > - when to delegate tasks to subagents
 > - which CLIs/models to use for specific subagent tasks
+
+### Managing CLI agent selection
+
+Beehive automatically detects which CLIs to configure based on the existence of their config directories:
+
+- **Claude Code**: `~/.claude/`
+- **Gemini CLI**: `~/.gemini/`
+- **Codex**: `~/.codex/`
+
+**Add a CLI:**
+```bash
+mkdir -p ~/.claude    # Enable Claude Code
+mkdir -p ~/.gemini    # Enable Gemini CLI
+mkdir -p ~/.codex     # Enable Codex
+```
+
+**Remove a CLI:**
+```bash
+rm -rf ~/.codex       # Disable Codex
+```
+
+All setup scripts (`set-up-agents.sh`, `set-up-configs.sh`, launcher scripts, etc.) automatically detect and configure only the CLIs with existing config directories—no manual configuration needed.
+
+> [!NOTE]
+> For more details, see the [*CLI agent selection* section in SETUP.md](SETUP.md#selecting-cli-agents-to-configure).
 
 There are 2 primary ways to use agents, depending on the CLI.
 
@@ -368,7 +394,7 @@ A skills library that enforces mandatory workflows for common engineering tasks 
 >     only
 >
 >
->    📝 [my-agent-files] recent context
+>    📝 [beehive] recent context
 >    ─────────────────────────────────────────────────────
 >
 >    Legend: 🎯 session-request | 🔴 gotcha | 🟡 

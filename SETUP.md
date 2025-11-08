@@ -2,6 +2,34 @@
 
 You don't technically have to learn what the different agents and MCPs available are (other than for setting up prerequisites), they should all be used automatically by your CLI agents when needed.
 
+## Selecting CLI agents to configure
+
+Beehive automatically detects which CLIs to configure based on the existence of their config directories:
+
+- **Claude Code**: `~/.claude/`
+- **Gemini CLI**: `~/.gemini/`
+- **Codex**: `~/.codex/`
+
+### Adding CLIs
+
+To configure a CLI, simply create its config directory:
+
+```bash
+mkdir -p ~/.claude    # Enable Claude Code
+mkdir -p ~/.gemini    # Enable Gemini CLI
+mkdir -p ~/.codex     # Enable Codex
+```
+
+### Removing CLIs
+
+To stop configuring a CLI, delete its config directory:
+
+```bash
+rm -rf ~/.codex       # Disable Codex
+```
+
+All setup scripts automatically detect which CLIs are installed based on these directories: no manual configuration is needed.
+
 ## MCPs
 
 1. Read the [must-read information about the setup script](tools/README.md) and ensure you have the listed prerequisites set up.

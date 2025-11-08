@@ -22,16 +22,19 @@
 #   ./set-up-tools.sh [options]
 #
 # Options:
-#   -a, --agents <str>    Choose specific agents to configure (c=Claude, x=Codex, g=Gemini).
-#                         Example: -a cg (Claude + Gemini), -a x (Codex only).
-#                         Defaults to all supported agents (Claude Code, Codex, Gemini).
 #   -f, --fsdir <path>    The directory to allow the Filesystem MCP to access.
 #                         Defaults to ~/Code.
 #   -c, --clonedir <path> The directory to clone MCP server repositories into.
 #                         Defaults to ~/Code/mcp-servers/.
-#   -y, --yes             Auto-approve all MCP tools for agents specified with -a/--agent.
+#   -y, --yes             Auto-approve all MCP tools for detected agents.
 #                         Configures agents to skip permission prompts for MCP tools.
 #   -h, --help            Show this help message.
+#
+# Detection:
+#   Automatically configures any CLI with a config directory:
+#     - Claude Code: ~/.claude/
+#     - Gemini CLI:  ~/.gemini/
+#     - Codex:       ~/.codex/
 #
 # Purpose:
 #  1. Sets up the following MCP servers in HTTP mode
@@ -53,12 +56,16 @@
 #  3. Connects coding agent CLI clients:
 #      - Gemini CLI
 #      - Claude Code
-#      - Codex CLI
+#      - Codex
 
 set -e  # exit on error
 
 # Get the directory where this script lives (for referencing adjacent files)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Source agent selection library
+source "$REPO_ROOT/scripts/lib/agent-selection.sh"
 
 # --- CONFIG ---
 
@@ -71,8 +78,8 @@ CLONE_DIR="$DEFAULT_DIR/mcp-servers"
 export SOURCEGRAPH_REPO_PATH="$CLONE_DIR/sourcegraph-mcp"
 export SERENA_REPO_PATH="$CLONE_DIR/serena"
 
-# Define supported agents' printable string names but leave AGENTS array empty for now 
-# (in case -a/--agents option is provided)
+# Define supported agents' printable string names but leave AGENTS array empty for now
+# (will be populated by load_agent_selection based on directory detection)
 CLAUDE="Claude Code"
 CODEX="Codex"
 GEMINI="Gemini CLI"
@@ -143,20 +150,6 @@ while [[ $# -gt 0 ]]; do
         shift # past argument
         ;;
 
-        -a/--agents)
-        AGENT_STRING="$2"
-
-        if [[ $AGENT_STRING == *c* ]]; then
-            AGENTS+=("$CLAUDE")
-        fi
-        if [[ $AGENT_STRING == *g* ]]; then
-            AGENTS+=("$GEMINI")
-        fi
-        if [[ $AGENT_STRING == *x* ]]; then
-            AGENTS+=("$CODEX")
-        fi
-        ;;
-
         -h|--help)
         # Extract the header comment block to show as help text:
         # 1. selects lines from line 2 up until first blank line
@@ -173,9 +166,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ ${#AGENTS[@]} == 0 ]]; then 
-    AGENTS=("$CODEX" "$CLAUDE" "$GEMINI")
-fi
+# Detect installed CLIs based on config directory existence (exits if none found, logs detected CLIs)
+load_agent_selection
 
 # --- HELPERS ---
 
@@ -640,7 +632,7 @@ ensure_git_repo_cloned() {
 
 # Configure auto-approval for all agents
 configure_auto_approve() {
-    log_info "Configuring auto-approval for all agents..."
+    log_info "Configuring auto-approval for agents..."
     log_empty_line
 
     # Build list of MCP server names being configured
@@ -674,7 +666,7 @@ configure_auto_approve() {
     done
 
     log_empty_line
-    log_success "Auto-approval configured for all agents"
+    log_success "Agent auto-approvals successfully configured."
     log_info "MCP tools will now be auto-approved without permission prompts"
 }
 
@@ -826,7 +818,7 @@ setup_http_mcp "qdrant" "http://localhost:$QDRANT_MCP_PORT/mcp/"
 
 if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
     log_separator
-    log_info "Configuring all agents to use Sourcegraph MCP (HTTP - local wrapper for Sourcegraph.com)..."
+    log_info "Configuring agents to use Sourcegraph MCP (HTTP - local wrapper for Sourcegraph.com)..."
     setup_http_mcp "sourcegraph" "http://localhost:$SOURCEGRAPH_MCP_PORT/sourcegraph/mcp/"
 fi
 
@@ -836,13 +828,13 @@ setup_http_mcp "semgrep" "http://localhost:$SEMGREP_MCP_PORT/mcp/"
 
 if [[ "$SERENA_AVAILABLE" == true ]]; then
     log_separator
-    log_info "Configuring all agents to use Serena MCP (HTTP - local semantic code analysis)..."
+    log_info "Configuring agents to use Serena MCP (HTTP - local semantic code analysis)..."
     setup_http_mcp "serena" "http://localhost:$SERENA_MCP_PORT/mcp/"
 fi
 
-if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
+if [[ "$CONTEXT7_AVAILABLE" == true ]] && (agent_enabled "$GEMINI" || agent_enabled "$CLAUDE"); then
     log_separator
-    log_info "Configuring Gemini & Claude to use Context7 MCP (HTTP - remote Upstash)..."
+    log_info "Configuring Gemini and/or Claude to use Context7 MCP (HTTP - remote Upstash)..."
     # Note: Uses colon format for headers
     # Codex will use stdio mode (configured below) since HTTP doesn't support custom headers
     # Gemini requires both CONTEXT7_API_KEY and Accept headers
@@ -884,7 +876,7 @@ if [[ "$BRAVE_AVAILABLE" == true ]]; then
     setup_stdio_mcp "brave" "env" "BRAVE_API_KEY=$BRAVE_API_KEY" "npx" "-y" "@brave/brave-search-mcp-server" "--transport" "stdio"
 fi
 
-if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
+if [[ "$CONTEXT7_AVAILABLE" == true ]] && agent_enabled "$CODEX"; then
     log_separator
     log_info "Configuring Codex to use Context7 MCP (stdio)..."
     (add_stdio_mcp_to_agent "$CODEX" "context7" "npx" "-y" "@upstash/context7-mcp" "--api-key" "\$CONTEXT7_API_KEY") || log_warning "Already exists"
@@ -926,9 +918,9 @@ if [[ "$CONTEXT7_AVAILABLE" == true || "$TAVILY_AVAILABLE" == true ]]; then
 
     if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
         log_info "  • Context7 MCP: $CONTEXT7_URL"
-        log_info "    └─ Gemini: Headers configured automatically in ~/.gemini/settings.json"
-        log_info "    └─ Claude: Header configured automatically via CLI"
-        log_info "    └─ Codex: Using stdio mode instead (HTTP doesn't support custom headers)"
+        agent_enabled "$GEMINI" && log_info "    └─ Gemini: Headers configured automatically in ~/.gemini/settings.json"
+        agent_enabled "$CLAUDE" && log_info "    └─ Claude: Header configured automatically via CLI"
+        agent_enabled "$CODEX"  && log_info "    └─ Codex: Using stdio mode instead (HTTP doesn't support custom headers)"
     fi
 
     if [[ "$TAVILY_AVAILABLE" == true ]]; then
@@ -956,7 +948,7 @@ if [[ "$BRAVE_AVAILABLE" == true ]]; then
     log_info "    └─ Privacy-focused web search (2,000 queries/month free)"
 fi
 
-if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
+if [[ "$CONTEXT7_AVAILABLE" == true ]] && agent_enabled "$CODEX"; then
     log_info "  • Context7 MCP (Codex only)"
     log_info "    └─ Codex HTTP doesn't support custom headers, so using stdio mode"
 fi
@@ -977,15 +969,7 @@ if [[ "$SERENA_AVAILABLE" == true ]]; then
     log_info "  • Serena MCP: /tmp/mcp-Serena MCP-server.log"
 fi
 
-codex_selected=false
-for agent in "${AGENTS[@]}"; do
-    if [[ "$agent" == "$CODEX" ]]; then
-        codex_selected=true
-        break
-    fi
-done
-
-if [[ "$codex_selected" == true ]]; then
+if agent_enabled "$CODEX"; then
     log_separator
     log_info "Ensuring Superpowers skills are installed for Codex..."
     "$SCRIPT_DIR/../../agents/scripts/set-up-codex-superpowers.sh"
@@ -994,7 +978,7 @@ fi
 log_empty_line
 log_info "To verify setup:"
 log_info "  1. cd into a git repo"
-log_info "  2. Run 'gemini', 'claude', or 'codex'"
+log_info "  2. Run 'gemini', 'claude', or 'codex', according to which CLI(s) you have available"
 log_info "  3. Type '/mcp' to see available tools"
 
 # Build running PID list in startup order, only including set PIDs

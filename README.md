@@ -76,6 +76,12 @@ Injected via these files (created in setup steps)
 
 with each of the 3 files above generated from templates (for portability regardless of repo clone location).
 
+> [!NOTE]
+> **CLI agent selection**
+> 
+> - Setup scripts *automatically* detect which CLIs to configure based on **user-scoped** directory existence (`~/.claude/`, `~/.gemini/`, `~/.codex/`). 
+> - More details can be found in [SETUP.md](SETUP.md#selecting-cli-agents-to-configure).
+
 ## Usage patterns
 
 ### Subagents (for isolated execution)
