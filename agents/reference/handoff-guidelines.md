@@ -80,7 +80,7 @@ For example, suppose you are performing a debugging task. Examples of what could
   - Use `Task` tool only for Claude subagents.
   - Use `clink` for delegation to Codex or Gemini.
 
-- If you are Codex CLI or Gemini CLI: Use `clink` for all delegation (never `Task`).
+- If you are Codex or Gemini CLI: Use `clink` for all delegation (never `Task`).
 
 ### When to use `clink`
 

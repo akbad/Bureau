@@ -1,4 +1,4 @@
-# Global context for Gemini & Codex CLIs (always read first)
+# Global context for Gemini CLI & Codex (always read first)
 
 You ***must* read these essential files** using the appropriate read tool:
 - before starting any task
@@ -62,7 +62,7 @@ If a specialized role is being used, it may reference additional must-read files
 
 ### Note for Gemini & Codex (GPT)
 
-You are running via Gemini CLI or Codex CLI, not Claude Code. This means:
+You are running via Gemini CLI or Codex, not Claude Code. This means:
 
 - Use **`clink`** for ALL delegation (never use the `Task` tool - that's Claude Code-only)
 - You have access to the same MCPs as Claude Code

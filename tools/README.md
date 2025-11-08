@@ -108,7 +108,7 @@ scripts/set-up-tools.sh [options]
 
 - `-a/--agent <str>`: for choosing specific agents to set up/configure to use the tools
 
-    - **Supported agents: Claude Code, Codex CLI, Gemini CLI**
+    - **Supported agents: Claude Code, Codex, Gemini CLI**
 
         - **Default: all supported agents will be set up**
 

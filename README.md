@@ -10,7 +10,7 @@ Versatile tools across Gemini CLI, Claude Code and Codex, with the intelligence 
 
 ## Purpose
 
-Agentic coding CLIs are fragmented: Claude Code, Gemini CLI, and Codex CLI each have unique strengths but incompatible tooling. 
+Agentic coding CLIs are fragmented: Claude Code, Gemini CLI, and Codex each have unique strengths but incompatible tooling. 
 
 Power users rotating between these (as is often the best option, given providers' unpredictable model throttling and capricious rate limit changes, even for paid plans) **lose time rebuilding and reconfiguring context, tools, and custom workflows**. At the same time, **many (solo- or multi-agent) orchestration frameworks have considerable learning curves and enforce opinionated orchestration patterns** (e.g. graphs, crews, pipelines), rather than adapting to users' ad-hoc workflows or permitting open-ended exploration/building.
 
@@ -64,15 +64,15 @@ Including:
 All agents automatically read these files at startup:
 
 - [`agents/reference/handoff-guidelines.md`](agents/reference/handoff-guidelines.md) → when to delegate to subagents + which model to use
-- [`agents/reference/compact-mcp-list.md`](agents/reference/compact-mcp-list.md) → MCP tool selection guide 
-    
+- [`agents/reference/compact-mcp-list.md`](agents/reference/compact-mcp-list.md) → MCP tool selection guide
+
     - Serves as an entrypoint to documentation progressively disclosing each MCP servers' tool capabilities
 
 Injected via these files (created in setup steps)
 
 - `~/.claude/CLAUDE.md` (Claude Code)
 - `~/.gemini/GEMINI.md` (Gemini CLI)
-- `~/.codex/AGENTS.md` (Codex CLI)
+- `~/.codex/AGENTS.md` (Codex)
 
 with each of the 3 files above generated from templates (for portability regardless of repo clone location).
 
@@ -105,7 +105,7 @@ claude
 
 ```bash
 gemini-explainer                        # use explainer role w/ Gemini CLI
-codex-architect --model gpt-5-codex     # architect role w/ GPT-5-Codex via Codex CLI
+codex-architect --model gpt-5-codex     # architect role w/ GPT-5-Codex via Codex
 ```
 
 ## Repo structure

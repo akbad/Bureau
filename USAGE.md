@@ -17,7 +17,7 @@
   - [Memory + Qdrant MCPs: main workflow for cross-CLI memory sharing](#memory--qdrant-mcps-main-workflow-for-cross-cli-memory-sharing)
 - [Tool-specific guides](#tool-specific-guides)
   - [How the tools below integrate with the rest of the repo](#how-the-tools-below-integrate-with-the-rest-of-the-repo)
-  - [Using Superpowers *(Claude Code/Codex CLI only)*](#using-superpowers-claude-codecodex-cli-only)
+  - [Using Superpowers *(Claude Code/Codex only)*](#using-superpowers-claude-codecodex-cli-only)
   - [Using `claude-mem` *(Claude Code only)*](#using-claude-mem-claude-code-only)
   - [Using GitHub SpecKit CLI](#using-github-speckit-cli)
 
@@ -30,7 +30,7 @@
 - Provides a **harmonized** ecosystem for developing using **any or all** of the following agentic coding CLIs, <ins>**together**</ins>:
 
     - **Claude Code**
-    - **Codex CLI**
+    - **Codex**
     - **Gemini CLI**
 
 - A **suite of specialized coding agent roles** with consistent behaviour on any platform, with **flexible ways of invoking them:**
@@ -54,7 +54,7 @@
 > | Feature | Restricted to |
 > | --- | --- |
 > | [*claude-mem* plugin](https://github.com/thedotmack/claude-mem) | Claude Code |
-> | [*Superpowers* plugin](https://github.com/obra/superpowers) | Claude Code, Codex CLI (beta) |
+> | [*Superpowers* plugin](https://github.com/obra/superpowers) | Claude Code, Codex (beta) |
 
 ### Repo-specific definitions
 
@@ -111,10 +111,10 @@ Launch the CLI using the **generated wrapper scripts**, named in the format **`<
 >   # Gemini CLI is now running w/ the Explainer agent active
 >   # Ask it to clarify code and docs
 >   ```
-> - Starting Codex CLI to interact with the [*Debugger*](agents/clink-role-prompts/debugger.md) agent in the main conversation:
+> - Starting Codex to interact with the [*Debugger*](agents/clink-role-prompts/debugger.md) agent in the main conversation:
 >   ```bash
 >   $ codex-debugger
->   # Codex CLI is now running w/ the Debugger agent active
+>   # Codex is now running w/ the Debugger agent active
 >   # Give it error logs or code snippets to analyze
 >   ```
 
@@ -225,7 +225,7 @@ There are 2 methods for this:
 ### Memory + Qdrant MCPs: main workflow for cross-CLI memory sharing
 
 > [!IMPORTANT]
-> **It is extraordinarily helpful for Claude Code, Gemini CLI and Codex CLI to share memories** with one another to avoid repeating work (and, if using a less powerful model, to benefit automatically from analyses/memories saved from smarter models).
+> **It is extraordinarily helpful for Claude Code, Gemini CLI and Codex to share memories** with one another to avoid repeating work (and, if using a less powerful model, to benefit automatically from analyses/memories saved from smarter models).
 
 <ins>All</ins> CLIs should consistently and scrupulously:
 
@@ -261,7 +261,7 @@ There are 2 methods for this:
 
     - *Superpowers* skills activate automatically (e.g., `test-driven-development`)
 
-### Using Superpowers *(Claude Code/Codex CLI only)*
+### Using Superpowers *(Claude Code/Codex only)*
 
 #### What it is
 
@@ -330,7 +330,7 @@ A skills library that enforces mandatory workflows for common engineering tasks 
     | **`/superpowers:execute-plan`** | Execute plan in batches with review checkpoints |
 
 > [!NOTE]
-> There is currently no way to *manually* activate skills in Codex CLI (since slash commands don't exist in Codex). Instead, all skills activate automatically. 
+> There is currently no way to *manually* activate skills in Codex (since slash commands don't exist in Codex). Instead, all skills activate automatically. 
 > 
 > You can check which skills are available to (be automatically loaded by) Codex by running:
 > ```bash
