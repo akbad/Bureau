@@ -55,9 +55,9 @@
 
 > For ***Claude Code only***: use `claude‑mem` (works mostly automatically) ([deep dive](mcp-deep-dives/claude-mem.md)).
 >
-> Claude should still *scrupulously keep the memory MCPs below updated* so that Gemini and Codex CLI agents can benefit from its knowledge/discoveries (and vice versa).
+> Claude should still *scrupulously keep the memory MCPs below updated* so that Gemini and Codex agents can benefit from its knowledge/discoveries (and vice versa).
 
-- For each of Gemini CLI, Codex CLI, and Claude Code:
+- For each of Gemini CLI, Codex, and Claude Code:
 
     - For **semantic memory**: use Qdrant MCP — `qdrant-store` after every analysis/discovery ([deep dive](mcp-deep-dives/qdrant.md))
     - For **structured memory**: use Memory MCP — track entities/relations for project context ([deep dive](mcp-deep-dives/memory.md))

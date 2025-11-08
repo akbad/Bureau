@@ -181,10 +181,10 @@ Example (`~/.zen/cli_clients/gemini.json`):
   "env": {},
   "roles": {
     "frontend": {
-      "prompt_path": "/ABSOLUTE/PATH/TO/REPO/my-agent-files/agents/clink-role-prompts/frontend.md"
+      "prompt_path": "/path/to/beehive/agents/clink-role-prompts/frontend.md"
     },
     "testing": {
-      "prompt_path": "/ABSOLUTE/PATH/TO/REPO/my-agent-files/agents/clink-role-prompts/testing.md"
+      "prompt_path": "/path/to/beehive/agents/clink-role-prompts/testing.md"
     }
   }
 }
@@ -194,7 +194,7 @@ Or using a symlinked layout:
 
 ```bash
 mkdir -p ~/.zen/cli_clients/systemprompts/clink
-ln -s "$PWD/my-agent-files/agents/clink-role-prompts" \
+ln -s "$PWD/beehive/agents/clink-role-prompts" \
       ~/.zen/cli_clients/systemprompts/clink/for-use-prompts
 ```
 
@@ -239,8 +239,8 @@ This repo’s subagent files in `agents/claude-subagents/` are ready to install.
 
 ```bash
 mkdir -p ~/.claude/agents
-ln -s "$PWD/my-agent-files/agents/claude-subagents/frontend.md" ~/.claude/agents/frontend.md
-ln -s "$PWD/my-agent-files/agents/claude-subagents/testing.md" ~/.claude/agents/testing.md
+ln -s "$PWD/beehive/agents/claude-subagents/frontend.md" ~/.claude/agents/frontend.md
+ln -s "$PWD/beehive/agents/claude-subagents/testing.md" ~/.claude/agents/testing.md
 ```
 
 - Minimal, correct frontmatter (already included):

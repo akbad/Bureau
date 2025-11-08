@@ -2,6 +2,7 @@ take_down_mcps.sh
 .python-version
 *.pyc
 .serena/
+.vscode/
 
 # Generated machine-specific config files (use templates instead)
 configs/AGENTS.md

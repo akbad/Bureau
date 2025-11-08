@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Setup script for installing the Superpowers skills library for Codex CLI
+# Setup script for installing the Superpowers skills library for Codex
 # Makes the installation idempotent and safe to rerun.
 
 GREEN='\033[0;32m'

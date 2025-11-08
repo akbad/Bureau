@@ -204,7 +204,7 @@ Good: find_by_concept("architecture", limit: 5, format: "index")
 
 **Example:**
 ```
-Bad:  search_observations on Codex CLI
+Bad:  search_observations on Codex
       → Not available
 
 Good: Manual qdrant-store + memory.create_entities workflow

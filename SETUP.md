@@ -33,7 +33,7 @@ You don't technically have to learn what the different agents and MCPs available
    >     only
    >
    >
-   >    📝 [my-agent-files] recent context
+   >    📝 [beehive] recent context
    >    ────────────────────────────────────────────────────────
    >
    >    Legend: 🎯 session-request | 🔴 gotcha | 🟡 
@@ -74,7 +74,7 @@ configs/scripts/set-up-configs.sh
 
 This generates config files from templates ([`AGENTS.md.template`](configs/AGENTS.md.template) and [`CLAUDE.md.template`](configs/CLAUDE.md.template)) with absolute paths to the repository, writing them directly to:
 - `~/.gemini/GEMINI.md` (for Gemini CLI)
-- `~/.codex/AGENTS.md` (for Codex CLI)
+- `~/.codex/AGENTS.md` (for Codex)
 - `~/.claude/CLAUDE.md` (for Claude Code)
 
 **The result will be that each agent will always be instructed to read:**
@@ -94,7 +94,7 @@ This generates config files from templates ([`AGENTS.md.template`](configs/AGENT
 2. You should see a line under `Using:` saying `1 GEMINI.md file` (or however many you had before + 1)
 3. To be fully sure, run **`/memory show`**; you should see the content from the [`AGENTS.md.template`](configs/AGENTS.md.template) written to `~/.gemini/GEMINI.md`
 
-#### Codex CLI
+#### Codex
 
 1. Relaunch Codex
 2. Ask Codex: `What must-read files were you told to read at startup?`
@@ -119,7 +119,7 @@ The two sections below set up the same agent roles on different platforms:
 - Claude Code subagents are for spawning subagents within Claude Code using a Claude model
 - Zen's `clink` is for spawning subagents (allows choosing both the role and the model used):
     
-    - From Gemini and Codex CLIs
+    - From Gemini CLI and Codex
     - From Claude Code [if you want to use Gemini or GPT (Codex) models](tools/models-decision-guide.md)
 
 ### `clink` subagents
@@ -198,7 +198,7 @@ The two sections below set up the same agent roles on different platforms:
 - Use **slash commands** (e.g. `/architect`, `/frontend`) that inject role prompts into the current conversation. 
 - Commands are generated to `~/.claude/commands/` from the agent files in [`claude-subagents/`](agents/claude-subagents/) using the script in the instructions below.
 
-#### For Gemini & Codex CLIs
+#### For Gemini CLI & Codex
 
 - Use **wrapper scripts** installed to `~/.local/bin/` that launch the CLI with a role prompt from the [`clink-role-prompts/`](agents/clink-role-prompts/) pre-loaded in the main conversation. 
 - **Structure: `<codex/gemini>-<rolename>`** 
@@ -218,7 +218,7 @@ The two sections below set up the same agent roles on different platforms:
    agents/scripts/set-up-gemini-role-launchers.sh
    ```
 
-- Set up the **Codex CLI role launchers:**
+- Set up the **Codex role launchers:**
 
    ```bash
    agents/scripts/set-up-codex-role-launchers.sh

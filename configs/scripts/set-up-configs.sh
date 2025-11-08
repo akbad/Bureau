@@ -54,9 +54,7 @@ mkdir -p ~/.claude
 sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/AGENTS.md.template" > ~/.gemini/GEMINI.md
 print_success "Generated ~/.gemini/GEMINI.md from template"
 
-# Generate AGENTS.md for Codex CLI
-sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/AGENTS.md.template" > ~/.codex/AGENTS.md
-print_success "Generated ~/.codex/AGENTS.md from template"
+# Generate AGENTS.md for Codex
 
 # Generate CLAUDE.md for Claude Code
 sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/CLAUDE.md.template" > ~/.claude/CLAUDE.md

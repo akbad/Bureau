@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Setup script for Codex CLI role launcher wrappers
+# Setup script for Codex role launcher wrappers
 # Creates executable scripts in ~/.local/bin/ for launching Codex with specific agent roles
 
 # Color codes for output

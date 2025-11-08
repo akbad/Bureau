@@ -74,7 +74,7 @@ export SERENA_REPO_PATH="$CLONE_DIR/serena"
 # Define supported agents' printable string names but leave AGENTS array empty for now 
 # (in case -a/--agents option is provided)
 CLAUDE="Claude Code"
-CODEX="Codex CLI"
+CODEX="Codex"
 GEMINI="Gemini CLI"
 AGENTS=()
 

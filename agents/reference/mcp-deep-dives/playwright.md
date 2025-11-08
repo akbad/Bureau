@@ -195,4 +195,4 @@ Good: tavily_crawl or parallel fetch calls
 **Links:**
 - [Official Playwright MCP README](https://github.com/microsoft/playwright-mcp)
 - [Playwright Documentation](https://playwright.dev)
-- [Full decision guide](/Users/danielakbarzadeh/Code/enablers/my-agent-files/tools/tools-decision-guide.md)
+- [Full decision guide](../../../tools/tools-decision-guide.md)
