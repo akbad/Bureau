@@ -2,6 +2,7 @@
 set -euo pipefail
 
 # Setup script for global config files
+# Generates config files from templates and creates symlinks for portability
 # Run from anywhere in the repo
 
 # Color codes for output
@@ -15,8 +16,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIGS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$CONFIGS_DIR/.." && pwd)"
 
+# Source agent selection library
+source "$REPO_ROOT/scripts/lib/agent-selection.sh"
+
+# Load agent selection from profile
+load_agent_selection
+
+# If no profile exists, default to all agents
+if [[ ${#AGENTS[@]} -eq 0 ]]; then
+    AGENTS=("Claude Code" "Codex" "Gemini CLI")
+    log_info "No CLI profile found. Generating configs for all agents."
+else
+    log_info "Using CLI profile: ${AGENTS[*]}"
+fi
+
 echo -e "${GREEN}Global Config Files Setup${NC}"
 echo -e "Repo root: $REPO_ROOT"
+echo -e "Selected agents: ${AGENTS[*]}"
 echo ""
 
 # Function to print step headers
@@ -29,10 +45,55 @@ print_success() {
     echo -e "${GREEN}✓${NC} $1"
 }
 
+# Function to print warning
+print_warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
 # Function to print error and exit
 print_error() {
     echo -e "${RED}✗${NC} $1" >&2
     exit 1
+}
+
+# Function to safely create symlink
+# Args: $1=source (what the symlink points to), $2=target (symlink location)
+create_safe_symlink() {
+    local source="$1"
+    local target="$2"
+    local target_dir
+    target_dir="$(dirname "$target")"
+
+    # Ensure target directory exists
+    mkdir -p "$target_dir"
+
+    # Check if target exists
+    if [[ -L "$target" ]]; then
+        # It's a symlink - check if it points to the right place
+        local current_link
+        current_link="$(readlink "$target")"
+        if [[ "$current_link" == "$source" ]]; then
+            print_warning "Symlink already exists: $target -> $source"
+            return 0
+        else
+            # Points to wrong location - remove it
+            print_warning "Removing incorrect symlink: $target -> $current_link"
+            rm "$target"
+        fi
+    elif [[ -f "$target" ]]; then
+        # It's a regular file - backup before removing
+        local backup
+        backup="${target}.backup.$(date +%Y%m%d_%H%M%S)"
+        print_warning "Backing up existing file: $target -> $backup"
+        mv "$target" "$backup"
+    elif [[ -e "$target" ]]; then
+        # Exists but not a file or symlink (directory?)
+        print_error "Cannot create symlink: $target exists and is not a file or symlink"
+    fi
+
+    # Create the symlink
+    ln -s "$source" "$target"
+    print_success "Created symlink: $target -> $source"
 }
 
 # Check if we're in the right place
@@ -41,36 +102,75 @@ if [[ ! -f "$CONFIGS_DIR/AGENTS.md.template" ]] || [[ ! -f "$CONFIGS_DIR/CLAUDE.
 fi
 
 # ============================================================================
-# Generate config files from templates
+# Generate config files from templates (in repo)
 # ============================================================================
 print_step "Generating config files from templates"
 
-# Ensure config directories exist
-mkdir -p ~/.gemini
-mkdir -p ~/.codex
-mkdir -p ~/.claude
+# Generate AGENTS.md in repo (for Gemini CLI & Codex)
+sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/AGENTS.md.template" > "$CONFIGS_DIR/AGENTS.md"
+print_success "Generated $CONFIGS_DIR/AGENTS.md from template"
 
-# Generate GEMINI.md for Gemini CLI
-sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/AGENTS.md.template" > ~/.gemini/GEMINI.md
-print_success "Generated ~/.gemini/GEMINI.md from template"
+# Generate CLAUDE.md in repo (for Claude Code)
+sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/CLAUDE.md.template" > "$CONFIGS_DIR/CLAUDE.md"
+print_success "Generated $CONFIGS_DIR/CLAUDE.md from template"
 
-# Generate AGENTS.md for Codex
+echo ""
 
-# Generate CLAUDE.md for Claude Code
-sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/CLAUDE.md.template" > ~/.claude/CLAUDE.md
-print_success "Generated ~/.claude/CLAUDE.md from template"
+# ============================================================================
+# Create symlinks from CLI config locations to repo files
+# ============================================================================
+print_step "Creating symlinks to generated config files"
+
+# Symlink for Gemini CLI
+if agent_enabled "Gemini CLI"; then
+    create_safe_symlink "$CONFIGS_DIR/AGENTS.md" "$HOME/.gemini/GEMINI.md"
+else
+    print_step "Skipping Gemini symlink (not in CLI profile)"
+fi
+
+# Symlink for Codex
+if agent_enabled "Codex"; then
+    create_safe_symlink "$CONFIGS_DIR/AGENTS.md" "$HOME/.codex/AGENTS.md"
+else
+    print_step "Skipping Codex symlink (not in CLI profile)"
+fi
+
+# Symlink for Claude Code
+if agent_enabled "Claude Code"; then
+    create_safe_symlink "$CONFIGS_DIR/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+else
+    print_step "Skipping Claude symlink (not in CLI profile)"
+fi
 
 echo ""
 
 echo -e "${GREEN}✓ Config files setup complete!${NC}"
 echo ""
-echo "Verification:"
-echo "  - Claude Code: Run '/status' (should show 'Memory: user (~/.claude/CLAUDE.md)')"
-echo "  - Gemini CLI: Run '/memory show' (should show GEMINI.md content)"
-echo "  - Codex CLI: Ask 'What handoff guidelines were you given?' (should mention clink and delegation)"
-echo "    Note: /status shows 'AGENTS files: (none)' due to a display bug, but file IS loaded"
-echo ""
-echo "All three CLIs now have access to:"
+
+# Show verification steps only for enabled agents
+if agent_enabled "Claude Code"; then
+    echo "Verification for Claude Code:"
+    echo "  - Run '/status' (should show 'Memory: user (~/.claude/CLAUDE.md)')"
+    echo ""
+fi
+
+if agent_enabled "Gemini CLI"; then
+    echo "Verification for Gemini CLI:"
+    echo "  - Run '/memory show' (should show GEMINI.md content)"
+    echo ""
+fi
+
+if agent_enabled "Codex"; then
+    echo "Verification for Codex:"
+    echo "  - Ask 'What handoff guidelines were you given?' (should mention clink and delegation)"
+    echo "    Note: /status shows 'AGENTS files: (none)' due to a display bug, but file IS loaded"
+    echo ""
+fi
+
+echo "Configured CLIs now have access to:"
 echo "  - Handoff guidelines (delegation rules)"
 echo "  - Compact MCP list (tool selection guide)"
+echo ""
+echo "Config files are symlinked from $CONFIGS_DIR/"
+echo "To update configs, edit the templates and re-run this script"
 echo ""
