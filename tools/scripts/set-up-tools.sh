@@ -91,8 +91,8 @@ CLAUDE_CONFIG="$HOME/.claude.json"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 CODEX_CONFIG="$HOME/.codex/config.toml"
 
-DEFAULT_TIMEOUT=30     # timeout when waiting for any server/daemon to start
-RANCHER_TIMEOUT=120    # timeout specific for Rancher Desktop startup (can take a while)
+SERVER_START_TIMEOUT=200  # timeout when waiting for any server/daemon to start
+RANCHER_TIMEOUT=120       # timeout specific for Rancher Desktop startup (can take a while)
 
 # Remote server URLs
 export SOURCEGRAPH_ENDPOINT="https://sourcegraph.com"
@@ -261,6 +261,47 @@ start_qdrant_docker() {
     log_success "Qdrant container started on port $QDRANT_DB_PORT"
 }
 
+# Wait for a server process to open its port or exit (success/failure)
+wait_for_server_startup() {
+    local server_name=$1
+    local pid=$2
+    local port=$3
+    local timeout=$4
+    local log_file=$5
+    local elapsed=0
+
+    while [ $elapsed -lt $timeout ]; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+
+        # Process exited - capture exit code and fail fast
+        if ! kill -0 "$pid" 2>/dev/null; then
+            local exit_code
+            wait "$pid"
+            exit_code=$?
+            if [[ $exit_code -eq 0 ]]; then
+                log_error "$server_name exited cleanly before opening port $port"
+            else
+                log_error "$server_name exited with code $exit_code before opening port $port"
+            fi
+            log_empty_line
+            log_error "Log file saved at: $log_file"
+            return 1
+        fi
+
+        # Port became available → server ready
+        if check_port "$port"; then
+            log_success "$server_name started (PID: $pid) after ${elapsed}s"
+            return 0
+        fi
+    done
+
+    log_error "$server_name did not open port $port within ${timeout}s (process still running)"
+    log_empty_line
+    log_error "Log file saved at: $log_file"
+    return 1
+}
+
 # Start HTTP server idempotently (returns PID via variable name passed as arg)
 start_http_server() {
     local server_name=$1
@@ -270,7 +311,6 @@ start_http_server() {
     local start_cmd=("$@")
     local log_file="/tmp/mcp-${server_name}-server.log"
     local pid
-    local elapsed=0
 
     if check_port "$port"; then
         log_success "$server_name already running on port $port"
@@ -280,7 +320,7 @@ start_http_server() {
         # Expands to `eval "SERVER_PID=1234"`, then executes that (global) assignment
         eval "$pid_var=$pid"
     else
-        log_info "Starting $server_name on port $port..."
+        log_info "Starting $server_name on port $port with ${SERVER_START_TIMEOUT}sec timeout..."
         log_info "  → launch command: ${start_cmd[*]}"
 
         # Start tail first (waits for file creation)
@@ -291,24 +331,12 @@ start_http_server() {
         nohup "${start_cmd[@]}" > "$log_file" 2>&1 &
         pid=$!
 
-        # Poll for port availability, process death, or timeout
-        local status=""
-        while [ $elapsed -lt $DEFAULT_TIMEOUT ]; do
-            sleep 1
-            elapsed=$((elapsed + 1))
-
-            # Check if process died
-            if ! kill -0 "$pid" 2>/dev/null; then
-                status="died"
-                break
-            fi
-
-            # Check if port is available (success!)
-            if check_port "$port"; then
-                status="success"
-                break
-            fi
-        done
+        local startup_ok=true
+        if wait_for_server_startup "$server_name" "$pid" "$port" "$SERVER_START_TIMEOUT" "$log_file"; then
+            eval "$pid_var=$pid"
+        else
+            startup_ok=false
+        fi
 
         # Stop showing output
         kill "$tail_pid" 2>/dev/null
@@ -316,26 +344,11 @@ start_http_server() {
         # Wait for the process to be fully killed, while ignoring exit code (returns 143 after being killed)
         wait "$tail_pid" 2>/dev/null || true 
 
-        # Handle outcome
-        case "$status" in
-            success)
-                log_success "$server_name started (PID: $pid) after ${elapsed}s"
-                eval "$pid_var=$pid"
-                return 0
-                ;;
-            died)
-                log_error "$server_name process died during startup (PID: $pid)"
-                log_empty_line
-                log_error "Log file saved at: $log_file"
-                exit 1
-                ;;
-            *)  # timeout - process still alive but port not open
-                log_error "$server_name did not open port $port within ${DEFAULT_TIMEOUT}s (process still running)"
-                log_empty_line
-                log_error "Log file saved at: $log_file"
-                exit 1
-                ;;
-        esac
+        if [[ "$startup_ok" == true ]]; then
+            return 0
+        else
+            exit 1
+        fi
     fi
 }
 
