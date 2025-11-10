@@ -18,11 +18,11 @@ Power users rotating between these (as is often the best option, given providers
 
 - **Providing a unified, consistent set of 13 MCP servers (+ extra plugins)** across all 3 platforms (Sourcegraph, Semgrep, Brave, Tavily, Context7, etc.)
 - **Defining 39 specialized agent roles** once, usable everywhere (debugger, architect, security-compliance, etc.) and spawnable as *cross-CLI subagents*
-- **Automating context injection** teaching agents when to delegate, which tools to use, and which model fits the task
 - **Minimizing task delegation overhead** from ~5 minutes of setup to <30 seconds
-- **Reducing the learning curve to <ins>near-zero</ins>**
-    
-    - Context injection teaches agents to automatically and judiciously use all functionality made available here, with minimal explicit directions needed from the user.
+- **Reducing the learning curve to <ins>near-zero</ins>** 
+
+  - **Automated context injection** ensures agents *automatically and judiciously* use all functionality made available by this repo
+  - **Minimal explicit directions needed** from the user
 
 ## Feature list
 
