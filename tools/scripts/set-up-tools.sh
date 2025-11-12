@@ -851,7 +851,7 @@ if [[ "$CONTEXT7_AVAILABLE" == true ]] && (agent_enabled "$GEMINI" || agent_enab
     # Note: Uses colon format for headers
     # Codex will use stdio mode (configured below) since HTTP doesn't support custom headers
     # Gemini requires both CONTEXT7_API_KEY and Accept headers
-    setup_http_mcp "context7" "$CONTEXT7_URL" "CONTEXT7_API_KEY:\$CONTEXT7_API_KEY" "Accept:application/json, text/event-stream"
+    setup_http_mcp "context7" "$CONTEXT7_URL" "CONTEXT7_API_KEY:${CONTEXT7_API_KEY}" "Accept:application/json, text/event-stream"
 fi
 
 if [[ "$TAVILY_AVAILABLE" == true ]]; then
