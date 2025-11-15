@@ -9,6 +9,7 @@
 - [Core delegation strategies](#core-delegation-strategies)
   - [Delegation mechanisms available](#delegation-mechanisms-available)
   - [Delegation principles](#delegation-principles)
+  - [When NOT to delegate](#when-not-to-delegate)
   - [Integration with *Superpowers* skills *(Claude and Codex only)*](#integration-with-superpowers-skills-claude-and-codex-only)
 - [Delegation mechanisms (detailed)](#delegation-mechanisms-detailed)
   - [Quick comparison](#quick-comparison)
@@ -20,6 +21,11 @@
   - [How to parallelize](#how-to-parallelize)
   - [Common parallelization patterns](#common-parallelization-patterns)
   - [Default mindset](#default-mindset)
+- [Merge \& verify results](#merge--verify-results)
+- [Subagent context management](#subagent-context-management)
+  - [Setting your spawned subagents up for success](#setting-your-spawned-subagents-up-for-success)
+  - [Tool-specific guidance](#tool-specific-guidance)
+  - [Common context handoff mistakes](#common-context-handoff-mistakes)
 - [Choosing *models* when spawning subagents](#choosing-models-when-spawning-subagents)
   - [Decision tree (quick reference)](#decision-tree-quick-reference)
   - [Task category → model/role mapping](#task-category--modelrole-mapping)
@@ -52,6 +58,24 @@
 - Delegate when another model or role materially improves accuracy, speed, cost, or context handling.
 - Ask the user when requirements are ambiguous, multiple valid options exist, or explicit approval is required.
 - Handle directly when the task is within your capability and scope is clear.
+
+### When NOT to delegate
+
+**Handle tasks directly (don't delegate) when:**
+
+- **Task is simple and well-understood** — 1-2 file edits with clear requirements; faster to do than explain
+- **Requires tight iteration loops** — Debugging with frequent hypothesis testing; trial-and-error exploration
+- **Context loss would be expensive** — Deeply nested state that's hard to summarize; extensive prior conversation history
+- **You already have necessary context loaded** — Files read, relationships understood; delegation = wasteful reloading
+- **Explanation overhead > execution time** — If describing the task takes longer than doing it
+
+**Cost of delegation:**
+- Context summarization overhead (lossy compression of your current understanding)
+- Potential information loss (nuances don't survive handoff)
+- Coordination time (waiting for subagent, reviewing results)
+- Risk of misunderstanding requirements (ambiguity in your prompt)
+
+**Rule of thumb:** If you can complete the task in <2 minutes with context you already have → handle directly.
 
 ### Integration with *Superpowers* skills *(Claude and Codex only)*
 
@@ -185,6 +209,77 @@ Now let me analyze module B...
 - If **NO** → Handle directly or spawn single subagent
 
 **Err toward parallelization.** Coordination overhead is minimal compared to sequential execution time.
+
+## Merge & verify results
+
+Parallel execution only helps if you consolidate the answers rigorously. After every parallel batch, run this checklist:
+
+1. **Collect & normalize:** pull every subagent summary into one workspace (table/list/doc) and record CLI/model/thinking levels plus citations so claims stay traceable.
+2. **Compare & detect conflicts:** highlight overlaps, find contradictions or duplicated work, and confirm no component was overlooked.
+3. **Validate critical claims:** spot-check referenced files, rerun key commands/tests, and double‑check web/API citations before accepting conclusions.
+4. **Decide outcomes:** 
+
+    - Mark each subtask `Accepted` / `Needs follow-up` / `Rejected`
+    - If blockers remain, spawn a focused follow-up subagent or use `AskUserQuestion`
+
+5. **Record & broadcast:** update Memory MCP (relationships) and Qdrant (insights/gotchas) with the reconciled truth (and not raw subagent dump) and summarize decisions back to the main thread/user.
+6. **Plan next actions:** turn accepted recommendations into concrete edits/tests/commits and explicitly close the loop on rejected paths so future agents don’t retry them.
+
+> **Reminder:** Never ship or store memories until merged results are verified. Raw, unvetted subagent output must not flow into persistent systems.
+
+## Subagent context management
+
+### Setting your spawned subagents up for success
+
+**Always include in subagent prompts:**
+
+1. **Relevant file paths** (absolute, not relative)
+   - Provide exact paths to files the subagent will need
+   - Example: `/Users/you/project/src/module/file.ts` NOT `./file.ts`
+
+2. **Summarized context** (what you've learned that's relevant)
+   - Key findings from your investigation so far
+   - Important constraints or requirements discovered
+   - Relevant architectural decisions or patterns
+
+3. **Clear success criteria** (what "done" looks like)
+   - Specific deliverable expected from the subagent
+   - How you'll verify the work is complete
+   - What format you need the results in
+
+4. **Explicit constraints** (what NOT to do)
+   - Actions requiring approval (don't commit, don't delete, etc.)
+   - Areas to avoid modifying
+   - Specific approaches to reject
+
+### Tool-specific guidance
+
+**For `clink`:**
+- **Reuse `continuation_id`** to preserve conversation context across multiple turns
+- Provide **absolute file paths**, never relative paths
+- Specify **role explicitly** (e.g., `debugger`, `architect`) — don't assume defaults
+- Include **images** parameter if visual context is needed (screenshots, diagrams)
+
+**For `Task` tool (Claude Code):**
+- Choose appropriate **thoroughness level** for Explore/Plan agents (`quick`, `medium`, `very thorough`)
+- Use **parallel Task calls** for independent exploration/research tasks
+- Provide **clear prompt** with specific research questions or exploration goals
+
+### Common context handoff mistakes
+
+**DON'T:**
+- ❌ Say "investigate this bug" without providing error messages, stack traces, or relevant files
+- ❌ Assume subagent has your conversation history (it doesn't — provide needed context)
+- ❌ Use vague success criteria like "make it better" or "fix the issues"
+- ❌ Forget to mention approval requirements (subagent might commit/delete without knowing)
+- ❌ Provide relative paths when codebase structure is ambiguous
+
+**DO:**
+- ✅ Include specific error messages: "Getting `NullPointerException` at line 42 in `UserService.java`"
+- ✅ Summarize findings: "Found 3 similar bugs in `auth/` module, all related to session handling"
+- ✅ Set concrete goals: "Refactor `processPayment()` to extract retry logic into separate function"
+- ✅ State constraints clearly: "Don't modify database schema; only change application code"
+- ✅ Give absolute paths: `/Users/you/beehive/agents/reference/handoff-guidelines.md`
 
 ## Choosing *models* when spawning subagents
 
