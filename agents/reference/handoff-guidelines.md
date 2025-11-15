@@ -8,20 +8,25 @@
 - [Terminology](#terminology)
 - [Core delegation strategies](#core-delegation-strategies)
   - [Delegation mechanisms available](#delegation-mechanisms-available)
-  - [General principles](#general-principles)
+  - [Delegation principles](#delegation-principles)
   - [Integration with *Superpowers* skills *(Claude and Codex only)*](#integration-with-superpowers-skills-claude-and-codex-only)
-- [Choosing *roles* and *mechanisms*](#choosing-roles-and-mechanisms)
-  - [Overall guidelines](#overall-guidelines)
-  - [When to use `clink`](#when-to-use-clink)
-  - [Special guidance for delegating to *Explore* and *Plan* agents](#special-guidance-for-delegating-to-explore-and-plan-agents)
-- [When to use Task tool *(Claude Code only)*](#when-to-use-task-tool-claude-code-only)
-- [Choosing *models* to use](#choosing-models-to-use)
-  - [General guidelines](#general-guidelines)
-  - [Detailed picks to use by task category](#detailed-picks-to-use-by-task-category)
-  - [Intra-prompt thinking level optimization (by CLI)](#intra-prompt-thinking-level-optimization-by-cli)
+- [Delegation mechanisms (detailed)](#delegation-mechanisms-detailed)
+  - [Quick comparison](#quick-comparison)
+  - [Using `clink`](#using-clink)
+  - [Using `Task` tool *(Claude Code only)*](#using-task-tool-claude-code-only)
+  - [Using `AskUserQuestion`](#using-askuserquestion)
+- [Parallel delegation strategies](#parallel-delegation-strategies)
+  - [When to parallelize](#when-to-parallelize)
+  - [How to parallelize](#how-to-parallelize)
+  - [Common parallelization patterns](#common-parallelization-patterns)
+  - [Default mindset](#default-mindset)
+- [Choosing *models* when spawning subagents](#choosing-models-when-spawning-subagents)
+  - [Decision tree (quick reference)](#decision-tree-quick-reference)
+  - [Task category → model/role mapping](#task-category--modelrole-mapping)
+  - [Thinking level optimization](#thinking-level-optimization)
 - [Handoff patterns](#handoff-patterns)
 - [When to ask the user (AskUserQuestion)](#when-to-ask-the-user-askuserquestion)
-  - [General guidelines](#general-guidelines-1)
+  - [When to ask](#when-to-ask)
   - [Best practices](#best-practices)
   - [What requires explicit approval, always](#what-requires-explicit-approval-always)
 
@@ -38,11 +43,11 @@
 
 ### Delegation mechanisms available
 
-1. `clink` (from Zen MCP, available everywhere): Cross-model orchestration to Claude, Codex (GPT‑5‑Codex), Gemini
+1. `clink` (from Zen MCP, available everywhere): Cross-model orchestration to Claude, Codex (GPT‑5.1‑Codex), Gemini
 2. `Task` tool (Claude‑only): Spawn specialized Claude Code subagents
 3. `AskUserQuestion`: Stop and obtain explicit user guidance
 
-### General principles
+### Delegation principles
 
 - Delegate when another model or role materially improves accuracy, speed, cost, or context handling.
 - Ask the user when requirements are ambiguous, multiple valid options exist, or explicit approval is required.
@@ -72,124 +77,190 @@ For example, suppose you are performing a debugging task. Examples of what could
 | Superpowers | Use `systematic-debugging` skill (4-phase investigation process) |
 | "Handoff guidelines" and "Compact MCP list" guides | Use Codex via `clink` with `debugger` role + Serena MCP for code search |
 
-## Choosing *roles* and *mechanisms*
+## Delegation mechanisms (detailed)
 
-### Overall guidelines
-- If you are Claude Code (Sonnet/Haiku/Opus):
-  
-  - Use `Task` tool only for Claude subagents.
-  - Use `clink` for delegation to Codex or Gemini.
+### Quick comparison
 
-- If you are Codex or Gemini CLI: Use `clink` for all delegation (never `Task`).
+| Mechanism | CLI Support | Primary Use Cases | When to Use |
+| :--- | :--- | :--- | :--- |
+| **`clink`** | All CLIs | Cross-model delegation, specialized roles | Different model needed (see [decision tree](#decision-tree-quick-reference)), isolated context required |
+| **`Task`** | Claude only | Claude subagents, exploration, research | Codebase exploration, parallel searches, multi-step research |
+| **`AskUserQuestion`** | All CLIs | User guidance, approval gates | Ambiguity, multiple valid approaches, explicit approval needed |
 
-### When to use `clink`
+### Using `clink`
 
-Use `clink` to delegate to another model when:
-- Context window constraints require Gemini’s 1M context; otherwise prefer Codex for code accuracy.
-- Cost/speed optimizations are needed (e.g., batch generation, fast prototyping).
-- Specialized reasoning is required (e.g., heavy math/algorithm analysis, large‑scale mechanical refactors, formal threat modeling, maximum depth reasoning).
-- Ultra‑fast interactive loops are needed (e.g., Haiku for speed).
+**When to use:**
+- Cross-model collaboration is beneficial (see [decision tree](#decision-tree-quick-reference) for which model to choose)
+- Spawning a specialized role with isolated context
+- Task requires capabilities better suited to a different model
 
-How to use `clink` (canonical specifics):
-- Provide `cli_name` (`claude`, `codex`, `gemini`), a clear `prompt`, and a `role` (roles live in the clink role prompts directory).
-- Always reuse `continuation_id` to preserve conversation context.
-- Include absolute file paths when relevant.
+**CLI-specific rules:**
+- **Claude Code**: Use `clink` for delegation to Codex or Gemini (use `Task` for Claude subagents)
+- **Codex/Gemini**: Use `clink` for all delegation (no `Task` tool available)
 
-### Special guidance for delegating to *Explore* and *Plan* agents
+**How to use:**
+- Provide `cli_name` (`claude`, `codex`, `gemini`), clear `prompt`, and `role` (from clink role prompts directory)
+- Always reuse `continuation_id` to preserve conversation context
+- Include absolute file paths when relevant
 
-For these agents, you can specify *thoroughness* in your prompt:
-| Thoroughness level | Result |
+**Special: Explore and Plan agents**
+
+For `Explore` and `Plan` agents, specify thoroughness in your prompt:
+
+| Thoroughness | Result |
 | :--- | :--- |
-| "quick" | Basic pattern matching, fast lookups |
-| "medium" | Moderate exploration across multiple files |
-| "very thorough" | Comprehensive analysis across entire codebase |
+| `"quick"` | Basic pattern matching, fast lookups |
+| `"medium"` | Moderate exploration across multiple files |
+| `"very thorough"` | Comprehensive analysis across entire codebase |
 
-## When to use Task tool *(Claude Code only)*
+### Using `Task` tool *(Claude Code only)*
 
-`Task` is Claude Code‑only. Use it to spawn Claude subagents for:
-- Codebase exploration (e.g., Explore agent with configurable thoroughness).
-- Multi‑step research tasks and token‑conserving searches.
-- Parallelizing independent search/analysis tasks.
+**When to use:**
+- Codebase exploration (Explore agent with configurable thoroughness)
+- Multi-step research tasks and token-conserving searches
+- Parallelizing independent search/analysis tasks
 
-When not to use `Task`:
-- Single known file reads or known symbol queries (use direct tools instead).
-- Cross‑model delegation (use `clink`).
+**When NOT to use:**
+- Single known file reads or known symbol queries (use direct tools instead)
+- Cross-model delegation (use `clink` instead)
 
-## Choosing *models* to use
+### Using `AskUserQuestion`
 
-### General guidelines
+See [When to ask the user](#when-to-ask-the-user-askuserquestion) section for complete guidance.
 
-- Prefer **GPT‑5‑Codex** for multi‑file refactoring, mechanical changes, contract/testing, and cross‑file code accuracy when the total context fits ≤400K.
+## Parallel delegation strategies
 
-    - Especially prefer **GPT-5-Codex + High thinking** for DB/ML/optimization/other math-heavy work (unless context is above >400K: see the next point).
+### When to parallelize
 
-- Use **Gemini** ONLY when you genuinely need >400K context.
-- Use **Claude** for complex agentic coordination, planning, and reasoning where context fits.
-    
-    - **Sonnet** (with extended thinking) should be sufficient for most tasks.
-    - **Opus** has strict weekly limits; use sparingly for highest-impact work and when tasks require maximum rigour.
+Spawn multiple subagents **concurrently** (not sequentially) when tasks are:
+- **Independent**: No data dependencies between them
+- **Parallelizable**: Can execute simultaneously without coordination
+- **Time-consuming**: Research, analysis, exploration, code search
+- **Mergeable**: Results can be combined afterward
 
-### Detailed picks to use by task category
+### How to parallelize
 
-Note you must also defer to [Rules of thumb](#rules-of-thumb) for size‑driven decisions.
+**Critical:** Use **multiple tool calls in a single response** to launch parallel subagents.
+
+**Example (correct - parallel execution):**
+```
+Let me analyze these 4 modules in parallel using clink:
+[Launches 4 clink calls in one message]
+```
+
+**Anti-pattern (sequential execution):**
+```
+Let me analyze module A first...
+[waits for response]
+Now let me analyze module B...
+[waits for response]
+```
+
+### Common parallelization patterns
+
+1. **Multi-module analysis**
+   - Spawn N subagents, one per module/package/service
+   - Merge findings after all complete
+
+2. **Dependency research**
+   - Research 5 libraries in parallel (features, security, compatibility)
+   - Compare results in single summary
+
+3. **Cross-codebase search**
+   - Search multiple repos/branches concurrently
+   - Aggregate results
+
+4. **Independent refactors**
+   - Refactor 3 unrelated files in parallel
+   - Review all changes together
+
+5. **Multi-step investigation**
+   - Investigate 4 potential root causes simultaneously
+   - Converge on likely culprit
+
+### Default mindset
+
+**Before starting work:** Ask "Can I break this into 2+ independent subtasks?"
+- If **YES** → Spawn multiple subagents in parallel
+- If **NO** → Handle directly or spawn single subagent
+
+**Err toward parallelization.** Coordination overhead is minimal compared to sequential execution time.
+
+## Choosing *models* when spawning subagents
+
+### Decision tree (quick reference)
+
+Use this flowchart for fast model selection based on **hard constraints** and **proven strengths**:
+
+1. **Context >400K tokens?** → **Gemini 2.5 Pro** (1M context window; only option)
+2. **Math-heavy work** (DB/ML/optimization) **+ context ≤400K?** → **GPT-5.1-Codex** with **High thinking** (superior math/code accuracy)
+3. **Mechanical refactors, multi-file changes, testing?** → **GPT-5.1-Codex** (proven strength for repo-wide changes)
+4. **Fast iterations, CI fixes, simple tasks?** → **Claude Haiku 4.5** (speed)
+5. **Maximum rigour, highest-impact decisions?** → **Claude Opus 4.5** (use sparingly; strict weekly limits)
+6. **Default for most other tasks?** → **GPT-5.1-Codex** or **Claude Sonnet 4.5** (both capable; choose based on task table below, personal preference, or availability)
+
+### Task category → model/role mapping
 
 | Task Category | First Pick | CLI | Role | Why |
 | --- | --- | --- | --- | --- |
 | Architecture & system design | Sonnet 4.5 | `claude` | `architect` | Trade‑off aware planning; extended thinking |
-| Large migrations & refactors | GPT‑5‑Codex | `codex` | `migration-refactoring` | Best for repo‑wide mechanical changes |
-| API integration | GPT‑5‑Codex | `codex` | `api-integration` | Contract‑first design; idempotency/retry patterns |
-| Data engineering / ML | GPT‑5‑Codex | `codex` | `ai-ml-eng` | Superior code/math accuracy when ≤400K tokens |
-| Database optimization | GPT‑5‑Codex | `codex` | `db-internals` | Cross‑file SQL + app code analysis |
-| Performance optimization | GPT‑5‑Codex | `codex` | `optimization` | Finds N+1s, blocking I/O, complexity issues |
-| Frontend / design systems | GPT‑5‑Codex | `codex` | `frontend` | Component refactors; accessibility |
+| Large migrations & refactors | GPT‑5.1‑Codex | `codex` | `migration-refactoring` | Best for repo‑wide mechanical changes |
+| API integration | GPT‑5.1‑Codex | `codex` | `api-integration` | Contract‑first design; idempotency/retry patterns |
+| Data engineering / ML | GPT‑5.1‑Codex | `codex` | `ai-ml-eng` | Superior code/math accuracy when ≤400K tokens |
+| Database optimization | GPT‑5.1‑Codex | `codex` | `db-internals` | Cross‑file SQL + app code analysis |
+| Performance optimization | GPT‑5.1‑Codex | `codex` | `optimization` | Finds N+1s, blocking I/O, complexity issues |
+| Frontend / design systems | GPT‑5.1‑Codex | `codex` | `frontend` | Component refactors; accessibility |
 | Platform / DevEx / Infra | Haiku 4.5 | `claude` | `platform-eng` | CI fix‑ups; batch hygiene; speed |
 | Observability / incident | Sonnet 4.5 | `claude` | `observability` | Runbooks; SLO/error budgets; RCAs |
 | Reliability / scalability | Sonnet 4.5 | `claude` | `scalability-reliability` | Capacity plans; coordination |
 | Security / privacy | Sonnet 4.5 | `claude` | `security-compliance` | Threat modeling; audits |
-| Testing / verification | GPT‑5‑Codex | `codex` | `testing` | Unit/property/mutation tests |
-| Real‑time systems | GPT‑5‑Codex | `codex` | `realtime` | Latency budgets; scheduling |
-| Systems: C++ | GPT‑5‑Codex | `codex` | `cpp-pro` | Concurrency, FFI, safety |
-| Systems: Rust | GPT‑5‑Codex | `codex` | `rust-pro` | Ownership, unsafe blocks |
-| Systems: Go | GPT‑5‑Codex | `codex` | `golang-pro` | Goroutines, channels |
-| DevOps / IaC | GPT‑5‑Codex | `codex` | `devops-infra-as-code` | Terraform, Kubernetes |
-| Implementation helper | Any | Any | `implementation-helper` | General coding assistance |
+| Testing / verification | GPT‑5.1‑Codex | `codex` | `testing` | Unit/property/mutation tests |
+| Real‑time systems | GPT‑5.1‑Codex | `codex` | `realtime` | Latency budgets; scheduling |
+| Systems: C++ | GPT‑5.1‑Codex | `codex` | `cpp-pro` | Concurrency, FFI, safety |
+| Systems: Rust | GPT‑5.1‑Codex | `codex` | `rust-pro` | Ownership, unsafe blocks |
+| Systems: Go | GPT‑5.1‑Codex | `codex` | `golang-pro` | Goroutines, channels |
+| DevOps / IaC | GPT‑5.1‑Codex | `codex` | `devops-infra-as-code` | Terraform, Kubernetes |
+| Implementation helper | GPT-5.1-Codex or Sonnet 4.5 | `codex` for GPT-5.1-Codex; `claude` for Sonnet 4.5 | `implementation-helper` | General coding assistance |
 | Code explanation / understanding | Any with good context | Any | `explainer` | Choose model based on codebase size/complexity |
 | Architecture audits | Sonnet 4.5 | `claude` | `architecture-audit` | Deep analysis of existing architecture; identify issues |
 | Tech debt analysis | Sonnet 4.5 | `claude` | `tech-debt` | Identify and prioritize technical debt systematically |
 | Cost optimization | Sonnet 4.5 | `claude` | `cost-optimization-finops` | Cloud costs; resource optimization; FinOps strategies |
 | Distributed systems design | Sonnet 4.5 | `claude` | `distributed-systems` | Consensus; consistency; partition tolerance |
-| Networking / edge infrastructure | GPT‑5‑Codex | `codex` | `networking-edge-infra` | CDN; load balancing; edge compute patterns |
-| Mobile engineering | GPT‑5‑Codex | `codex` | `mobile-eng-architect` | iOS/Android architecture; mobile‑specific patterns |
+| Networking / edge infrastructure | GPT‑5.1‑Codex | `codex` | `networking-edge-infra` | CDN; load balancing; edge compute patterns |
+| Mobile engineering | GPT‑5.1‑Codex | `codex` | `mobile-eng-architect` | iOS/Android architecture; mobile‑specific patterns |
 | Whole‑repo analysis >400K tokens | Gemini 2.5 Pro | `gemini` | `explainer` | 1M‑token context |
-| API client SDK design | GPT‑5‑Codex | `codex` | `api-client-designer` | Idiomatic SDKs; retries/pagination/auth; contract‑driven |
+| API client SDK design | GPT‑5.1‑Codex | `codex` | `api-client-designer` | Idiomatic SDKs; retries/pagination/auth; contract‑driven |
 | Authentication engineering | Sonnet 4.5 | `claude` | `auth-specialist` | Secure flows (sessions/OAuth/JWT); OWASP; least privilege |
 | Caching strategy & implementation | Gemini 2.5 Pro | `gemini` | `caching-specialist` | Layering, TTL/invalidations, cache keys, metrics |
 | Chaos engineering & resilience drills | Sonnet 4.5 | `claude` | `chaos-engineer` | Plan experiments, limit blast radius, SLOs; coordinate runs |
-| Code review | GPT‑5‑Codex | `codex` | `code-reviewer` | Quality, security, maintainability; actionable diffs |
+| Code review | GPT‑5.1‑Codex | `codex` | `code-reviewer` | Quality, security, maintainability; actionable diffs |
 | Data engineering pipelines | Gemini 2.5 Pro | `gemini` | `data-eng` | ETL/ELT, SQL tuning, batch/stream jobs |
-| Debugging and triage | GPT‑5‑Codex | `codex` | `debugger` | Cross‑file fault isolation; logs/traces; reproduction |
-| Event‑driven design/implementation | GPT‑5‑Codex | `codex` | `event-driven` | Topics/queues, idempotency, backpressure, ordering |
+| Debugging and triage | GPT‑5.1‑Codex | `codex` | `debugger` | Cross‑file fault isolation; logs/traces; reproduction |
+| Event‑driven design/implementation | GPT‑5.1‑Codex | `codex` | `event-driven` | Topics/queues, idempotency, backpressure, ordering |
 | Engineering historian | Sonnet 4.5 | `claude` | `historian` | Change timelines, root causes, commit/story synthesis |
 | Incident command | Sonnet 4.5 | `claude` | `incident-commander` | Runbooks, comms, decision logs, mitigations |
 | Interviewer (requirements) | Sonnet 4.5 | `claude` | `interviewer` | Clarify constraints/trade‑offs; elicit missing info |
-| Schema evolution & migrations | GPT‑5‑Codex | `codex` | `schema-evolution` | Backward‑compatible changes, migrations, rollout/rollback |
+| Schema evolution & migrations | GPT‑5.1‑Codex | `codex` | `schema-evolution` | Backward‑compatible changes, migrations, rollout/rollback |
 | Repository/code search | Haiku 4.5 | `claude` | `searcher` | Fast exploration; summarize findings; pointers |
 | Task decomposition | Sonnet 4.5 | `claude` | `task-decomposer` | Break goals into verifiable steps, deps, risks |
 
-### Intra-prompt thinking level optimization (by CLI)
+### Thinking level optimization
 
-#### Codex 
+When delegating via `clink`, adjust thinking levels in your prompt for better performance:
 
-Within your prompt:
-- "minimal effort": formatting, regex
-- "low effort": single-file
-- default: cross-file
-- "high effort": migrations, concurrency
+**Codex (effort levels):**
+- `"minimal effort"` — formatting, regex, simple text transforms
+- `"low effort"` — single-file edits, straightforward changes
+- *(default)* — cross-file analysis, moderate complexity
+- `"high effort"` — migrations, concurrency, complex refactors, math-heavy work
 
-#### Claude
+**Claude (extended thinking):**
 
-Mention "extended thinking" for:
-- Long-horizon refactors, RCAs, multi-service planning, complex research
+Add `"extended thinking"` to your prompt for:
+- Long-horizon refactors, complex architectural decisions
+- Root cause analysis (RCAs), incident investigations
+- Multi-service planning, system design
+- Complex research requiring deep reasoning
 
 ## Handoff patterns
 
@@ -198,13 +269,13 @@ Follow the sequential flow of phases in the table below (in the order presented)
 | Order | Phase name | Objectives | Actions to perform |
 | :--- | :--- | :--- | :--- |
 | **1** | **Research** | Understand requirements, code, and constraints | Use `Task` Explore (Claude) for codebase exploration; use direct read/glob for known files/symbols; use `clink`→Gemini for long‑context needs (>~400K). If ambiguity remains, see [AskUserQuestion](#when-to-ask-the-user-askuserquestion) |
-| **2** | **Planning** | Design the approach, break down tasks, identify risks | Outline steps; note trade‑offs; delegate complex architecture to Claude (`architect`) or refactoring planning to Codex (`migration-refactoring`) via `clink`. For large goals, use `task-decomposer` to produce verifiable substeps and dependencies. Resolve ambiguities via [AskUserQuestion](#when-to-ask-the-user-askuserquestion). Obtain approval before implementation when needed (see [What requires explicit approval, always](#what-requires-explicit-approval-always)). |
-| **3** | **Implementation** | Execute the plan and write changes | Track tasks; use Codex for wide refactors/testing; use Claude for coordination; use Gemini for long‑context codebase analysis. Leverage specialist roles as needed (e.g., `schema-evolution`, `auth-specialist`, `caching-specialist`, `event-driven`, `debugger`). For approval gates (commits/deploys/destructive ops), see [What requires explicit approval, always](#what-requires-explicit-approval-always). |
-| **4** | **Review/Verification (optional)** | Verify changes, run tests, prepare for commit | Request code review (use `code-reviewer` for structured guidance); run tests; follow the [Approval pattern](#approval-pattern) before committing/pushing. |
+| **2** | **Planning** | Design the approach, break down tasks, identify risks | Outline steps; note trade‑offs; delegate complex architecture to Claude (`architect`) or refactoring planning to Codex (`migration-refactoring`) via `clink`. For large goals, use `task-decomposer` to produce verifiable substeps and dependencies. Resolve ambiguities via [AskUserQuestion](#when-to-ask-the-user-askuserquestion). See [What requires explicit approval, always](#what-requires-explicit-approval-always) before proceeding. |
+| **3** | **Implementation** | Execute the plan and write changes | Track tasks; use Codex for wide refactors/testing; use Claude for coordination; use Gemini for long‑context codebase analysis. Leverage specialist roles as needed (e.g., `schema-evolution`, `auth-specialist`, `caching-specialist`, `event-driven`, `debugger`). Also see [what requires explicit approval, always](#what-requires-explicit-approval-always) before proceeding. |
+| **4** | **Review/Verification (optional)** | Verify changes, run tests, prepare for commit | Request code review (use `code-reviewer` for structured guidance); run tests; follow the [Approval pattern](#approval-pattern) as needed. |
 
 ## When to ask the user (AskUserQuestion)
 
-### General guidelines
+### When to ask
 
 Ask the user when:
 - Requirements are ambiguous, trade‑offs are uncited, or multiple valid approaches exist.
