@@ -65,11 +65,11 @@ agent_enabled() {
 }
 
 # Load list of enabled agents into AGENTS array
-# Usage: load_agent_selection
+# Usage: discover_agents
 # Sets: AGENTS array with names of all enabled agents
 # Exits with error if no agents are detected
 # Logs detected agents to stdout
-load_agent_selection() {
+discover_agents() {
     AGENTS=()
 
     agent_enabled "$CLAUDE" && AGENTS+=("$CLAUDE")

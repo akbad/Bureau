@@ -21,7 +21,7 @@ CLAUDE_SUBAGENTS_DIR="$AGENTS_DIR/claude-subagents"
 source "$REPO_ROOT/scripts/lib/agent-selection.sh"
 
 # Detect installed CLIs (exits if none found, logs detected CLIs)
-load_agent_selection
+discover_agents
 
 # Skip entirely if Claude not enabled
 if ! agent_enabled "Claude Code"; then

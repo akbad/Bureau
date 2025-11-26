@@ -19,10 +19,11 @@ REPO_ROOT="$(cd "$CONFIGS_DIR/.." && pwd)"
 # Source agent selection library
 source "$REPO_ROOT/scripts/lib/agent-selection.sh"
 
-# Detect installed CLIs based on directory existence (exits if none found, logs detected CLIs)
-load_agent_selection
+# Detect installed CLIs based on directory existence 
+# (exits if none found, logs detected CLIs)
+discover_agents
 
-echo -e "${GREEN}Global Config Files Setup${NC}"
+echo -e "${GREEN}User-level agent context files setup${NC}"
 echo -e "Repo root: $REPO_ROOT"
 echo -e "Selected agents: ${AGENTS[*]}"
 echo ""

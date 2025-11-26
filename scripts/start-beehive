@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bootstrap: Initial setup for Beehive across Claude Code, Codex, and Gemini CLI
+# Beehive bootstrap/startup script
 # > Run once: ./start-beehive
 # > Idempotent (safe to re-run; won't duplicate resources)
 #
 # Prerequisites: Node.js, Python 3.8+, git
 #
-# Detection: Automatically configures any CLI with a config directory in ~/.
+# Detection: 
+#   Automatically configures any CLI whose user-scoped config directory 
+#   (paths listed below) exist:
 #   - Claude Code: ~/.claude/
 #   - Gemini CLI:  ~/.gemini/
 #   - Codex:       ~/.codex/
@@ -29,7 +31,7 @@ echo -e "${BLUE}====================================================${NC}"
 echo ""
 
 # Detect installed CLIs (exits if none found, logs detected CLIs)
-load_agent_selection
+discover_agents
 echo ""
 
 # Run remaining setup scripts (all use directory-based detection)

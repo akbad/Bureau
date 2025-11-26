@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# MCP server setup script for Beehive
+# Tools setup script for Beehive (for MCP servers, backing Docker containers, etc.)
 #
 # Prerequisites:
 #   Required:
@@ -13,10 +13,9 @@
 #       - Tavily API key in $TAVILY_API_KEY
 #       - Brave Search API key in $BRAVE_API_KEY
 #
-#   Optional but recommended:
-#       - Set up Zen clink config:
-#           - Roles and per-CLI config at `~/.zen/cli_clients/`
-#           - Subagent prompts at `~/.zen/prompts`
+#   Optional but recommended: Set up Zen clink config
+#       - Roles and per-CLI config at `~/.zen/cli_clients/`
+#       - Subagent prompts at `~/.zen/prompts`
 #
 # Usage:
 #   ./set-up-tools.sh [options]
@@ -30,42 +29,36 @@
 #                         Configures agents to skip permission prompts for MCP tools.
 #   -h, --help            Show this help message.
 #
-# Detection:
-#   Automatically configures any CLI with a config directory:
+# Agent discovery:
+#   Automatically configures any agentic CLI with a config directory
 #     - Claude Code: ~/.claude/
 #     - Gemini CLI:  ~/.gemini/
 #     - Codex:       ~/.codex/
 #
 # Purpose:
-#  1. Sets up the following MCP servers in HTTP mode
-#     (i.e. shared across all agents/repos):
-#      - Zen MCP (local server, clink only - for cross-CLI orchestration)
-#      - Qdrant MCP (local server, semantic memory with Docker backend)
-#      - Sourcegraph MCP (local server wrapper for Sourcegraph.com public search)
-#      - Semgrep MCP (local server, static analysis and security scanning)
-#      - Serena MCP (local server, semantic code analysis and editing with LSP)
-#      - Context7 MCP (remote Upstash server, always-fresh API docs)
-#      - Tavily MCP (remote Tavily server, web search/extract/map/crawl)
-#      - Brave MCP (remote Brave server, web/image/video/news search)
-#  2. Sets up the following MCP servers in stdio mode
-#     (i.e. each agent runs its own server)
-#      - Filesystem MCP (necessary since only supports stdio transport)
-#      - Fetch MCP (necessary since only supports stdio transport)
-#      - Memory MCP (knowledge graph for persistent structured memory)
-#      - Brave Search MCP (privacy-focused web search)
-#  3. Connects coding agent CLI clients:
-#      - Gemini CLI
-#      - Claude Code
-#      - Codex
+#   1. Sets up the following MCP servers in HTTP mode
+#      (i.e. shared across all agents/repos):
+#       - Zen MCP (local server, clink only - for cross-CLI orchestration)
+#       - Qdrant MCP (local server, semantic memory with Docker backend)
+#       - Sourcegraph MCP (local server wrapper for Sourcegraph.com public search)
+#       - Semgrep MCP (local server, static analysis and security scanning)
+#       - Serena MCP (local server, semantic code analysis and editing with LSP)
+#       - Context7 MCP (remote Upstash server, always-fresh API docs)
+#       - Tavily MCP (remote Tavily server, web search/extract/map/crawl)
+#       - Brave MCP (remote Brave server, web/image/video/news search)
+#   2. Sets up the following MCP servers in stdio mode
+#      (i.e. each agent runs its own server)
+#       - Filesystem MCP (necessary since only supports stdio transport)
+#       - Fetch MCP (necessary since only supports stdio transport)
+#       - Memory MCP (knowledge graph for persistent structured memory)
+#       - Brave Search MCP (privacy-focused web search)
+#   3. Connects coding agent CLI clients if their user-level config dir exists
+#       (see discover_agents):
+#       - Gemini CLI
+#       - Claude Code
+#       - Codex
 
 set -e  # exit on error
-
-# Get the directory where this script lives (for referencing adjacent files)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-
-# Source agent selection library
-source "$REPO_ROOT/scripts/lib/agent-selection.sh"
 
 # --- CONFIG ---
 
@@ -76,19 +69,6 @@ CLONE_DIR="$PROJECTS_DIR/mcp-servers"
 # Where to place needed clones of MCP server repos
 export SOURCEGRAPH_REPO_PATH="$CLONE_DIR/sourcegraph-mcp"
 export SERENA_REPO_PATH="$CLONE_DIR/serena"
-
-# Define supported agents' printable string names but leave AGENTS array empty for now
-# (will be populated by load_agent_selection based on directory detection)
-CLAUDE="Claude Code"
-CODEX="Codex"
-GEMINI="Gemini CLI"
-AGENTS=()
-
-# Supported coding agents CLIs' config file locations
-GEMINI_CONFIG="$HOME/.gemini/settings.json"
-CLAUDE_CONFIG="$HOME/.claude.json"
-CLAUDE_SETTINGS="$HOME/.claude/settings.json"
-CODEX_CONFIG="$HOME/.codex/config.toml"
 
 SERVER_START_TIMEOUT=200  # timeout when waiting for any server/daemon to start
 RANCHER_TIMEOUT=120       # timeout specific for Rancher Desktop startup (can take a while)
@@ -102,7 +82,7 @@ export TAVILY_URL="https://mcp.tavily.com/mcp/?tavilyApiKey=\${TAVILY_API_KEY}"
 export ZEN_CLINK_DISABLED_TOOLS='analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer'
 
 # Ports for local HTTP servers
-export QDRANT_DB_PORT=8780 
+export QDRANT_DB_PORT=8780
 export ZEN_MCP_PORT=8781
 export QDRANT_MCP_PORT=8782
 export SOURCEGRAPH_MCP_PORT=8783
@@ -117,6 +97,31 @@ export QDRANT_DATA_DIR="$PROJECTS_DIR/qdrant-data"
 
 # Directories
 FS_ALLOWED_DIR="${FS_ALLOWED_DIR:-$PROJECTS_DIR}"
+
+# --- INTERNAL SCRIPT CONSTANTS ---
+
+# For referencing adjacent files
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Source agent selection library
+source "$REPO_ROOT/scripts/lib/agent-selection.sh"
+
+# Supported agents' printable string names 
+CLAUDE="Claude Code"
+CODEX="Codex"
+GEMINI="Gemini CLI"
+
+# User-level config locations for supported coding CLIs
+GEMINI_CONFIG="$HOME/.gemini/settings.json"
+CODEX_CONFIG="$HOME/.codex/config.toml"
+CLAUDE_CONFIG="$HOME/.claude/settings.json"
+CLAUDE_CLI_STATE="$HOME/.claude.json"
+
+# Contains the list of agents to be configured by this script to use Beehive and its tools;
+# Populated by discover_agents(); agentic CLIs above are added if their corresponding 
+#   user-level config dir exists
+AGENTS=()
 
 # Colors
 GREEN='\033[0;32m'
@@ -166,7 +171,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Detect installed CLIs based on config directory existence (exits if none found, logs detected CLIs)
-load_agent_selection
+discover_agents
 
 # --- HELPERS ---
 
@@ -424,7 +429,7 @@ add_http_mcp_to_agent() {
             ;;
         "$CLAUDE")
             # Check user scope config directory for existing server
-            if grep -q "\"$server\"" "$CLAUDE_CONFIG"; then
+            if grep -q "\"$server\"" "$CLAUDE_CLI_STATE"; then
                 return 1  # Already exists
             fi
 
@@ -466,7 +471,7 @@ add_stdio_mcp_to_agent() {
             ;;
         "$CLAUDE")
             # Check user scope config directory for existing server
-            if grep -q "\"$server\"" "$CLAUDE_CONFIG"; then
+            if grep -q "\"$server\"" "$CLAUDE_CLI_STATE"; then
                 return 1 # Already exists
             fi
 
@@ -669,7 +674,7 @@ configure_auto_approve() {
         log_info "→ Configuring $agent..."
         case "$agent" in
             "$CLAUDE")
-                python3 "$SCRIPT_DIR/add-claude-auto-approvals.py" "$CLAUDE_SETTINGS" "${mcp_servers[@]}"
+                python3 "$SCRIPT_DIR/add-claude-auto-approvals.py" "$CLAUDE_CONFIG" "${mcp_servers[@]}"
                 ;;
             "$CODEX")
                 python3 "$SCRIPT_DIR/add-codex-auto-approvals.py" "$CODEX_CONFIG"
@@ -1022,7 +1027,8 @@ log_info "  $QDRANT_STOP_CMD"
 log_empty_line
 TAKE_DOWN_FILE="$REPO_ROOT/scripts/stop-beehive"
 echo "#!/usr/bin/env bash" > "$TAKE_DOWN_FILE"
-echo "$KILL_HTTPS_CMD; $QDRANT_STOP_CMD" >> "$TAKE_DOWN_FILE"
+echo -e "# Run this script to stop servers and containers launched by Beehive's tools script\n" >> "$TAKE_DOWN_FILE"
+echo -e "$KILL_HTTPS_CMD\n$QDRANT_STOP_CMD" >> "$TAKE_DOWN_FILE"
 log_info "✔︎ Stop commands also saved to $RED$TAKE_DOWN_FILE$NC for convenience"
 
 if [[ "$AUTO_APPROVE_MCP" == true ]]; then
