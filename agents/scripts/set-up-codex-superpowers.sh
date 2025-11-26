@@ -18,7 +18,7 @@ REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 source "$REPO_ROOT/scripts/lib/agent-selection.sh"
 
 # Load agent selection from profile
-load_agent_selection
+discover_agents
 
 # Skip entirely if Codex not selected
 if ! agent_enabled "Codex"; then

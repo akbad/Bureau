@@ -21,7 +21,7 @@ REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 source "$REPO_ROOT/scripts/lib/agent-selection.sh"
 
 # Detect installed CLIs based on directory existence (exits if none found, logs detected CLIs)
-load_agent_selection
+discover_agents
 
 # Subdirectory name for symlinked agents
 AGENTS_SUBDIR="bees"
