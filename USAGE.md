@@ -33,10 +33,11 @@
     - **Claude Code**
     - **Codex**
     - **Gemini CLI**
+    - **OpenCode**
 
 - A **suite of specialized coding agent roles** with consistent behaviour on any platform, with **flexible ways of invoking them:**
 
-    - **Direct use:** use an agent at any time in your current conversation *(Claude Code)* or launch instances of the CLI with the chosen agent *(Codex & Gemini CLIs)*
+    - **Direct use:** use an agent at any time in your current conversation *(Claude Code, OpenCode)* or launch instances of the CLI with the chosen agent *(Codex & Gemini CLIs)*
     - **As subagents:** delegate specific, isolated tasks to specialized agents that run in the background, <ins>automatically</ins> using [Zen MCP's `clink`](https://github.com/BeehiveInnovations/zen-mcp-server/blob/main/docs/tools/clink.md) to **enable cross-CLI subagent spawning & collaboration**
 
 - A set of **open-source/free/freemium MCP servers** *(i.e. you won't pay a cent)* that make tasks (such as `git`, web browsing and static code analysis) **reliable and token-efficient**
@@ -44,8 +45,8 @@
     
     - MCP server configuration
     - Agent role prompt installs
-    - CLI configuration files for the 3 agentic coding CLIs
-    - Config files for all 3 CLIs, ensuring **your CLIs automatically use the tools and agent roles set up in this repo** (and not only when explicitly prompted to)
+    - CLI configuration files for the 4 agentic coding CLIs
+    - Config files for all 4 CLIs, ensuring **your CLIs automatically use the tools and agent roles set up in this repo** (and not only when explicitly prompted to)
 
 > [!NOTE]
 > #### CLI-specific restrictions
@@ -63,7 +64,7 @@
 | :------ | :--------- |
 | **Skill** | *Superpowers* workflow (e.g., `superpowers:test-driven-development`) + any extra Claude/Codex skills files you define |
 | **Agent** |  Roles (e.g., `debugger`, `architect`) usable as agents, either [directly in your main chat](#direct-use) or [as **subagents**](#as-subagents) |
-| **Subagent** | A child **agent**, isolated from the main chat, spawned to complete a particular task by *either* (1) Claude Code first-party "subagents" feature or (2) `clink` |
+| **Subagent** | A child **agent**, isolated from the main chat, spawned to complete a particular task by *either* (1) Claude Code or OpenCode native subagents feature or (2) `clink` |
 | **MCP** | MCP servers available for CLIs to use |
 
 ## Using agents: quick guide
@@ -73,7 +74,7 @@
 > | Location | Used when? |
 > | :--- | :--- |
 > | [`agents/claude-subagents`](agents/claude-subagents/) | (1) Spawning **subagents via Claude Code**'s first-party "subagents" feature or (2) spawning agents for **direct use in chat via slash commands** |
-> | [`agents/role-prompts`](agents/role-prompts/) | (1) Spawning **subagents via `clink`** (from *any* CLI, including Claude Code) or (2) spawning agents for **direct use in Codex/Gemini CLIs via wrapper scripts** |
+> | [`agents/role-prompts`](agents/role-prompts/) | (1) Spawning **subagents via `clink`** (from *any* CLI, including Claude Code) or (2) spawning agents for **direct use in Codex/Gemini CLIs via wrapper scripts** or (3) spawning **OpenCode subagents** |
 >
 > - **Read through the files to see the full list of roles available for use.**
 > - Prompts for the <ins>same role</ins> have the <ins>same body across both locations</ins> *(the `claude-subagents` files simply have some extra header YAML that makes them smoother to use with Claude Code)*
@@ -90,12 +91,14 @@ Beehive automatically detects which CLIs to configure based on the existence of 
 - **Claude Code**: `~/.claude/`
 - **Gemini CLI**: `~/.gemini/`
 - **Codex**: `~/.codex/`
+- **OpenCode**: `~/.config/opencode/` (or `~/.opencode/`)
 
 **Add a CLI:**
 ```bash
-mkdir -p ~/.claude    # Enable Claude Code
-mkdir -p ~/.gemini    # Enable Gemini CLI
-mkdir -p ~/.codex     # Enable Codex
+mkdir -p ~/.claude           # Enable Claude Code
+mkdir -p ~/.gemini           # Enable Gemini CLI
+mkdir -p ~/.codex            # Enable Codex
+mkdir -p ~/.config/opencode  # Enable OpenCode
 ```
 
 **Remove a CLI:**
@@ -144,6 +147,10 @@ Launch the CLI using the **generated wrapper scripts**, named in the format **`<
 >   # Give it error logs or code snippets to analyze
 >   ```
 
+#### OpenCode
+
+Use the [**primary agents mechanism**](https://opencode.ai/docs/agents/#primary-agents): press **Tab** to cycle through registered Beehive agents.
+
 ### As subagents
 
 → When you need to delegate a <ins>specific, isolated task</ins> without interrupting your main workflow or polluting your current chat's context. \
@@ -162,21 +169,21 @@ For cross-CLI subagent spawning and collaboration, use Zen MCP's `clink` tool. I
 
 > <ins>Example</ins>:
 > ```bash
-> # within any of Claude Code, Codex or Gemini CLIs
-> > clink with gemini with architect role to map out how to 
+> # within any of Claude Code, Codex, Gemini CLI, or OpenCode
+> > clink with gemini with architect role to map out how to
 >   migrate from our monorepo to a microservices architecture
 
-#### Within Claude Code (via Task tool)
+#### Within Claude Code & OpenCode (via native subagents)
 
 > [!NOTE]
-> This is only for spawning Claude Code subagents from within Claude Code.
+> This is for spawning subagents using the native subagent mechanisms of Claude Code and OpenCode.
 
 Simply explicitly mention the subagent you want to use and it will automatically be invoked to handle the task.
 
 > <ins>Example</ins>:
 > ```bash
-> # in Claude Code
-> > Have the `code-reviewer` subagent review the changes 
+> # in Claude Code or OpenCode
+> > Have the `code-reviewer` subagent review the changes
 >   in `src/main.py` for best practices and potential bugs.
 
 ## Tools available: overview
@@ -251,7 +258,7 @@ There are 2 methods for this:
 ### Memory + Qdrant MCPs: main workflow for cross-CLI memory sharing
 
 > [!IMPORTANT]
-> **It is extraordinarily helpful for Claude Code, Gemini CLI and Codex to share memories** with one another to avoid repeating work (and, if using a less powerful model, to benefit automatically from analyses/memories saved from smarter models).
+> **It is extraordinarily helpful for Claude Code, Gemini CLI, Codex, and OpenCode to share memories** with one another to avoid repeating work (and, if using a less powerful model, to benefit automatically from analyses/memories saved from smarter models).
 
 <ins>All</ins> CLIs should consistently and scrupulously:
 

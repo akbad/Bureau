@@ -42,7 +42,7 @@
 | :------ | :--------- |
 | **Skill** | *Superpowers* workflow (e.g., `superpowers:test-driven-development`) + any extra Claude/Codex skills files you define |
 | **Agent** |  Personas used by agents (e.g., `debugger`, `architect`), invoked either directly in your main chat or as subagents |
-| **Subagent** | A child **agent**, isolated from the main chat, spawned to complete a particular task by *either* (1) Claude Code first-party "subagents" feature or (2) `clink` |
+| **Subagent** | A child **agent**, isolated from the main chat, spawned to complete a particular task by *either* (1) Claude Code or OpenCode native subagents feature or (2) `clink` |
 | **MCP** | MCP servers made available for you to use; see `compact-mcp-list.md` (on your list of must-read files) for a full guide |
 
 ## Core delegation strategies
@@ -50,7 +50,7 @@
 ### Delegation mechanisms available
 
 1. `clink` (from Zen MCP, available everywhere): Cross-model orchestration to Claude, Codex (GPT‑5.1‑Codex), Gemini
-2. `Task` tool (Claude‑only): Spawn specialized Claude Code subagents
+2. `Task` tool (Claude) or native subagents (OpenCode): Spawn specialized subagents
 3. `AskUserQuestion`: Stop and obtain explicit user guidance
 
 ### Delegation principles
@@ -108,7 +108,7 @@ For example, suppose you are performing a debugging task. Examples of what could
 | Mechanism | CLI Support | Primary Use Cases | When to Use |
 | :--- | :--- | :--- | :--- |
 | **`clink`** | All CLIs | Cross-model delegation, specialized roles | Different model needed (see [decision tree](#decision-tree-quick-reference)), isolated context required |
-| **`Task`** | Claude only | Claude subagents, exploration, research | Codebase exploration, parallel searches, multi-step research |
+| **`Task`** / native subagents | Claude, OpenCode | Specialized subagents, exploration, research | Codebase exploration, parallel searches, multi-step research |
 | **`AskUserQuestion`** | All CLIs | User guidance, approval gates | Ambiguity, multiple valid approaches, explicit approval needed |
 
 ### Using `clink`
@@ -137,7 +137,7 @@ For `Explore` and `Plan` agents, specify thoroughness in your prompt:
 | `"medium"` | Moderate exploration across multiple files |
 | `"very thorough"` | Comprehensive analysis across entire codebase |
 
-### Using `Task` tool *(Claude Code only)*
+### Using `Task` tool *(Claude Code)* / native subagents *(OpenCode)*
 
 **When to use:**
 - Codebase exploration (Explore agent with configurable thoroughness)
@@ -264,6 +264,11 @@ Parallel execution only helps if you consolidate the answers rigorously. After e
 - Choose appropriate **thoroughness level** for Explore/Plan agents (`quick`, `medium`, `very thorough`)
 - Use **parallel Task calls** for independent exploration/research tasks
 - Provide **clear prompt** with specific research questions or exploration goals
+
+**For native subagents (OpenCode):**
+- Press **Tab** to cycle through registered agents and select the appropriate one
+- Use natural language to delegate, or explicitly name the agent (e.g., "Have the debugger agent investigate...")
+- OpenCode auto-delegates when agent descriptions match the task context
 
 ### Common context handoff mistakes
 

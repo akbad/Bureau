@@ -127,6 +127,49 @@ if agent_enabled "Gemini CLI"; then
     echo ""
 fi
 
+# OpenCode agents (register Beehive prompts as subagents)
+if agent_enabled "OpenCode"; then
+    print_step "Registering Beehive agents for OpenCode"
+    TARGET_OC="$HOME/.config/opencode/opencode.json"
+    mkdir -p "$(dirname "$TARGET_OC")"
+    # Ensure file exists
+    if [[ ! -f "$TARGET_OC" ]]; then
+        echo '{}' > "$TARGET_OC"
+    fi
+    # Symlink role prompts into OpenCode config directory for stable paths
+    OPEN_AGENT_DIR="$HOME/.config/opencode/agent/$AGENTS_SUBDIR"
+    mkdir -p "$HOME/.config/opencode/agent"
+    if [[ -L "$OPEN_AGENT_DIR" ]]; then
+        rm "$OPEN_AGENT_DIR"
+        print_success "Removed old symlink at $OPEN_AGENT_DIR"
+    fi
+    ln -s "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" "$OPEN_AGENT_DIR"
+    print_success "Symlinked Beehive role prompts to $OPEN_AGENT_DIR"
+
+    for prompt_file in "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME"/*.md; do
+        role_name="$(basename "$prompt_file" .md)"
+        prompt_path="$OPEN_AGENT_DIR/$(basename "$prompt_file")"
+        tmp_file="$(mktemp)"
+        jq \
+          --arg name "$role_name" \
+          --arg prompt "{file:$prompt_path}" \
+          --arg desc "Beehive agent: $role_name" \
+          '
+          .agent = (.agent // {})
+          | if (.agent[$name] == null) then
+              .agent[$name] = {
+                mode: "all",
+                description: $desc,
+                prompt: $prompt
+              }
+            else . end
+          ' "$TARGET_OC" > "$tmp_file" && mv "$tmp_file" "$TARGET_OC"
+    done
+
+    print_success "OpenCode agents updated in $TARGET_OC"
+    echo ""
+fi
+
 # ============================================================================
 # Done!
 # ============================================================================

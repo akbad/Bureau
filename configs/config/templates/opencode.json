@@ -1,0 +1,107 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "{{REPO_ROOT}}/agents/reference/compact-mcp-list.md",
+    "{{REPO_ROOT}}/agents/reference/handoff-guidelines.md"
+  ],
+  "model": "",
+  "small_model": "",
+  "theme": "opencode",
+  "autoupdate": true,
+  "permission": {
+    "edit": "ask",
+    "write": "ask",
+    "bash": "ask"
+  },
+  "tools": {},
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
+      },
+      "enabled": true
+    },
+    "tavily": {
+      "type": "remote",
+      "url": "https://mcp.tavily.com/mcp/?tavilyApiKey={env:TAVILY_API_KEY}",
+      "enabled": true
+    },
+    "brave": {
+      "type": "local",
+      "command": [
+        "env",
+        "BRAVE_API_KEY={env:BRAVE_API_KEY}",
+        "npx",
+        "-y",
+        "@brave/brave-search-mcp-server",
+        "--transport",
+        "stdio"
+      ],
+      "enabled": true
+    },
+    "zen": {
+      "type": "remote",
+      "url": "http://localhost:8781/mcp",
+      "enabled": true
+    },
+    "sourcegraph": {
+      "type": "remote",
+      "url": "http://localhost:8783/sourcegraph/mcp/",
+      "enabled": true
+    },
+    "semgrep": {
+      "type": "remote",
+      "url": "http://localhost:8784/mcp/",
+      "enabled": true
+    },
+    "serena": {
+      "type": "remote",
+      "url": "http://localhost:8785/mcp/",
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@playwright/mcp@latest"
+      ],
+      "enabled": true
+    },
+    "memory": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "enabled": true
+    },
+    "filesystem": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "{{REPO_ROOT}}"
+      ],
+      "enabled": true
+    },
+    "fetch": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "mcp-server-fetch"
+      ],
+      "enabled": true
+    },
+    "qdrant": {
+      "type": "remote",
+      "url": "http://localhost:8782/mcp/",
+      "enabled": true
+    }
+  },
+  "agent": {}
+}

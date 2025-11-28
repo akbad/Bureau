@@ -1,16 +1,17 @@
 # Beehive
 
-Versatile tools across Gemini CLI, Claude Code and Codex, with the intelligence to leverage & orchestrate them autonomously.
+Versatile tools across Gemini CLI, Claude Code, Codex and OpenCode, with the intelligence to leverage & orchestrate them autonomously.
 
 > [!IMPORTANT]
->
-> Quick links to key resources:
-> - [**Setup guide**](SETUP.md)
+> ### Shortcuts to key resources
+> 
+> - [**Quick setup guide**](QUICKSTART.md)
+> - [**Full setup guide**](SETUP.md)
 > - [**Usage guide**](USAGE.md)
 
 ## Purpose
 
-Agentic coding CLIs are fragmented: Claude Code, Gemini CLI, and Codex each have unique strengths but incompatible tooling. 
+Agentic coding CLIs, such as Claude Code, Gemini CLI, and Codex, are fragmented: each have unique strengths but incompatible tooling. 
 
 Power users rotating between these (as is often the best option, given providers' unpredictable model throttling and capricious rate limit changes, even for paid plans) **lose time rebuilding and reconfiguring context, tools, and custom workflows**. At the same time, **many (solo- or multi-agent) orchestration frameworks have considerable learning curves and enforce opinionated orchestration patterns** (e.g. graphs, crews, pipelines), rather than adapting to users' ad-hoc workflows or permitting open-ended exploration/building.
 
@@ -26,9 +27,9 @@ Power users rotating between these (as is often the best option, given providers
 
 ## Feature list
 
-### Consistent agent roles across 3 CLI platforms
+### Consistent agent roles across 4 CLI platforms
 
-- 39 specialized roles (architect, frontend, security, observability, debugger, data-eng, etc.)
+- 39 specialized roles (architect, debugger, etc.)
 - Same role definitions work everywhere via shared prompt sources
 - Choose model per task (e.g. Claude for architecture, Gemini for broad code search)
 
@@ -38,13 +39,14 @@ Power users rotating between these (as is often the best option, given providers
 
     - Done using both:
         
-        1. Claude Code's built-in subagents feature
+        1. Claude Code and OpenCode's built-in subagents features
         2. Zen's `clink` (for Codex and Gemini CLIs, as well as cross-model/-CLI collaboration)
 
 - **Direct** use and interaction **in main/current conversation** (using custom-generated wrappers/commands): 
     
-    - **Codex, Gemini CLIs:** launch CLI with chosen agent active in main conversation
-    - **Claude Code:** automatically activate any agent in the current conversation using slash commands
+    - **Codex, Gemini CLIs:** launch CLI with chosen agent active in main conversation (using automatically-configured wrappers like `codex-debugger` and `gemini-architect`)
+    - **Claude Code:** automatically activate any agent in the current conversation using slash commands (that are automatically set up by Beehive)
+    - **OpenCode:** use any Beehive agent as a [primary agent](https://opencode.ai/docs/agents/#primary-agents)
 
 ### 13 MCP servers
 
@@ -79,16 +81,18 @@ with each of the 3 files above generated from templates (for portability regardl
 > [!NOTE]
 > **CLI agent selection**
 > 
-> - Setup scripts *automatically* detect which CLIs to configure based on **user-scoped** directory existence (`~/.claude/`, `~/.gemini/`, `~/.codex/`). 
+> - Setup scripts *automatically* detect which CLIs to configure based on **user-scoped** directory existence (`~/.claude/`, `~/.gemini/`, `~/.codex/`, `~/.opencode`). 
 > - More details can be found in [SETUP.md](SETUP.md#selecting-cli-agents-to-configure).
 
 ## Usage patterns
 
 ### Subagents (for isolated execution)
 
-**Claude Code (Task tool):**
+**Claude Code OpenCode (native subagents):**
 ```
 "Have the architect subagent design this system"
+"Use the debugger agent to investigate this stack trace"
+"Spawn the security-compliance agent to audit these changes"
 ```
 
 **Any CLI (Zen clink):**
@@ -104,7 +108,7 @@ with each of the 3 files above generated from templates (for portability regardl
 ```bash
 claude
 > /explainer
-# interactive conversation helping you understand the repo you spawned it in
+# begin interactive conversation helping you understand the repo you spawned it in
 ```
 
 **Gemini/Codex** (via wrapper scripts)
@@ -114,12 +118,16 @@ gemini-explainer                        # use explainer role w/ Gemini CLI
 codex-architect --model gpt-5-codex     # architect role w/ GPT-5-Codex via Codex
 ```
 
+**OpenCode** (via the [primary agents mechanism](https://opencode.ai/docs/agents/#primary-agents))
+
+You can cycle through available agents simply using the Tab key.
+
 ## Repo structure
 
 ```
 agents/
-├── claude-subagents/      # Claude Code Task tool definitions
-├── role-prompts/    # Zen clink role definitions (cross-CLI)
+├── role-prompts/          # Agent role prompts for both Zen's clink and OpenCode
+├── claude-subagents/      # Same role prompts as above, except with Claude Code-specific YAML frontmatter
 ├── reference/             # MCP guides (injected via config files)
 └── scripts/               # Setup automation
 

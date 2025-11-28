@@ -106,24 +106,6 @@ scripts/set-up-tools.sh [options]
 
 #### Options
 
-- `-a/--agent <str>`: for choosing specific agents to set up/configure to use the tools
-
-    - **Supported agents: Claude Code, Codex, Gemini CLI**
-
-        - **Default: all supported agents will be set up**
-
-    - To choose specific ones, use `-a/--agent` followed by a string containing one or more of
-
-        - `c` for Claude Code
-        - `x` for Codex
-        - `g` for Gemini
-
-    - For example:
-
-        - `-a c` sets up only Claude Code to use the MCPs
-        - `-a gc` sets up only Claude Code and Gemini to use the MCPs
-        - `-a cgx` = same as default, set up for all 3
-
 - `-y/--yes`: additionally configures agents chosen with `-a/--agent` above (or all supported agents by default) to have **auto-approved use of all the MCP tools set up here** *(so you don't get asked for permission each time/for each new tool you try to use)*
 
 - `-f/--fsdir <path>`: for specifying the directory that the Filesystem MCP is allowed to make edits within
