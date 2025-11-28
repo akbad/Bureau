@@ -2,7 +2,7 @@
 
 ## Role prompts
 
-- **`clink-role-prompts/`**: contains role prompts to be used for clink
+- **`role-prompts/`**: contains role prompts to be used for clink
 
     - Body-only "delta" role prompts (no YAML)
     - 600–2,000 chars
@@ -12,7 +12,7 @@
     - Generated (using script) to contain:
 
         - YAML frontmatter
-        - Body is the agent template in `clink-role-prompts/` for the same role
+        - Body is the agent template in `role-prompts/` for the same role
 
     - 1,200-5,000 chars
 
@@ -156,7 +156,7 @@
 
 ## Using with Zen's `clink`
 
-This repo’s role bodies in `agents/clink-role-prompts/` can be used as clink roles across any project. clink loads CLI client configs and role prompt files at startup.
+This repo’s role bodies in `agents/role-prompts/` can be used as clink roles across any project. clink loads CLI client configs and role prompt files at startup.
 
 - Prereqs
     - Run Zen MCP with clink enabled (for example via this repo’s setup script). Endpoint typically: `http://localhost:8781/mcp/`.
@@ -168,7 +168,7 @@ This repo’s role bodies in `agents/clink-role-prompts/` can be used as clink r
     - User overrides: `~/.zen/cli_clients`
 
 - Map roles to these prompt files
-    - Option A (absolute paths): point `prompt_path` at files in `agents/clink-role-prompts/`.
+    - Option A (absolute paths): point `prompt_path` at files in `agents/role-prompts/`.
     - Option B (symlink + relative): symlink this folder under `~/.zen/cli_clients/systemprompts/` and use a relative `prompt_path`.
 
 Example (`~/.zen/cli_clients/gemini.json`):
@@ -181,10 +181,10 @@ Example (`~/.zen/cli_clients/gemini.json`):
   "env": {},
   "roles": {
     "frontend": {
-      "prompt_path": "/path/to/beehive/agents/clink-role-prompts/frontend.md"
+      "prompt_path": "/path/to/beehive/agents/role-prompts/frontend.md"
     },
     "testing": {
-      "prompt_path": "/path/to/beehive/agents/clink-role-prompts/testing.md"
+      "prompt_path": "/path/to/beehive/agents/role-prompts/testing.md"
     }
   }
 }
@@ -194,7 +194,7 @@ Or using a symlinked layout:
 
 ```bash
 mkdir -p ~/.zen/cli_clients/systemprompts/clink
-ln -s "$PWD/beehive/agents/clink-role-prompts" \
+ln -s "$PWD/beehive/agents/role-prompts" \
       ~/.zen/cli_clients/systemprompts/clink/for-use-prompts
 ```
 

@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLAUDE_AGENTS_DIRNAME="claude-subagents"
-CLINK_AGENTS_DIRNAME="clink-role-prompts"
+CLINK_AGENTS_DIRNAME="role-prompts"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 
 # Source agent selection library
@@ -72,7 +72,7 @@ if [[ ${#AGENTS[@]} -gt 0 ]]; then
     print_success "Symlinked role prompts for clink to ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR"
 
     # Copy JSON configs
-    cp "$REPO_ROOT/configs/"*.json ~/.zen/cli_clients/
+    cp "$REPO_ROOT/configs/zen/"*.json ~/.zen/cli_clients/
     print_success "Copied CLI configs (*.json) to ~/.zen/cli_clients/"
 
     echo ""

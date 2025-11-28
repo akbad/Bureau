@@ -73,7 +73,7 @@
 > | Location | Used when? |
 > | :--- | :--- |
 > | [`agents/claude-subagents`](agents/claude-subagents/) | (1) Spawning **subagents via Claude Code**'s first-party "subagents" feature or (2) spawning agents for **direct use in chat via slash commands** |
-> | [`agents/clink-role-prompts`](agents/clink-role-prompts/) | (1) Spawning **subagents via `clink`** (from *any* CLI, including Claude Code) or (2) spawning agents for **direct use in Codex/Gemini CLIs via wrapper scripts** |
+> | [`agents/role-prompts`](agents/role-prompts/) | (1) Spawning **subagents via `clink`** (from *any* CLI, including Claude Code) or (2) spawning agents for **direct use in Codex/Gemini CLIs via wrapper scripts** |
 >
 > - **Read through the files to see the full list of roles available for use.**
 > - Prompts for the <ins>same role</ins> have the <ins>same body across both locations</ins> *(the `claude-subagents` files simply have some extra header YAML that makes them smoother to use with Claude Code)*
@@ -131,13 +131,13 @@ Launch the CLI using the **generated wrapper scripts**, named in the format **`<
 
 > <ins>Example</ins>:
 >
-> - Starting Gemini CLI to interact with the [*Explainer*](agents/clink-role-prompts/explainer.md) agent in the main conversation:
+> - Starting Gemini CLI to interact with the [*Explainer*](agents/role-prompts/explainer.md) agent in the main conversation:
 >   ```bash
 >   $ gemini-explainer
 >   # Gemini CLI is now running w/ the Explainer agent active
 >   # Ask it to clarify code and docs
 >   ```
-> - Starting Codex to interact with the [*Debugger*](agents/clink-role-prompts/debugger.md) agent in the main conversation:
+> - Starting Codex to interact with the [*Debugger*](agents/role-prompts/debugger.md) agent in the main conversation:
 >   ```bash
 >   $ codex-debugger
 >   # Codex is now running w/ the Debugger agent active

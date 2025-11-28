@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
-CLINK_ROLES_DIR="$AGENTS_DIR/clink-role-prompts"
+CLINK_ROLES_DIR="$AGENTS_DIR/role-prompts"
 
 # Source agent selection library
 source "$REPO_ROOT/scripts/lib/agent-selection.sh"
@@ -63,7 +63,7 @@ print_error() {
 
 # Check if source directory exists
 if [[ ! -d "$CLINK_ROLES_DIR" ]]; then
-    print_error "Cannot find clink-role-prompts directory at: $CLINK_ROLES_DIR"
+    print_error "Cannot find role-prompts directory at: $CLINK_ROLES_DIR"
 fi
 
 # Create launchers directory if it doesn't exist
