@@ -8,7 +8,12 @@ Usage:
 """
 
 import sys
-from config_utils import load_json_config, save_json_config
+from pathlib import Path
+
+# Ensure shared config utils are importable
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent / "lib"))
+
+from pollen.config_utils import load_json_config, save_json_config
 
 
 def update_gemini_settings(settings_path: str, tools: list[str]) -> None:
