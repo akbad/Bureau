@@ -14,16 +14,17 @@ In particular, it looks for:
 - **Claude Code:** `~/.claude/`
 - **Gemini CLI:** `~/.gemini/`
 - **Codex:** `~/.codex/`
-- **OpenCode:** `~/.opencode`
+- **OpenCode:** `~/.config/opencode/` (or `~/.opencode/`)
 
 ### Adding CLIs
 
 To configure a CLI, simply create its config directory:
 
 ```bash
-mkdir -p ~/.claude    # Enable Claude Code
-mkdir -p ~/.gemini    # Enable Gemini CLI
-mkdir -p ~/.codex     # Enable Codex
+mkdir -p ~/.claude              # Enable Claude Code
+mkdir -p ~/.gemini              # Enable Gemini CLI
+mkdir -p ~/.codex               # Enable Codex
+mkdir -p ~/.config/opencode     # Enable OpenCode
 ```
 
 ### Removing CLIs
@@ -96,8 +97,10 @@ All setup scripts automatically detect which CLIs are installed based on these d
 > - `~/.gemini/GEMINI.md`
 > - `~/.codex/AGENTS.md`
 >
-> If these files already exist in your system, instead of running the script:
-> 
+> **For OpenCode**, the setup script *merges* MCP configurations into `~/.config/opencode/opencode.json`, preserving your existing settings.
+>
+> If the markdown config files above already exist in your system, instead of running the script:
+>
 > - append the contents of [`CLAUDE.template.md`](configs/context/templates/CLAUDE.template.md) to your `CLAUDE.md`
 > - append the contents of [`AGENTS.template.md`](configs/context/templates/AGENTS.template.md) to your `AGENTS.md` and `GEMINI.md`
 
@@ -111,6 +114,7 @@ This generates config files from templates ([`AGENTS.template.md`](configs/conte
 - `~/.gemini/GEMINI.md` (for Gemini CLI)
 - `~/.codex/AGENTS.md` (for Codex)
 - `~/.claude/CLAUDE.md` (for Claude Code)
+- `~/.config/opencode/opencode.json` (for OpenCode — MCP configs merged from [`opencode.json`](configs/config/templates/opencode.json) template)
 
 **The result will be that each agent will always be instructed to read:**
 
@@ -143,17 +147,23 @@ This generates config files from templates ([`AGENTS.template.md`](configs/conte
 1. Restart Claude Code
 2. Run **`/status`**: you should see a line saying `Memory: user (~/.claude/CLAUDE.md)`
 
+#### OpenCode
+
+1. Restart OpenCode
+2. Run **`/status`**: you should see Beehive's MCP servers listed (e.g., `zen`, `qdrant`, `sourcegraph`, `context7`, etc.) with their statuses shown as "connected"
+3. Verify agents are available by pressing Tab to cycle through registered agents — Beehive agents like `architect`, `debugger`, `frontend` should appear
+
 ## *Sub*agents
 
 > The setup script at [`agents/scripts/set-up-agents.sh`](agents/scripts/set-up-agents.sh) automates all the tasks in this section. 
 >
 > **Warning: it will overwrite any existing files in `~/.claude/agents/*.md` whose names match any of the filenames in [`claude-subagents/`](agents/claude-subagents/)**
 
-The two sections below set up the same agent roles on different platforms:
+The sections below set up the same agent roles on different platforms:
 
-- Claude Code subagents are for spawning subagents within Claude Code using a Claude model
-- Zen's `clink` is for spawning subagents (allows choosing both the role and the model used):
-    
+- **Claude Code & OpenCode** subagents are for spawning subagents using their native mechanisms
+- **Zen's `clink`** is for spawning subagents (allows choosing both the role and the model used):
+
     - From Gemini CLI and Codex
     - From Claude Code [if you want to use Gemini or GPT (Codex) models](tools/models-decision-guide.md)
 
@@ -209,32 +219,49 @@ The two sections below set up the same agent roles on different platforms:
 
 > [!TIP]
 > **To spawn subagents in Claude Code:**
-> 
+>
 > 1. **Mention the agent explicitly** by name in your prompt, e.g. `Have the debugger subagent investigate this error`
 > 2. Claude **automatically** invokes subagents when tasks match their descriptions*
 >
 > **Key properties:**
-> 
-> - Each subagent has its own context window (doesn't pollute main conversation)
+>
+> - Each subagent has its own context window (doesn't pollute main conversation) from [`role-prompts/`](agents/role-prompts/)
 > - For each subagent, can choose model it uses & tools available to it
+
+### OpenCode subagents
+
+1. The setup script symlinks role prompts to `~/.config/opencode/agent/bees/`
+2. Each role is registered in `~/.config/opencode/opencode.json` under the `agent` key with `mode: "subagent"`
+3. Verify by pressing Tab in OpenCode to cycle through available agents — Beehive agents should appear
+
+> [!TIP]
+> **To spawn subagents in OpenCode:**
+>
+> - **Mention the agent** by name in your prompt, e.g. `Use the debugger agent to investigate this error`
+> - OpenCode **automatically** delegates to subagents when tasks match their descriptions
 
 ## Agents
 
 > [!NOTE]
-> The instructions/scripts in this section set up the ability to **launch Claude Code, Codex and Gemini CLI using a particular agent *from launch for the main conversation*** (instead of as *subagents* that you can't interact with directly).
+> The instructions/scripts in this section set up the ability to **launch Claude Code, Codex, Gemini CLI, and OpenCode using a particular agent *from launch for the main conversation*** (instead of as *subagents* that you can't interact with directly).
 
 ### Strategy
 
-#### For Claude Code 
+#### For Claude Code
 
-- Use **slash commands** (e.g. `/architect`, `/frontend`) that inject role prompts into the current conversation. 
+- Use **slash commands** (e.g. `/architect`, `/frontend`) that inject role prompts into the current conversation.
 - Commands are generated to `~/.claude/commands/` from the agent files in [`claude-subagents/`](agents/claude-subagents/) using the script in the instructions below.
 
 #### For Gemini CLI & Codex
 
-- Use **wrapper scripts** installed to `~/.local/bin/` that launch the CLI with a role prompt from the [`role-prompts/`](agents/role-prompts/) pre-loaded in the main conversation. 
-- **Structure: `<codex/gemini>-<rolename>`** 
+- Use **wrapper scripts** installed to `~/.local/bin/` that launch the CLI with a role prompt from the [`role-prompts/`](agents/role-prompts/) pre-loaded in the main conversation.
+- **Structure: `<codex/gemini>-<rolename>`**
     - For example, `gemini-architect` and `codex-architect` are generated from `role-prompts/architect.md`
+
+#### For OpenCode
+
+- Use the [**primary agents mechanism**](https://opencode.ai/docs/agents/#primary-agents) — press **Tab** to cycle through registered agents.
+- Agents are automatically registered to `~/.config/opencode/opencode.json` by the setup script from [`role-prompts/`](agents/role-prompts/).
 
 ### Instructions
 

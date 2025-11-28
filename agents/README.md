@@ -2,7 +2,7 @@
 
 ## Role prompts
 
-- **`role-prompts/`**: contains role prompts to be used for clink
+- **`role-prompts/`**: contains role prompts to be used for clink and OpenCode subagents
 
     - Body-only "delta" role prompts (no YAML)
     - 600–2,000 chars
@@ -276,4 +276,27 @@ claude --agents '{
 }'
 ```
 
-Note: Role bodies should reference `agents/reference/compact-mcp-list.md` (Tier 1) and any relevant Tier‑2/3 guides. We’ll add `agents/handoff-guidelines.md` next and reference it as a must‑read for delegation rules.
+Note: Role bodies should reference `agents/reference/compact-mcp-list.md` (Tier 1) and any relevant Tier‑2/3 guides. We'll add `agents/handoff-guidelines.md` next and reference it as a must‑read for delegation rules.
+
+## Using with OpenCode subagents
+
+This repo's role prompts in `agents/role-prompts/` are automatically configured as OpenCode subagents by the setup script.
+
+- Where they live
+    - Role prompts are symlinked to `~/.config/opencode/agent/bees/`
+    - Agents are registered in `~/.config/opencode/opencode.json` under the `agent` key with `mode: "subagent"`
+
+- Install (via setup script)
+
+```bash
+agents/scripts/set-up-agents.sh
+```
+
+The setup script:
+1. Creates symlinks from `agents/role-prompts/*.md` to `~/.config/opencode/agent/bees/`
+2. Registers each agent in `opencode.json` with `mode: "all"`
+
+- Verify and use
+    - Press **Tab** in OpenCode to cycle through available agents — Beehive agents should appear
+    - Use natural prompts and let OpenCode auto-delegate, or explicitly mention a subagent by name
+    - Example: `Have the debugger agent investigate this stack trace`

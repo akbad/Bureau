@@ -992,6 +992,35 @@ if [[ "$SERENA_AVAILABLE" == true ]]; then
     log_info "  • Serena MCP: /tmp/mcp-Serena MCP-server.log"
 fi
 
+if agent_enabled "OpenCode"; then
+    log_separator
+    log_info "Syncing OpenCode MCP config"
+    TEMPLATE_OC="$REPO_ROOT/configs/config/templates/opencode.json"
+    GENERATED_OC="$REPO_ROOT/configs/config/generated/opencode.generated.json"
+    TARGET_OC="$HOME/.config/opencode/opencode.json"
+
+    if [[ -f "$TEMPLATE_OC" ]]; then
+        mkdir -p "$(dirname "$GENERATED_OC")"
+        if ! sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$TEMPLATE_OC" > "$GENERATED_OC"; then
+            log_warning "Failed to render OpenCode template; skipping OpenCode sync"
+            GENERATED_OC=""
+        fi
+        mkdir -p "$(dirname "$TARGET_OC")"
+
+        if [[ -n "$GENERATED_OC" && -f "$GENERATED_OC" ]]; then
+            if PYTHONPATH="$REPO_ROOT/lib" python3 "$SCRIPT_DIR/configure-opencode.py" --target "$TARGET_OC" --generated "$GENERATED_OC"; then
+                log_success "OpenCode config merged into $TARGET_OC (preserved user overrides)"
+            else
+                log_warning "OpenCode merge failed; leaving $TARGET_OC unchanged"
+            fi
+        else
+            log_warning "OpenCode template render failed or generated file missing; skipping OpenCode sync"
+        fi
+    else
+        log_warning "OpenCode config template not found at $TEMPLATE_OC; skipping OpenCode sync"
+    fi
+fi
+
 if agent_enabled "$CODEX"; then
     log_separator
     log_info "Ensuring Superpowers skills are installed for Codex..."
