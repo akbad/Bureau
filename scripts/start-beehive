@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-# Beehive bootstrap/startup script
-# > Run once: ./start-beehive
+# 
+# Beehive one-shot bootstrap/startup script
+# > Run once: ./start-beehive [options]
 # > Idempotent (safe to re-run; won't duplicate resources)
+#
+# Options: 
+#   - **All options are passed to tools setup script** (tools/scripts/set-up-tools.sh)
+#   - For full option list, run `tools/scripts/set-up-tools.sh --help`
 #
 # Prerequisites: Node.js, Python 3.8+, git
 #
 # Detection: 
-#   Automatically configures any CLI whose user-scoped config directory 
-#   (paths listed below) exist:
+#   Automatically configures any CLI whose user-scoped config directory exists (at paths listed):
 #   - Claude Code: ~/.claude/
 #   - Gemini CLI:  ~/.gemini/
 #   - Codex:       ~/.codex/
+
+set -euo pipefail
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -34,17 +38,29 @@ echo ""
 discover_agents
 echo ""
 
-# Run remaining setup scripts (all use directory-based detection)
+# --- Run setup scripts (all use directory-based detection) ---
+
+# Run agent setup: 
+#   - Wires role prompts into correct locations 
+#   - Creates commands and launcher wrappers for directlybusing agents in a main conversation 
+#     (i.e. as opposed to as isolated subagents)
+# Note: Must be run before tools setup since the agent files mentioned by the Zen 
+#   configs must exist when Zen is started up
 echo ""
-echo -e "${BLUE}Setting up agents and agent launchers...${NC}"
+echo -e "${BLUE}Setting up agents and agent launchers/slash commands...${NC}"
 echo ""
 agents/scripts/set-up-agents.sh
 
-# Run tools setup
+# Run tools setup & startup, passing along CLI options received
+#   - Configures MCPs for each supported coding CLI
+#   - Launches MCPs servers and backing containers (for those run as local HTTP servers)
 echo -e "${BLUE}Setting up tools...${NC}"
 echo ""
-tools/scripts/set-up-tools.sh -y
+tools/scripts/set-up-tools.sh "$@"
 
+# Run configs setup:
+#   - Generate coding CLIs' context/config files (w/ device-specific abs paths) 
+#   - Symlinks them to the appropriate user-scoped locations for each agent
 echo ""
 echo -e "${BLUE}Setting up config files...${NC}"
 echo ""
@@ -55,7 +71,7 @@ echo -e "${GREEN}==========================================================${NC}
 echo -e "${GREEN}  Bootstrapping complete: Beehive is ready to use.${NC}"
 echo -e "${GREEN}==========================================================${NC}"
 echo ""
-echo "To add/remove CLIs in the future:"
+echo "To add or remove CLIs in the future:"
 echo "  - Add: Create user-scoped config directory (e.g., mkdir -p ~/.gemini)"
 echo "  - Remove: Delete user-scoped config directory (e.g., rm -rf ~/.codex)"
 echo "  - Then re-run: ./scripts/start-beehive"
