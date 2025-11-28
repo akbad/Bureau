@@ -55,8 +55,10 @@ print_error() {
 }
 
 # Function to safely create symlink
-# Args: $1=source (what the symlink points to), $2=target (symlink location)
-# Note: Should only be called for enabled CLIs (check via agent_enabled)
+# Args: 
+#   $1 = source (where symlink points to)
+#   $2 = target (symlink location)
+# Note: Should only be called for enabled CLIs (caller must check using agent_enabled())
 create_safe_symlink() {
     local source="$1"
     local target="$2"
