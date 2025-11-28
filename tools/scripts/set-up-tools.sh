@@ -76,7 +76,7 @@ RANCHER_TIMEOUT=120       # timeout specific for Rancher Desktop startup (can ta
 # Remote server URLs
 export SOURCEGRAPH_ENDPOINT="https://sourcegraph.com"
 export CONTEXT7_URL="https://mcp.context7.com/mcp"
-export TAVILY_URL="https://mcp.tavily.com/mcp/?tavilyApiKey=\${TAVILY_API_KEY}"
+export TAVILY_URL="https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}"
 
 # Zen MCP: disable all tools except clink (since they need an API key)
 export ZEN_CLINK_DISABLED_TOOLS='analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer'
