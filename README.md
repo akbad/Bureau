@@ -119,7 +119,7 @@ codex-architect --model gpt-5-codex     # architect role w/ GPT-5-Codex via Code
 ```
 agents/
 ├── claude-subagents/      # Claude Code Task tool definitions
-├── clink-role-prompts/    # Zen clink role definitions (cross-CLI)
+├── role-prompts/    # Zen clink role definitions (cross-CLI)
 ├── reference/             # MCP guides (injected via config files)
 └── scripts/               # Setup automation
 

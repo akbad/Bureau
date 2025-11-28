@@ -100,7 +100,7 @@ You are running via Gemini CLI or Codex, not Claude Code. This means:
 
 - Use **`clink`** for ALL delegation (never use the `Task` tool - that's Claude Code-only)
 - You have access to the same MCPs as Claude Code
-- Role prompts are loaded from `~/.zen/cli_clients/systemprompts/clink-role-prompts/`
+- Role prompts are loaded from `~/.zen/cli_clients/systemprompts/role-prompts/`
 - Configurations are in `~/.zen/cli_clients/*.json`
 
 ## Superpowers System *(Codex-only)*

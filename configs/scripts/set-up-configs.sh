@@ -11,10 +11,15 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Find the repo root
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIGS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$CONFIGS_DIR/.." && pwd)"
+CONTEXT_DIRNAME="context"
+TEMPLATES_DIRNAME="templates"
+GENERATED_DIRNAME="generated"
+
+# Retrieve absolute paths
+CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # beehive/configs dir
+REPO_ROOT="$(cd "$CONFIGS_DIR/.." && pwd)"                                     
+CONTEXT_TEMPLATES="$(cd "$CONFIGS_DIR/$CONTEXT_DIRNAME/$TEMPLATES_DIRNAME/" && pwd)" 
+CONTEXT_GENERATED="$(cd "$CONFIGS_DIR/$CONTEXT_DIRNAME/$GENERATED_DIRNAME/" && pwd)"                                     
 
 # Source agent selection library
 source "$REPO_ROOT/scripts/lib/agent-selection.sh"
@@ -86,22 +91,21 @@ create_safe_symlink() {
 }
 
 # Check if we're in the right place
-if [[ ! -f "$CONFIGS_DIR/AGENTS.md.template" ]] || [[ ! -f "$CONFIGS_DIR/CLAUDE.md.template" ]]; then
+if [[ ! -f "$CONTEXT_TEMPLATES/AGENTS.template.md" ]] || [[ ! -f "$CONTEXT_TEMPLATES/CLAUDE.template.md" ]]; then
     print_error "Cannot find config template files. Please run this script from within the repository."
 fi
-
 # ============================================================================
 # Generate config files from templates (in repo)
 # ============================================================================
 print_step "Generating config files from templates"
 
 # Generate AGENTS.md in repo (for Gemini CLI & Codex)
-sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/AGENTS.md.template" > "$CONFIGS_DIR/AGENTS.md"
-print_success "Generated $CONFIGS_DIR/AGENTS.md from template"
+sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONTEXT_TEMPLATES/AGENTS.template.md" > "$CONTEXT_GENERATED/AGENTS.md"
+print_success "Generated $CONTEXT_GENERATED/AGENTS.md from template"
 
 # Generate CLAUDE.md in repo (for Claude Code)
-sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONFIGS_DIR/CLAUDE.md.template" > "$CONFIGS_DIR/CLAUDE.md"
-print_success "Generated $CONFIGS_DIR/CLAUDE.md from template"
+sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONTEXT_TEMPLATES/CLAUDE.template.md" > "$CONTEXT_GENERATED/CLAUDE.md"
+print_success "Generated $CONTEXT_GENERATED/CLAUDE.md from template"
 
 echo ""
 
@@ -112,26 +116,24 @@ print_step "Creating symlinks to generated config files"
 
 # Symlink for Gemini CLI
 if agent_enabled "Gemini CLI"; then
-    create_safe_symlink "$CONFIGS_DIR/AGENTS.md" "$HOME/.gemini/GEMINI.md"
+    create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$HOME/.gemini/GEMINI.md"
 else
     print_step "Skipping Gemini symlink (user-scoped CLI directory not found)"
 fi
 
 # Symlink for Codex
 if agent_enabled "Codex"; then
-    create_safe_symlink "$CONFIGS_DIR/AGENTS.md" "$HOME/.codex/AGENTS.md"
+    create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$HOME/.codex/AGENTS.md"
 else
     print_step "Skipping Codex symlink (user-scoped CLI directory not found)"
 fi
 
 # Symlink for Claude Code
 if agent_enabled "Claude Code"; then
-    create_safe_symlink "$CONFIGS_DIR/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    create_safe_symlink "$CONTEXT_GENERATED/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
 else
     print_step "Skipping Claude symlink (user-scoped CLI directory not found)"
 fi
-
-echo ""
 
 echo -e "${GREEN}✓ Config files setup complete!${NC}"
 echo ""
@@ -160,6 +162,8 @@ echo "Configured CLIs now have access to:"
 echo "  - Handoff guidelines (delegation rules)"
 echo "  - Compact MCP list (tool selection guide)"
 echo ""
-echo "Config files are symlinked from $CONFIGS_DIR/"
-echo "To update configs, edit the templates and re-run this script"
+echo "Context files are symlinked from $CONTEXT_GENERATED/"
+echo "To update these:"
+echo "  1. Edit the templates in $CONTEXT_TEMPLATES"
+echo "  2. Re-run this script"
 echo ""

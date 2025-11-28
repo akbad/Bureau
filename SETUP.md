@@ -1,14 +1,20 @@
 # Beehive: setup guide
 
-You don't technically have to learn what the different agents and MCPs available are (other than for setting up prerequisites), they should all be used automatically by your CLI agents when needed.
+> [!TIP]
+> You don't technically have to learn what the different agents and MCPs available are (other than for setting up prerequisites), they should all be used automatically by your CLI agents when needed.
+>
+> [**See the quickstart guide**](QUICKSTART.md) for quick setup steps that take only a few minutes.
 
 ## Selecting CLI agents to configure
 
-Beehive automatically detects which CLIs to configure based on the existence of their config directories:
+Beehive automatically detects which CLIs to configure based on whether their corresponding user-level config directory exists. 
 
-- **Claude Code**: `~/.claude/`
-- **Gemini CLI**: `~/.gemini/`
-- **Codex**: `~/.codex/`
+In particular, it looks for:
+
+- **Claude Code:** `~/.claude/`
+- **Gemini CLI:** `~/.gemini/`
+- **Codex:** `~/.codex/`
+- **OpenCode:** `~/.opencode`
 
 ### Adding CLIs
 
@@ -39,7 +45,7 @@ All setup scripts automatically detect which CLIs are installed based on these d
    tools/scripts/set-up-tools.sh [options]
    ```
 
-3. **Claude Code only:** install the [`claude-mem` automatic context management plugin](https://github.com/thedotmack/claude-mem) and the [Obra Superpowers plugin](https://github.com/obra/superpowers) via Claude's `/plugin` commands:
+3. **Claude Code only:** install the [`claude-mem` automatic context management](https://github.com/thedotmack/claude-mem) and the [Obra Superpowers](https://github.com/obra/superpowers) plugins via Claude's `/plugin` commands:
 
    ```
    > /plugin marketplace add thedotmack/claude-mem
@@ -83,7 +89,8 @@ All setup scripts automatically detect which CLIs are installed based on these d
 
 ## Config files
 
-> **Warning, the setup script below will overwrite any existing agent config files at:**
+> [!WARNING]
+> **By default, the setup script below will overwrite (with a symlink) any existing agent config files at:**
 >
 > - `~/.claude/CLAUDE.md`
 > - `~/.gemini/GEMINI.md`
@@ -91,8 +98,8 @@ All setup scripts automatically detect which CLIs are installed based on these d
 >
 > If these files already exist in your system, instead of running the script:
 > 
-> - append the contents of [`CLAUDE.template.md`](configs/CLAUDE.template.md) to your `CLAUDE.md`
-> - append the contents of [`AGENTS.template.md`](configs/AGENTS.template.md) to your `AGENTS.md` and `GEMINI.md`
+> - append the contents of [`CLAUDE.template.md`](configs/context/templates/CLAUDE.template.md) to your `CLAUDE.md`
+> - append the contents of [`AGENTS.template.md`](configs/context/templates/AGENTS.template.md) to your `AGENTS.md` and `GEMINI.md`
 
 Run the config setup script:
 
@@ -100,7 +107,7 @@ Run the config setup script:
 configs/scripts/set-up-configs.sh
 ```
 
-This generates config files from templates ([`AGENTS.template.md`](configs/AGENTS.template.md) and [`CLAUDE.template.md`](configs/CLAUDE.template.md)) with absolute paths to the repository, writing them directly to:
+This generates config files from templates ([`AGENTS.template.md`](configs/context/templates/AGENTS.template.md) and [`CLAUDE.template.md`](configs/context/templates/CLAUDE.template.md)) with absolute paths to the repository, writing them directly to:
 - `~/.gemini/GEMINI.md` (for Gemini CLI)
 - `~/.codex/AGENTS.md` (for Codex)
 - `~/.claude/CLAUDE.md` (for Claude Code)
@@ -120,7 +127,7 @@ This generates config files from templates ([`AGENTS.template.md`](configs/AGENT
 
 1. Relaunch Gemini CLI
 2. You should see a line under `Using:` saying `1 GEMINI.md file` (or however many you had before + 1)
-3. To be fully sure, run **`/memory show`**; you should see the content from the [`AGENTS.template.md`](configs/AGENTS.template.md) written to `~/.gemini/GEMINI.md`
+3. To be fully sure, run **`/memory show`**; you should see the content from the [`AGENTS.template.md`](configs/context/templates/AGENTS.template.md) written to `~/.gemini/GEMINI.md`
 
 #### Codex
 
@@ -152,25 +159,20 @@ The two sections below set up the same agent roles on different platforms:
 
 ### `clink` subagents
 
-1. Create the directory structure:
+1. Symlink the role prompts folder into Zen's `systemprompts/`:
 
    ```bash
    mkdir -p ~/.zen/cli_clients/systemprompts
+   ln -s beehive/agents/role-prompts ~/.zen/cli_clients/systemprompts/role-prompts
    ```
 
-2. Symlink the role prompts folder:
+2. Copy the Zen configs for each CLI to the user-scoped Zen config folder:
 
    ```bash
-   ln -s beehive/agents/clink-role-prompts ~/.zen/cli_clients/systemprompts/clink-role-prompts
+   cp beehive/agents/configs/zen/*.json ~/.zen/cli_clients/
    ```
 
-3. Copy the JSON configs:
-
-   ```bash
-   cp beehive/agents/configs/*.json ~/.zen/cli_clients/
-   ```
-
-4. Restart Zen MCP server to reload configs
+3. Restart Zen MCP server to reload updated configs
 
 > **Syntax for spawning (use within prompt):** `clink with [cli_name] [role] to [task]`
 >
@@ -178,7 +180,7 @@ The two sections below set up the same agent roles on different platforms:
 >     
 > - `cli_name`: `gemini`, `claude`, `codex`
 > - `role`: 
->       - [Any of the `clink` subagents set up using the steps above](agents/clink-role-prompts/)
+>       - [Any of the `clink` subagents set up using the steps above](agents/role-prompts/)
 >       - Zen presets also available: `default`, `planner`, `codereviewer`
 > - `prompt`: The task to perform (required)
 > - `files`: Optional file paths for context
@@ -230,9 +232,9 @@ The two sections below set up the same agent roles on different platforms:
 
 #### For Gemini CLI & Codex
 
-- Use **wrapper scripts** installed to `~/.local/bin/` that launch the CLI with a role prompt from the [`clink-role-prompts/`](agents/clink-role-prompts/) pre-loaded in the main conversation. 
+- Use **wrapper scripts** installed to `~/.local/bin/` that launch the CLI with a role prompt from the [`role-prompts/`](agents/role-prompts/) pre-loaded in the main conversation. 
 - **Structure: `<codex/gemini>-<rolename>`** 
-    - For example, `gemini-architect` and `codex-architect` are generated from `clink-role-prompts/architect.md`
+    - For example, `gemini-architect` and `codex-architect` are generated from `role-prompts/architect.md`
 
 ### Instructions
 

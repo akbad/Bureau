@@ -4,6 +4,5 @@ stop-beehive
 .serena/
 .vscode/
 
-# Generated machine-specific config files (use templates instead)
-configs/AGENTS.md
-configs/CLAUDE.md
+# Ignore machine-specific files that are generated (templates are source of truth)
+**/generated
