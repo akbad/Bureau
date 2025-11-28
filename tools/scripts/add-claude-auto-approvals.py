@@ -13,7 +13,12 @@ This script:
 """
 
 import sys
-from config_utils import load_json_config, save_json_config
+from pathlib import Path
+
+# Ensure shared config utils are importable
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent / "lib"))
+
+from pollen.config_utils import load_json_config, save_json_config
 
 
 # Built-in Claude Code tools to auto-approve (non-destructive tools only)
