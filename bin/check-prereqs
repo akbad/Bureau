@@ -71,18 +71,23 @@ check_cmd "docker" "Install Docker: https://docs.docker.com/get-docker/"
 
 [[ "$QUIET" == false ]] && echo ""
 
-if [[ $MISSING -eq 0 ]]; then
-    [[ "$QUIET" == false ]] && echo -e "${GREEN}All prerequisites installed.${NC}"
-
-    # Ensure Python 3.12 and sync dependencies
-    REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    [[ "$QUIET" == false ]] && echo -e "\nSetting up Python environment..."
-    uv python install 3.12 --quiet 2>/dev/null || true
-    (cd "$REPO_ROOT" && uv sync --quiet 2>/dev/null) || true
-    [[ "$QUIET" == false ]] && echo -e "${GREEN}✓${NC} Python 3.12 ready"
-
-    exit 0
-else
-    [[ "$QUIET" == false ]] && echo -e "${RED}Installing missing prerequisites and try again.${NC}"
+if [[ $MISSING -ne 0 ]]; then
+    [[ "$QUIET" == false ]] && echo -e "${RED}Install missing prerequisites and try again.${NC}"
     exit 1
 fi
+
+[[ "$QUIET" == false ]] && echo -e "${GREEN}All prerequisites are present.${NC}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Ensure Python 3.12 and sync dependencies
+[[ "$QUIET" == false ]] && echo -e "\nSetting up Python environment...\n"
+
+uv python install 3.12 --quiet 2>/dev/null || true
+[[ "$QUIET" == false ]] && echo -e "${GREEN}✓${NC} Python 3.12 ready"
+
+(cd "$REPO_ROOT" && uv sync --quiet 2>/dev/null) || true
+[[ "$QUIET" == false ]] && echo -e "${GREEN}✓${NC} Python dependencies installed"
+
+[[ "$QUIET" == false ]] && echo -e "\n${GREEN}Python environment is ready.${NC}\n"
+exit 0
