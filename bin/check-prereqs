@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 #
-# Check Beehive prerequisites and set up Python environment.
+# Purpose:
+#   - Verifies Beehive prerequisites are installed
+#   - Installs pinned Python version via uv
+#   - Syncs project deps from pyproject.toml
 #
 # Usage:
 #   ./bin/check-prereqs           # Check prerequisites and set up Python
 #   ./bin/check-prereqs --quiet   # Exit 0 if all present, 1 if any missing (no output)
-#
-# After verifying prerequisites, this script also:
-#   - Installs Python 3.12 via uv (if not present)
-#   - Syncs project dependencies from pyproject.toml
 #
 # Exit codes:
 #   0 - All prerequisites installed
