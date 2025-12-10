@@ -76,6 +76,15 @@ retention_period_for:
   memory_mcp: 365d   # Memory MCP knowledge graph
 ```
 
+**Storage backends and cleanup methods:**
+
+| Backend | Default retention period | Cleanup method |
+|:--------|:--------|:---------------|
+| `claude_mem` | 30d | SQLite DELETE + VACUUM |
+| `serena` | 90d | Move `.md` files to trash |
+| `qdrant` | 180d | REST API scroll + delete |
+| `memory_mcp` | 365d | JSONL file rewrite |
+
 **Duration format:** `<number><unit>` where unit is:
 - `h` - hours (e.g., `24h`)
 - `d` - days (e.g., `30d`)
