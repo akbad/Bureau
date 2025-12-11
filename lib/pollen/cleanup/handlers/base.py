@@ -56,12 +56,12 @@ class CleanupHandler(ABC):
             # retrieve retention period for the given storage backend
             retention = get_retention(self.name)
 
-        if retention.lower() == "never":
-            # memories are set to never expire for the given storage backend
+        if retention.lower() == "always":
+            # memories are set to always be kept for the given storage backend
             return {
-                "storage": self.name, 
-                "skipped": True, 
-                "reason": "retention set to 'never'"
+                "storage": self.name,
+                "skipped": True,
+                "reason": "retention set to 'always'"
             }
 
         cutoff = self.get_cutoff(retention)

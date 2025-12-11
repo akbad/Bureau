@@ -141,11 +141,11 @@ def validate_duration_format(duration: str) -> str | None:
     """
     import re
 
-    if duration.lower() == "never":
+    if duration.lower() == "always":
         return None
 
     if not re.match(r"^\d+[hdwmy]$", duration.lower()):
-        return f"Invalid duration format: '{duration}'. Use format like '24h', '30d', '2w', '3m', '1y', or 'never'"
+        return f"Invalid duration format: '{duration}'. Use format like '24h', '30d', '2w', '3m', '1y', or 'always'"
 
     return None
 

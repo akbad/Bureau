@@ -2,11 +2,11 @@
 
 Beehive uses a YAML-based configuration system with a three-tier hierarchy that allows team-wide defaults while supporting personal overrides.
 
-## Configuration hierarchy
+## Config file precedence
 
 Configuration is loaded and merged in this order (later sources override earlier):
 
-| Priority | File | Purpose | Committed to git? |
+| Priority | File | Purpose | Tracked by git? |
 |:---------|:-----|:--------|:------------------|
 | 1 (lowest) | `comb.yml` | Fixed system defaults | Yes |
 | 2 | `queen.yml` | Team-tunable settings | Yes |
@@ -20,8 +20,6 @@ Configuration is loaded and merged in this order (later sources override earlier
 - **`queen.yml`**: Edit to change team-wide defaults like retention periods, enabled agents, ports, or paths. Changes here affect everyone using this Beehive installation.
 
 - **`local.yml`**: Create this file for personal overrides that shouldn't be shared (e.g., different workspace paths, custom retention periods, disabling certain agents locally).
-
----
 
 ## Configuration sections
 
@@ -41,8 +39,6 @@ agents:
 
 Remove an agent from the list to skip configuring it. Note that the CLI's config directory must also exist (e.g., `~/.claude/` for Claude Code).
 
----
-
 ### `mcp`
 
 **File:** `queen.yml`
@@ -59,8 +55,6 @@ When set to `yes` or `true`, agents won't prompt for permission before using MCP
 **Accepted values:**
 - `yes` or `true` - Enable auto-approval
 - `no` or `false` - Require manual approval (default)
-
----
 
 ### `retention_period_for`
 
@@ -91,9 +85,7 @@ retention_period_for:
 - `w` - weeks (e.g., `2w`)
 - `m` - months (e.g., `3m`)
 - `y` - years (e.g., `1y`)
-- `never` - disable cleanup for this storage
-
----
+- `always` - disable cleanup for this storage
 
 ### `cleanup`
 
@@ -108,8 +100,6 @@ cleanup:
 
 Cleanup runs automatically on `./bin/start-beehive` if enough time has passed since the last run.
 
----
-
 ### `trash`
 
 **File:** `queen.yml`
@@ -122,8 +112,6 @@ trash:
 ```
 
 Deleted items go to `.wax/trash/` and remain recoverable until the grace period expires.
-
----
 
 ### `startup_timeout_for`
 
@@ -138,8 +126,6 @@ startup_timeout_for:
 ```
 
 Increase these values on slower machines.
-
----
 
 ### `ports_for`
 
@@ -158,8 +144,6 @@ ports_for:
 ```
 
 Change these if you have port conflicts.
-
----
 
 ### `paths`
 
@@ -191,8 +175,6 @@ paths:
   claude_mem_db: ~/.claude-mem/claude-mem.db   # Claude-mem database
 ```
 
----
-
 ### `endpoint_for`
 
 **File:** `comb.yml`
@@ -208,8 +190,6 @@ endpoint_for:
 
 These rarely need changing unless you're using self-hosted instances.
 
----
-
 ### `qdrant`
 
 **File:** `comb.yml`
@@ -222,8 +202,6 @@ qdrant:
   embedding_provider: fastembed  # Embedding model provider
 ```
 
----
-
 ## Environment variable overrides
 
 Some configuration values can be overridden via environment variables:
@@ -235,8 +213,6 @@ Some configuration values can be overridden via environment variables:
 | `CLAUDE_MEM_DATA_DIR` | `paths.claude_mem_db` | Claude-mem database path |
 | `QDRANT_COLLECTION_NAME` | `qdrant.collection` | Qdrant collection name |
 | `QDRANT_EMBEDDING_PROVIDER` | `qdrant.embedding_provider` | Embedding provider |
-
----
 
 ## Examples
 
@@ -265,7 +241,7 @@ mcp:
 retention_period_for:
   claude_mem: 90d
   qdrant: 365d
-  memory_mcp: never  # Never auto-delete
+  memory_mcp: always  # Always keep
 ```
 
 ### Use different workspace directory
@@ -293,8 +269,6 @@ ports_for:
   qdrant_db: 9780
   zen_mcp: 9781
 ```
-
----
 
 ## Related commands
 

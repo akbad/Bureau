@@ -338,7 +338,7 @@ def parse_duration(duration_str: str) -> timedelta:
     """Parse duration string like '30d', '2w', '3m', '1y', '24h' to timedelta.
 
     Args:
-        duration_str: Duration string (e.g., "30d", "24h", "never").
+        duration_str: Duration string (e.g., "30d", "24h", "always").
 
     Returns:
         timedelta object.
@@ -346,7 +346,7 @@ def parse_duration(duration_str: str) -> timedelta:
     Raises:
         ValueError: If format is invalid.
     """
-    if duration_str.lower() == "never":
+    if duration_str.lower() == "always":
         return timedelta.max
 
     match = re.match(r"^(\d+)([hdwmy])$", duration_str.lower())
