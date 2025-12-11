@@ -5,7 +5,7 @@
 # This file is version-controlled and shared across all users.
 # For local overrides (not to be tracked by git), create and write to local.yml instead.
 
-# Agent CLIs that Beehive should configure
+# Coding agent CLIs that Beehive should configure
 # Available: claude, gemini, codex, opencode
 agents:
   - claude
@@ -15,7 +15,7 @@ agents:
 
 # Retention periods (per memory backend), after which memories older than this threshold
 #   will be moved to trash automatically by the cleanup process
-# Formats: 24h (hours), 30d (days), 2w (weeks), 3m (months), 1y (years), never
+# Formats: never, 24h (hours), 30d (days), 2w (weeks), 3m (months), 1y (years)
 retention_period_for:
   claude_mem: 30d    # Claude-mem SQLite database (Claude Code only)
   serena: 90d        # Serena project memories (.serena/memories/)
@@ -26,7 +26,8 @@ retention_period_for:
 cleanup:
   min_interval: 24h
 
-# Trash grace period before permanent deletion
+# Grace period after stale items are moved to trash
+#   before permanent deletion
 trash:
   grace_period: 30d
 
@@ -35,7 +36,7 @@ startup_timeout_for:
   mcp_servers: 200       # For HTTP MCP servers started by Beehive
   docker_daemon: 120     # For Docker daemon startup
 
-# Ports for locally-run servers & containers
+# Ports for locally-run HTTP servers & backing DB containers
 ports_for:
   qdrant_db: 8780
   zen_mcp: 8781
@@ -45,7 +46,7 @@ ports_for:
   serena_mcp: 8785
 
 # Storage paths and connection details
-# Environment variables take precedence over these values
+# Note environment variables take precedence over these values
 paths:
   # Base workspace for user projects
   # Override using: $BEEHIVE_PROJECTS_DIR
