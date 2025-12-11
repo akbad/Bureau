@@ -70,3 +70,26 @@ Handles **automatic, retention-based cleanup for Beehive's memory backends**
 
 4. Permanently delete items in trash that are older than the configured grace period (via `empty_expired_trash()`)
 5. Update `last_cleanup_run` timestamp *(used in step 2)*
+
+### claude-mem (SQLite)
+
+**Storage:** `~/.claude-mem/claude-mem.db`
+
+**Tables cleaned:**
+- `session_summaries`: conversation summaries with request/response/learned fields
+- `observations`: units of knowledge (decisions, bugfixes, features, discoveries)
+
+**Implementation details:**
+
+1. Query via SQL to find stale rows checking `created_at < cutoff` 
+2. Dump stale rows to JSON in `.wax/trash/claude-mem`
+3. Batch delete many rows at once (via `DELETE ... WHERE id IN (...)`) for efficiency
+4. Execute `VACUUM` to recover disk space from deleted rows 
+
+    > - This step is required since SQLite does **not** do this automatically; it marks the space as reusable but keeps the filesize.
+    > - `VACUUM` forcibly rebuilds the DB to reclaim disk space.
+
+> [!NOTE]
+> - `claude-mem` stores timestamps in JavaScript `toISOString()` format (e.g., `2024-01-01T00:00:00.000Z`)
+> - The handler normalizes these (i.e. replaces `Z` with `+00:00`) to allow comparison with Python's timezone-aware datetimes.
+
