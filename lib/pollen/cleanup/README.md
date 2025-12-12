@@ -9,31 +9,94 @@ Handles **automatic, retention-based cleanup for Beehive's memory backends**
 
 **<ins>Contents</ins>**
 - [Purpose](#purpose)
-- [Implementation](#implementation)
-  - [Cleanup process](#cleanup-process)
-- [Handlers](#handlers)
-  - [Implementation strategies](#implementation-strategies)
-  - [claude-mem (SQLite)](#claude-mem-sqlite)
-  - [qdrant (HTTP API)](#qdrant-http-api)
-  - [serena (Filesystem)](#serena-filesystem)
-  - [memory-mcp (JSONL)](#memory-mcp-jsonl)
-- [Configuration](#configuration)
 - [CLI commands](#cli-commands)
   - [`sweep-hive` options](#sweep-hive-options)
-- [Trash system](#trash-system)
-  - [Manifest format](#manifest-format)
-- [State management](#state-management)
+- [Configuration](#configuration)
+- [Implementation](#implementation)
+  - [Overall cleanup orchestration](#overall-cleanup-orchestration)
+  - [Backend-specific handlers](#backend-specific-handlers)
+  - [Trash system](#trash-system)
+  - [State management](#state-management)
+  - [Limiting cleanup runs](#limiting-cleanup-runs)
 
 ## Purpose
 
 **Preventing unbounded memory growth** as they accumulate over sessions , while **enabling recovery** before permanent deletion occurs:
 
 1. Export stale items to `.wax/trash/<backend>/`
-2. Trashed items are permanently deleted after a grace period *(30 days by default)*
+2. Trashed items are permanently deleted after a grace period *(default 30 days; configure using `trash.grace_period` config setting)*
+
+> [!IMPORTANT]
+>
+> - `trash.grace_period` **only** applies to items moved to trash **going forward**.
+> - Changing this setting will <ins>*not*</ins> retroactively change the grace period for items already in the trash.
+
+## CLI commands
+
+| Command | Description |
+|:--------|:------------|
+| `sweep-hive` | Primary cleanup CLI (run via `uv run sweep-hive`) |
+| `./bin/beehive-prune` | Wrapper for `sweep-hive` |
+| `./bin/beehive-empty-trash` | Immediately purge all trash (bypass grace period) |
+| `./bin/beehive-wipe <storage>` | Completely erase a storage backend |
+
+### `sweep-hive` options
+
+| Flag | Description |
+|:-----|:------------|
+| `-f, --force` | Run even if last run was <24h ago |
+| `-n, --dry-run` | Show what would be deleted without deleting |
+| `-s, --storage LETTERS` | Clean specific backends: `q`=Qdrant, `c`=claude-mem, `s`=Serena, `m`=memory-mcp |
+| `-v, --verbose` | Show detailed output |
+| `-q, --quiet` | Suppress all output except errors |
+| `-e, --empty-trash` | Immediately empty all trash |
+| `--wipe STORAGE [...]` | Completely erase data from storage(s) |
+| `--no-backup` | Skip backup when wiping (DANGEROUS) |
+| `--validate` | Validate configuration and exit |
+
+**Examples:**
+
+```bash
+# Standard cleanup (respects 24h rate limit)
+uv run sweep-hive
+
+# Force cleanup of just Qdrant and Serena
+uv run sweep-hive -f -s qs
+
+# Dry run to see what would be deleted
+uv run sweep-hive -n -v
+
+# Wipe all data from claude-mem (with backup)
+uv run sweep-hive --wipe claude-mem
+```
+
+## Configuration
+
+Retention periods and cleanup behavior are configured in `queen.yml` (or `local.yml` for personal overrides):
+
+```yaml
+retention_period_for:
+  claude_mem: 30d    # Claude-mem SQLite database
+  serena: 90d        # Serena project memories
+  qdrant: 180d       # Qdrant vector database
+  memory_mcp: 365d   # Memory MCP knowledge graph
+
+cleanup:
+  min_interval: 24h  # Minimum time between cleanup runs
+
+trash:
+  grace_period: 30d  # Time before trash is permanently deleted
+```
+
+**Duration string format:** either of
+  - `<number><unit>`, where unit is `h` (hours), `d` (days), `w` (weeks), `m` (months), `y` (years)
+  - `always` **(to preserve memories indefinitely)**
+
+See [CONFIGURATION.md](../../../docs/CONFIGURATION.md) for full details.
 
 ## Implementation
 
-### Cleanup process
+### Overall cleanup orchestration
 
 `core.run_cleanup()` is the main cleanup orchestrator. When it's called:
 
@@ -71,25 +134,175 @@ Handles **automatic, retention-based cleanup for Beehive's memory backends**
 4. Permanently delete items in trash that are older than the configured grace period (via `empty_expired_trash()`)
 5. Update `last_cleanup_run` timestamp *(used in step 2)*
 
-### claude-mem (SQLite)
+### Backend-specific handlers
 
-**Storage:** `~/.claude-mem/claude-mem.db`
+Each handler is implemented corresponding to its memory storage backend's underlying data storage model:
 
-**Tables cleaned:**
-- `session_summaries`: conversation summaries with request/response/learned fields
-- `observations`: units of knowledge (decisions, bugfixes, features, discoveries)
+| Handler | Backend's storage model | Implementation approach |
+| :--- | :--- | :--- |
+| `ClaudeMemHandler` | SQLite database | SQL batch deletes + VACUUM |
+| `QdrantHandler` | REST API | Scroll pagination + batch delete | Handles large collections without loading all into memory |
+| `SerenaHandler` | Filesystem | Recursive glob + move | Files are already discrete units; move is atomic |
+| `MemoryMcpHandler` | JSONL file | Read-filter-rewrite | JSONL has no random access; full rewrite is required |
 
-**Implementation details:**
+#### claude-mem
 
-1. Query via SQL to find stale rows checking `created_at < cutoff` 
-2. Dump stale rows to JSON in `.wax/trash/claude-mem`
-3. Batch delete many rows at once (via `DELETE ... WHERE id IN (...)`) for efficiency
-4. Execute `VACUUM` to recover disk space from deleted rows 
+- **Storage model:** SQLite DB located at `~/.claude-mem/claude-mem.db`
 
-    > - This step is required since SQLite does **not** do this automatically; it marks the space as reusable but keeps the filesize.
-    > - `VACUUM` forcibly rebuilds the DB to reclaim disk space.
+- **Tables cleaned:**
+
+    - `session_summaries`: conversation summaries with request/response/learned fields
+    - `observations`: units of knowledge (decisions, bugfixes, features, discoveries)
+
+- **Implementation:**
+
+    1. Query via SQL to find stale rows checking `created_at < cutoff` 
+    2. Dump stale rows to JSON in `.wax/trash/claude-mem`
+    3. Batch delete many rows at once (via `DELETE ... WHERE id IN (...)`) for efficiency
+    4. Execute `VACUUM` to recover disk space from deleted rows 
+
+        > - This step is required since SQLite does **not** do this automatically; it marks the space as reusable but keeps the filesize.
+        > - `VACUUM` forcibly rebuilds the DB to reclaim disk space.
 
 > [!NOTE]
 > - `claude-mem` stores timestamps in JavaScript `toISOString()` format (e.g., `2024-01-01T00:00:00.000Z`)
 > - The handler normalizes these (i.e. replaces `Z` with `+00:00`) to allow comparison with Python's timezone-aware datetimes.
 
+#### Qdrant
+
+- **Storage model:** 
+    
+    - Collection in backing, locally-run Qdrant DB (default: `coding-memory` on `http://localhost:8780`)
+
+- **Implementation:**
+
+    1. Iterate through all points using Qdrant's *Scroll API* (using pagination to fetch 100 points at a time to minimize memory use).
+
+        > Note the [Scroll API's pagination is *cursor-based*](https://api.qdrant.tech/api-reference/points/scroll-points), meaning iterating through all points occurs in linear time *(and not quadratic like with position-based pagination)*. 
+        >
+        > This pagination is *required* for scrolling through collections with more than 10k points.
+        >
+        > ```python
+        > while True:
+        > result = scroll(limit=100, offset=offset)
+        > points = result["points"]
+        > # if not empty, process points...
+        > offset = result["next_page_offset"]
+        > if not offset:
+        >     break
+        > ```
+
+    2. Check `payload.metadata.created_at` for each point against cutoff
+    3. Write stale point data `(id, payload)` to the JSON in `.wax/trash/qdrant`
+    4. Batch delete stale points (via a single POST to `/points/delete` with all stale IDs)
+
+#### Serena
+
+- **Storage model:** `.serena/memories/*.md` files under `paths.serena_projects` (default: `~/code`)
+
+- **Implementation:**
+
+    1. Recursively discover all `.serena/memories/` directories at any depth within the configured `paths.serena_projects` directory
+
+        - **Symbolic links are skipped** to prevent accessing any locations outside the `paths.serena_projects` directory
+          
+            > Note any symlinked directories would also cause an infinite loop in this step if `paths.serena_projects` was a descendant of theirs.
+
+    2. Identify stale/expired memory file using the file's modification time (`st_mtime`)
+    3. Move stale/expired memory files to trash, *preserving project structure* for easy search & recovery of trashed memories if needed.
+
+        - For example, upon moving to trash, a memory file at `~/code/my-project/.serena/memories/expired-memory.md` would be written to `.wax/trash/serena/my-project/expired-memory.md`
+
+#### memory-mcp
+
+- **Storage model**: JSONL file at ** `~/.memory-mcp/memory.jsonl`
+
+- **Implementation:**
+
+    1. Load the entire file line-by-line
+
+        > This suboptimal approach is required since JSONL is append-only, offering no random access ability.
+
+    2. Parse each JSON memory entity, checking its `created_at` field against the cutoff
+
+        > - Note **entities stored by Memory MCP can be identified by either `name` or `id`**.
+        >
+        >     - Thus, a naive implementation trying to delete a memory entity with `name="foo"` could match an entity with `id="foo"` and delete it (incorrectly!).
+        >
+        > - The handler avoids this by using two separate sets to store invalid memories' keys depending on whether the key is in the `name` or `id` field.
+
+    3. Export expired entities to the JSONL file in `.wax/trash/memory-mcp/`
+    4. Rewrite the original file filtered to contain only valid (non-expired) entities
+
+### Trash system
+
+Deleted items are:
+
+- stored in `.wax/trash/<backend>/` 
+- tracked via the `.manifest.json` in that directory
+- held in the trash for `trash.grace_period` days (set to 30 by default) before permanent deletion
+
+> [!IMPORTANT]
+>
+> - `trash.grace_period` **only** applies to items moved to trash **going forward**.
+> - Changing this setting will <ins>*not*</ins> retroactively change the grace period for items already in the trash.
+
+```
+.wax/trash/
+├── claude-mem/
+│   ├── 2024-01-15T10-30-00_42-items.json
+│   └── .manifest.json
+├── memory-mcp/
+│   ├── 2024-01-15T10-30-00_8-items.jsonl
+│   └── .manifest.json
+├── qdrant/
+│   ├── 2024-01-15T10-30-00_15-items.json
+│   └── .manifest.json
+└── serena/
+    ├── project-a/
+    │   └── old-memory.md
+    └── .manifest.json
+```
+
+#### Manifest format
+
+Each backend's trash directory contains a `.manifest.json` tracking all trashed batches:
+
+```json
+[
+  {
+    "trashed_at": "2024-01-15T10:30:00+00:00",
+    "source": "claude-mem",
+    "item_count": 42,
+    "original_retention": "30d",
+    "auto_purge_after": "2024-02-14T10:30:00+00:00Z",
+    "files": [".wax/trash/claude-mem/2024-01-15T10-30-00_42-items.json"]
+  }
+]
+```
+
+> [!NOTE]
+> The `auto_purge_after` field indicates when the trash entry will be permanently deleted; items remain recoverable until this time.
+
+### State management
+
+Cleanup state is persisted in `.wax/state.json`:
+
+```json
+{
+  "last_cleanup_run": "2024-01-15T10:30:00+00:00",
+  "last_trash_empty": "2024-01-15T10:30:00+00:00"
+}
+```
+
+### Limiting cleanup runs
+
+`did_recently_run()` makes sure cleanup only runs if it hasn't happened within the pre-defined interval (default 24h, configure using `cleanup.min_interval` config setting).
+
+This is to prevent excessive:
+
+- cleanup runs due to frequently-started sessions
+- unnecessary I/O and API calls to backends
+- user disruption from repeated cleanup operations
+
+Manually override using `--force`  to disregard the configured interval and run cleanup anyway.
