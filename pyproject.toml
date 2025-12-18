@@ -25,6 +25,9 @@ dev = [
     "pytest-mock>=3.12",
     "pytest-cov>=4.1",
     "responses>=0.25",
+    "mypy>=1.11",
+    "types-PyYAML>=6.0",
+    "types-requests>=2.31",
 ]
 zen-http = [
     "starlette",
