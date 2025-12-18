@@ -300,7 +300,10 @@ def main():
 
         return 0
 
-    # core cleanup: execute handlers, collect results, and clean up trash/state
+    # core cleanup orchestrator: 
+    # - executes per-storage-backend handlers
+    # - collects results
+    # - cleans up trash/state
     result = run_cleanup(
         force=args.force,
         dry_run=args.dry_run,
