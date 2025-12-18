@@ -48,6 +48,7 @@ def create_mock_http_endpoint(responses_map: RouteMap):
                 mock_resp = MagicMock()
 
                 if isinstance(response, NonJsonHttpResponse):
+                    # NonJsonHttpResponse already contains raw bytes, so simply return those
                     mock_resp.read.return_value = response.raw_bytes
                 else:
                     # serialize stored response then convert to bytes to replicate HTTP response format
