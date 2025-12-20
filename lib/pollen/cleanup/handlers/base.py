@@ -11,9 +11,6 @@ class CleanupHandler(ABC):
 
     name: str  # e.g. "qdrant", "claude-mem"
 
-    def __init__(self, config: Config):
-        self.config = config
-
     @abstractmethod
     def get_stale_items(self, cutoff: datetime) -> list[dict[str, Any]]:
         """Return items older than cutoff with id/path and metadata."""
