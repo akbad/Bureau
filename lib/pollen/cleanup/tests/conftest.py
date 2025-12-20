@@ -120,7 +120,7 @@ def sqlite_db(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def sqlite_db_with_data(
+def _sqlite_db_with_data(
     sqlite_db: Path,
     stale_datetime: datetime,
     valid_datetime: datetime,
@@ -318,7 +318,7 @@ def state_file(wax_dir: Path) -> Path:
 # =============================================================================
 
 @pytest.fixture
-def mock_settings(
+def _mock_settings(
     tmp_path: Path,
     sqlite_db: Path,
     jsonl_file: Path,
