@@ -739,9 +739,8 @@ start_http_server "Qdrant MCP" "$QDRANT_MCP_PORT" "QDRANT_PID" \
     env QDRANT_URL="$QDRANT_URL" \
     COLLECTION_NAME="$QDRANT_COLLECTION_NAME" \
     EMBEDDING_PROVIDER="$QDRANT_EMBEDDING_PROVIDER" \
-    FASTMCP_PORT="$QDRANT_MCP_PORT" \
-    uvx --with "pydantic>=2.10.6,<2.12" --with "fastmcp>=2.10,<2.12" --from "mcp-server-qdrant>=0.8.0" \
-        mcp-server-qdrant --transport streamable-http
+    FASTMCP_SERVER_PORT="$QDRANT_MCP_PORT" \
+    uvx --from "mcp-server-qdrant>=0.8.0" mcp-server-qdrant --transport streamable-http
 
 # Sourcegraph MCP (wrapper for Sourcegraph.com public search)
 if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
