@@ -22,6 +22,8 @@
 
     - Fallback if *Tavily is exhausted*: use Brave (2k/mo) ([deep dive](mcp-deep-dives/brave.md))
 
+    - Fallback if *Tavily and Brave are exhausted*: use Playwright to use the browser to search the web (unlimited)
+
 - For **simple URL fetches**: use Fetch (unlimited) ([deep dive](mcp-deep-dives/fetch.md))
 
 > Link: [full category guide - *web research*](mcps-by-category/web-research.md)
@@ -103,8 +105,8 @@
 > 
 > | Memory storage tool | Metadata field to include | 
 > | --- | --- |
-> | Qdrant MCP | `metadata.created_at` (ISO 8601, UTC with Z suffix) | 
-> | Memory MCP | `created_at` (ISO 8601, UTC with Z suffix) |
+> | Qdrant MCP | `metadata.created_at` (ISO 8601, UTC with explicit offset, e.g., `2025-12-05T21:10:00+00:00`) | 
+> | Memory MCP | `created_at` (ISO 8601, UTC with explicit offset, e.g., `2025-12-05T21:10:00+00:00`) |
 > | Serena MCP | *None required; automatically created* |
 > | claude-mem (Claude Code *only*) | *None required; automatically created* |
 
