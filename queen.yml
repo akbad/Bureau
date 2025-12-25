@@ -39,7 +39,6 @@ startup_timeout_for:
 # Ports for locally-run HTTP servers & backing DB containers
 port_for:
   qdrant_db: 8780
-  zen_mcp: 8781
   qdrant_mcp: 8782
   sourcegraph_mcp: 8783
   semgrep_mcp: 8784

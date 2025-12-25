@@ -38,7 +38,7 @@
 - A **suite of specialized coding agent roles** with consistent behaviour on any platform, with **flexible ways of invoking them:**
 
     - **Direct use:** use an agent at any time in your current conversation *(Claude Code, OpenCode)* or launch instances of the CLI with the chosen agent *(Codex & Gemini CLIs)*
-    - **As subagents:** delegate specific, isolated tasks to specialized agents that run in the background, <ins>automatically</ins> using [Zen MCP's `clink`](https://github.com/BeehiveInnovations/zen-mcp-server/blob/main/docs/tools/clink.md) to **enable cross-CLI subagent spawning & collaboration**
+    - **As subagents:** delegate specific, isolated tasks to specialized agents that run in the background, <ins>automatically</ins> using [PAL MCP's `clink`](https://github.com/BeehiveInnovations/pal-mcp-server/blob/main/docs/tools/clink.md) to **enable cross-CLI subagent spawning & collaboration**
 
 - A set of **open-source/free/freemium MCP servers** *(i.e. you won't pay a cent)* that make tasks (such as `git`, web browsing and static code analysis) **reliable and token-efficient**
 - **Automatic setup scripts** for:
@@ -152,7 +152,7 @@ Use the [**primary agents mechanism**](https://opencode.ai/docs/agents/#primary-
 
 #### Spawning subagents using any CLI, from any CLI (via `clink`)
 
-For cross-CLI subagent spawning and collaboration, use Zen MCP's `clink` tool. It allows specifying:
+For cross-CLI subagent spawning and collaboration, use PAL MCP's `clink` tool. It allows specifying:
 
 - the agent role
 - the CLI to use to spawn the agent
@@ -223,7 +223,7 @@ Simply explicitly mention the subagent you want to use and it will automatically
       operations (read_multiple_files only).
 
 - **Orchestration**:
-    - **Zen (`clink` tool only)**: enables cross-CLI collaboration/subagent spawning, [as discussed above](#spawning-subagents-using-any-cli-from-any-cli-via-clink)
+    - **PAL (`clink` tool only)**: enables cross-CLI collaboration/subagent spawning, [as discussed above](#spawning-subagents-using-any-cli-from-any-cli-via-clink)
 
 > [!TIP]
 > To learn more about the available MCPs and the specific guidance agents receive on how to use them, read:

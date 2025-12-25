@@ -44,7 +44,6 @@ class StartupTimeoutForConfig(TypedDict):
 
 class PortForConfig(TypedDict):
     qdrant_db: int
-    zen_mcp: int
     qdrant_mcp: int
     sourcegraph_mcp: int
     semgrep_mcp: int

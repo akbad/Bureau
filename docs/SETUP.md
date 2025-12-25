@@ -166,7 +166,7 @@ This generates config files from templates ([`AGENTS.template.md`](../configs/co
 #### OpenCode
 
 1. Restart OpenCode
-2. Run **`/status`**: you should see Beehive's MCP servers listed (e.g., `zen`, `qdrant`, `sourcegraph`, `context7`, etc.) with their statuses shown as "connected"
+2. Run **`/status`**: you should see Beehive's MCP servers listed (e.g., `pal`, `qdrant`, `sourcegraph`, `context7`, etc.) with their statuses shown as "connected"
 3. Verify agents are available by pressing Tab to cycle through registered agents — Beehive agents like `architect`, `debugger`, `frontend` should appear
 
 ## *Sub*agents
@@ -178,27 +178,27 @@ This generates config files from templates ([`AGENTS.template.md`](../configs/co
 The sections below set up the same agent roles on different platforms:
 
 - **Claude Code & OpenCode** subagents are for spawning subagents using their native mechanisms
-- **Zen's `clink`** is for spawning subagents (allows choosing both the role and the model used):
+- **PAL's `clink`** is for spawning subagents (allows choosing both the role and the model used):
 
     - From Gemini CLI and Codex
     - From Claude Code [if you want to use Gemini or GPT (Codex) models](../tools/models-decision-guide.md)
 
 ### `clink` subagents
 
-1. Symlink the role prompts folder into Zen's `systemprompts/`:
+1. Symlink the role prompts folder into PAL's `systemprompts/`:
 
    ```bash
-   mkdir -p ~/.zen/cli_clients/systemprompts
-   ln -s beehive/agents/role-prompts ~/.zen/cli_clients/systemprompts/role-prompts
+   mkdir -p ~/.pal/cli_clients/systemprompts
+   ln -s beehive/agents/role-prompts ~/.pal/cli_clients/systemprompts/role-prompts
    ```
 
-2. Copy the Zen configs for each CLI to the user-scoped Zen config folder:
+2. Copy the PAL configs for each CLI to the user-scoped PAL config folder:
 
    ```bash
-   cp beehive/agents/configs/zen/*.json ~/.zen/cli_clients/
+   cp beehive/agents/configs/pal/*.json ~/.pal/cli_clients/
    ```
 
-3. Restart Zen MCP server to reload updated configs
+3. Restart PAL MCP server to reload updated configs
 
 > **Syntax for spawning (use within prompt):** `clink with [cli_name] [role] to [task]`
 >
@@ -207,15 +207,15 @@ The sections below set up the same agent roles on different platforms:
 > - `cli_name`: `gemini`, `claude`, `codex`
 > - `role`: 
 >       - [Any of the `clink` subagents set up using the steps above](../agents/role-prompts/)
->       - Zen presets also available: `default`, `planner`, `codereviewer`
+>       - PAL presets also available: `default`, `planner`, `codereviewer`
 > - `prompt`: The task to perform (required)
 > - `files`: Optional file paths for context
 > - `images`: Optional image paths
 > - `continuation_id`: For resuming previous clink conversations
 >
 > Links to docs:
-> - [Full usage guide for `clink` (in Zen docs)](https://github.com/BeehiveInnovations/zen-mcp-server/blob/main/docs/tools/clink.md#usage-examples)
-> - Shortcut: [examples of spawning agents in Zen `clink` docs](https://github.com/BeehiveInnovations/zen-mcp-server/blob/main/docs/tools/clink.md#usage-examples)
+> - [Full usage guide for `clink` (in PAL docs)](https://github.com/BeehiveInnovations/pal-mcp-server/blob/main/docs/tools/clink.md#usage-examples)
+> - Shortcut: [examples of spawning agents in PAL `clink` docs](https://github.com/BeehiveInnovations/pal-mcp-server/blob/main/docs/tools/clink.md#usage-examples)
 
 ### Claude Code subagents
 

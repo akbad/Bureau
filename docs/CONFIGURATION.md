@@ -136,7 +136,6 @@ Ports for locally-run servers and containers.
 ```yaml
 port_for:
   qdrant_db: 8780        # Qdrant database
-  zen_mcp: 8781          # Zen MCP server
   qdrant_mcp: 8782       # Qdrant MCP server
   sourcegraph_mcp: 8783  # Sourcegraph MCP server
   semgrep_mcp: 8784      # Semgrep MCP server
@@ -265,11 +264,12 @@ path_to:
 
 ### Change ports to avoid conflicts
 
+For example, if port `8780` (the default Qdrant DB listening port) is already in use on your device, you could do:
+
 ```yaml
 # local.yml
 port_for:
   qdrant_db: 9780
-  zen_mcp: 9781
 ```
 
 ## Related commands

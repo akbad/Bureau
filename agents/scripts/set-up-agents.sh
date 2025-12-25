@@ -54,27 +54,27 @@ if [[ ! -d "$AGENTS_DIR/$CLAUDE_AGENTS_DIRNAME" ]] || [[ ! -d "$AGENTS_DIR/$CLIN
 fi
 
 # ============================================================================
-# Step 1: Set up clink subagents (for Zen MCP with Gemini/Codex/Claude CLIs)
+# Step 1: Set up clink subagents (for PAL MCP with Gemini/Codex/Claude CLIs)
 # ============================================================================
-# Only set up Zen if any agent is selected (Zen is cross-CLI, used by all)
+# Only set up PAL if any agent is selected (PAL is cross-CLI, used by all)
 if [[ ${#AGENTS[@]} -gt 0 ]]; then
-    print_step "Setting up clink subagents for Zen MCP"
+    print_step "Setting up clink subagents for PAL MCP"
 
     # Create directory structure
-    mkdir -p ~/.zen/cli_clients/systemprompts
-    print_success "Created ~/.zen/cli_clients/systemprompts"
+    mkdir -p ~/.pal/cli_clients/systemprompts
+    print_success "Created ~/.pal/cli_clients/systemprompts"
 
     # Symlink role prompts folder
-    if [[ -L ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR ]]; then
-        rm ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR
+    if [[ -L ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR ]]; then
+        rm ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR
         print_success "Removed existing $AGENTS_SUBDIR symlink"
     fi
-    ln -s "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR
-    print_success "Symlinked role prompts for clink to ~/.zen/cli_clients/systemprompts/$AGENTS_SUBDIR"
+    ln -s "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR
+    print_success "Symlinked role prompts for clink to ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR"
 
     # Copy JSON configs
-    cp "$REPO_ROOT/configs/zen/"*.json ~/.zen/cli_clients/
-    print_success "Copied CLI configs (*.json) to ~/.zen/cli_clients/"
+    cp "$REPO_ROOT/configs/pal/"*.json ~/.pal/cli_clients/
+    print_success "Copied CLI configs (*.json) to ~/.pal/cli_clients/"
 
     echo ""
 fi
@@ -178,7 +178,7 @@ echo -e "${GREEN}✓ Agent setup complete!${NC}"
 echo ""
 echo "Next steps:"
 echo "  1. Run the configs setup script: configs/scripts/set-up-configs.sh"
-echo "  2. Restart Zen MCP server to reload clink configs"
+echo "  2. Restart PAL MCP server to reload clink configs"
 echo "  3. Verify Claude Code agents with: claude (then run /agents)"
 echo "  4. Install claude-mem plugin:"
 echo "     > /plugin marketplace add thedotmack/claude-mem"

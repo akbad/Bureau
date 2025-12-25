@@ -12,9 +12,9 @@
 #       - Tavily API key in $TAVILY_API_KEY
 #       - Brave Search API key in $BRAVE_API_KEY
 #
-#   Optional but recommended: Set up Zen clink config
-#       - Roles and per-CLI config at `~/.zen/cli_clients/`
-#       - Subagent prompts at `~/.zen/prompts`
+#   Optional but recommended: Set up PAL clink config
+#       - Roles and per-CLI config at `~/.pal/cli_clients/`
+#       - Subagent prompts at `~/.pal/prompts`
 #
 # Usage:
 #   ./set-up-tools.sh
@@ -28,7 +28,6 @@
 # Purpose:
 #   1. Sets up the following MCP servers in HTTP mode
 #      (i.e. shared across all agents/repos):
-#       - Zen MCP (local server, clink only - for cross-CLI orchestration)
 #       - Qdrant MCP (local server, semantic memory with Docker backend)
 #       - Sourcegraph MCP (local server wrapper for Sourcegraph.com public search)
 #       - Semgrep MCP (local server, static analysis and security scanning)
@@ -38,6 +37,7 @@
 #       - Brave MCP (remote Brave server, web/image/video/news search)
 #   2. Sets up the following MCP servers in stdio mode
 #      (i.e. each agent runs its own server)
+#       - PAL MCP (only clink)
 #       - Filesystem MCP (necessary since only supports stdio transport)
 #       - Fetch MCP (necessary since only supports stdio transport)
 #       - Memory MCP (knowledge graph for persistent structured memory)
@@ -74,12 +74,27 @@ export SOURCEGRAPH_ENDPOINT="${SOURCEGRAPH_ENDPOINT:-$(cfg endpoint_for.sourcegr
 export CONTEXT7_URL="${CONTEXT7_URL:-$(cfg endpoint_for.context7)}"
 export TAVILY_URL="${TAVILY_URL:-$(cfg endpoint_for.tavily)}"
 
-# Zen MCP: disable all tools except clink (since they need an API key)
-export ZEN_CLINK_DISABLED_TOOLS="${ZEN_CLINK_DISABLED_TOOLS:-$(cfg zen_clink_disabled_tools)}"
+# PAL MCP: disable all tools except clink (since they need an API key)
+export PAL_DISABLED_TOOLS="${PAL_DISABLED_TOOLS:-$(cfg pal_disabled_tools)}"
+
+# Add CLI bin paths (resolved directly for portability) to the PATH provided to PAL MCP
+#   on startup so that each can be called directly via clink (i.e. to spawn subagents)
+CLI_BIN_PATHS=""
+for cli in claude gemini codex; do
+    if cli_path="$(command -v "$cli" 2>/dev/null)"; then
+        cli_dir="$(dirname "$cli_path")"
+        # Add to path if not already present (dedup)
+        if [[ ":$CLI_BIN_PATHS:" != *":$cli_dir:"* ]]; then
+            CLI_BIN_PATHS="${CLI_BIN_PATHS:+$CLI_BIN_PATHS:}$cli_dir"
+        fi
+    else
+        log_warning "CLI '$cli' not found in PATH - clink won't be able to use it"
+    fi
+done
+export CLI_BIN_PATHS
 
 # Ports for local HTTP servers
 export QDRANT_DB_PORT="${QDRANT_DB_PORT:-$(cfg port_for.qdrant_db)}"
-export ZEN_MCP_PORT="${ZEN_MCP_PORT:-$(cfg port_for.zen_mcp)}"
 export QDRANT_MCP_PORT="${QDRANT_MCP_PORT:-$(cfg port_for.qdrant_mcp)}"
 export SOURCEGRAPH_MCP_PORT="${SOURCEGRAPH_MCP_PORT:-$(cfg port_for.sourcegraph_mcp)}"
 export SEMGREP_MCP_PORT="${SEMGREP_MCP_PORT:-$(cfg port_for.semgrep_mcp)}"
@@ -492,6 +507,118 @@ setup_stdio_mcp() {
     done
 }
 
+# Configure PAL MCP with stdio transport for all agents
+# Implemented separately to avoid cluttering setup_stdio_mcp() with PAL-specific workarounds
+setup_pal_stdio_mcp() {
+    log_info "Setting up PAL MCP (stdio - per-agent with clink only)..."
+
+    # Official uvx bootstrap command from PAL MCP docs w/
+    #   portable uvx discovery loop that works across different install locations
+    local pal_bootstrap_script='for p in $(which uvx 2>/dev/null) $HOME/.local/bin/uvx /opt/homebrew/bin/uvx /usr/local/bin/uvx uvx; do [ -x "$p" ] && exec "$p" --from git+https://github.com/BeehiveInnovations/pal-mcp-server.git pal-mcp-server; done; echo "uvx not found" >&2; exit 1'
+
+    # Environment variables for PAL:
+    # - PATH: ensures uvx can be found & includes paths to coding CLIs (to be called by clink)
+    #   which are resolved at script launch
+    # - DISABLED_TOOLS: disables all PAL tools except clink (no API key needed for clink)
+    # - CUSTOM_API_URL: dummy endpoint to satisfy PAL's provider validation at startup
+    #   (clink has requires_model() -> False, so this URL is never actually used)
+
+    local pal_env_path="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin"
+    if [[ -n "$CLI_BIN_PATHS" ]]; then
+        pal_env_path="${pal_env_path}:${CLI_BIN_PATHS}"
+    fi
+
+    # Add "dummy" API URL to Ollama's default port to satisfy
+    #   PAL's validation without having to set a real API key
+    local pal_custom_api_url="http://localhost:11434"  
+
+    for agent in "${AGENTS[@]}"; do
+        log_info "Configuring $agent..."
+
+        case $agent in
+            "$CLAUDE")
+                # Claude Code: add stdio MCP + configure timeouts
+                if grep -q '"pal"' "$CLAUDE_CLI_STATE" 2>/dev/null; then
+                    log_warning "Already exists"
+                    continue
+                fi
+
+                # Add PAL MCP via Claude CLI using official sh -c bootstrap pattern
+                local claude_cmd=(claude mcp add --transport stdio "pal" --scope user \
+                    -e "PATH=$pal_env_path" \
+                    -e "DISABLED_TOOLS=$PAL_DISABLED_TOOLS" \
+                    -e "CUSTOM_API_URL=$pal_custom_api_url" \
+                    -- sh -c "$pal_bootstrap_script")
+                echo "Adding pal as local stdio to Claude with the command:"
+                printf '  %q' "${claude_cmd[@]}"
+                log_empty_line
+                "${claude_cmd[@]}" && log_success "$agent configured" || log_warning "Failed to configure"
+
+                # Add MCP timeout settings to ~/.claude/settings.json
+                log_info "Configuring Claude MCP timeouts (5 minutes)..."
+                if [[ -f "$CLAUDE_CONFIG" ]]; then
+                    # Add/update env block with MCP timeouts (300000ms = 5 minutes)
+                    local tmp_file
+                    tmp_file=$(mktemp)
+                    jq '.env = (.env // {}) | .env.MCP_TIMEOUT = "300000" | .env.MCP_TOOL_TIMEOUT = "300000"' "$CLAUDE_CONFIG" > "$tmp_file" && mv "$tmp_file" "$CLAUDE_CONFIG"
+                    log_success "Claude MCP timeouts configured"
+                else
+                    log_warning "Claude settings.json not found - timeouts not configured"
+                fi
+                ;;
+            "$GEMINI")
+                # Gemini CLI: add stdio MCP with timeout in server config
+                # The add_mcp_to_gemini function handles JSON manipulation
+                if grep -q '"pal": {' "$GEMINI_CONFIG" 2>/dev/null; then
+                    log_warning "Already exists"
+                    continue
+                fi
+
+                # Add with timeout and env vars (handled by add-mcp-to-gemini.py)
+                # Gemini config format: command array with env vars in separate block
+                add_mcp_to_gemini "stdio" "pal" "sh" "-c" "$pal_bootstrap_script" \
+                    "--timeout" "300000" \
+                    "--env" "PATH=$pal_env_path" \
+                    "--env" "DISABLED_TOOLS=$PAL_DISABLED_TOOLS" \
+                    "--env" "CUSTOM_API_URL=$pal_custom_api_url" \
+                    && log_success "$agent configured" || log_warning "Already exists"
+                ;;
+            "$CODEX")
+                # Codex CLI: add stdio MCP with startup and tool timeouts
+                if grep -q '^\[mcp_servers.pal\]' "$CODEX_CONFIG" 2>/dev/null; then
+                    log_warning "Already exists"
+                    continue
+                fi
+
+                # Use official sh -c bootstrap pattern for Codex with TOML literal string 
+                #   (single quotes) around $pal_bootstrap_script var to avoid escaping the 
+                #   double quotes within the var's contents
+                # Note the single quotes don't inhibit bash's expansion of the variable due
+                #   to heredoc (bounded by the EOF delimiters) parsing rules
+                cat >> "$CODEX_CONFIG" << EOF
+
+[mcp_servers.pal]
+command = "sh"
+args = ["-c", '$pal_bootstrap_script']
+transport = "stdio"
+startup_timeout_sec = 300
+tool_timeout_sec = 1200
+
+[mcp_servers.pal.env]
+PATH = "$pal_env_path"
+DISABLED_TOOLS = "$PAL_DISABLED_TOOLS"
+CUSTOM_API_URL = "$pal_custom_api_url"
+EOF
+                log_success "$agent configured"
+                ;;
+            *)
+                # Other agents (OpenCode handled separately via template)
+                log_info "Skipping $agent - handled separately or not supported"
+                ;;
+        esac
+    done
+}
+
 # Check for required environment variable and warn if not set
 check_env_var() {
     local var_name=$1
@@ -614,7 +741,7 @@ configure_auto_approve() {
 
     # Build list of MCP server names being configured
     local mcp_servers=()
-    mcp_servers+=("zen" "qdrant" "semgrep" "fs" "fetch" "git" "memory" "playwright")
+    mcp_servers+=("pal" "qdrant" "semgrep" "fs" "fetch" "git" "memory" "playwright")
 
     # Add the other servers if they're available
     [[ "$SOURCEGRAPH_AVAILABLE" == true ]] && mcp_servers+=("sourcegraph")
@@ -722,11 +849,6 @@ fi
 
 log_info "Idempotently starting up HTTP MCP servers..."
 
-# Zen MCP (clink only - zero-API hub for cross-CLI orchestration)
-start_http_server "Zen MCP" "$ZEN_MCP_PORT" "ZEN_PID" \
-    env DISABLED_TOOLS="$ZEN_CLINK_DISABLED_TOOLS" ZEN_MCP_PORT="$ZEN_MCP_PORT" \
-    uv run --group zen-http "$SCRIPT_DIR/start-zen-http.py"
-
 log_info "Ensuring Rancher Desktop is running..."
 ensure_rancher_running
 
@@ -765,16 +887,12 @@ fi
 # ============================================================================
 
 # Servers to use in HTTP mode
-# - Zen MCP (local, clink)
 # - Qdrant MCP (local)
 # - Sourcegraph MCP (local wrapper for Sourcegraph.com)
 # - Semgrep MCP (local)
 # - Serena MCP (local, semantic code analysis and editing)
 # - Context7 MCP (remote Upstash - for Gemini & Claude only)
 # - Tavily MCP (remote Tavily - all agents)
-log_separator
-log_info "Configuring agents to use Zen MCP for clink (HTTP)..."
-setup_http_mcp "zen" "http://localhost:$ZEN_MCP_PORT/mcp/"
 
 log_separator
 log_info "Configuring agents to use Qdrant MCP (HTTP)..."
@@ -814,9 +932,14 @@ fi
 
 
 # Servers to use in stdio mode
+# - PAL MCP (clink only - cross-CLI orchestration, uses stdio for better compatibility)
 # - Filesystem MCP (per-agent, filtered to read_multiple_files only via mcp-filter)
 # - Fetch MCP (per-agent, only supports stdio transport)
 # - Context7 MCP (for Codex only, since Codex HTTP doesn't support custom headers)
+log_separator
+log_info "Configuring agents to use PAL MCP for clink (stdio)..."
+setup_pal_stdio_mcp
+
 log_separator
 log_info "Configuring agents to use Filesystem MCP (stdio, filtered to read_multiple_files only)..."
 log_info "Whitelisted directory for Filesystem MCP: $FS_MCP_WHITELIST"
@@ -856,7 +979,6 @@ log_empty_line
 log_success "Setup complete."
 log_empty_line
 log_info "Local HTTP servers running:"
-log_info "  • Zen MCP (clink only): http://localhost:$ZEN_MCP_PORT/mcp/ (PID: $ZEN_PID)"
 log_info "  • Qdrant MCP: http://localhost:$QDRANT_MCP_PORT/mcp/ (PID: $QDRANT_PID)"
 log_info "    └─ Backend: Qdrant Docker container on port $QDRANT_DB_PORT"
 log_info "    └─ Storage directory: $QDRANT_STORAGE_PATH"
@@ -922,7 +1044,6 @@ fi
 
 log_empty_line
 log_info "Logs:"
-log_info "  • Zen MCP: /tmp/mcp-Zen MCP-server.log"
 log_info "  • Qdrant MCP: /tmp/mcp-Qdrant MCP-server.log"
 log_info "  • Qdrant Docker: docker logs qdrant"
 
@@ -945,7 +1066,7 @@ if agent_enabled "OpenCode"; then
 
     if [[ -f "$TEMPLATE_OC" ]]; then
         mkdir -p "$(dirname "$GENERATED_OC")"
-        if ! sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$TEMPLATE_OC" > "$GENERATED_OC"; then
+        if ! sed -e "s|{{REPO_ROOT}}|$REPO_ROOT|g" -e "s|{{PAL_DISABLED_TOOLS}}|$PAL_DISABLED_TOOLS|g" -e "s|{{CLI_BIN_PATHS}}|$CLI_BIN_PATHS|g" "$TEMPLATE_OC" > "$GENERATED_OC"; then
             log_warning "Failed to render OpenCode template; skipping OpenCode sync"
             GENERATED_OC=""
         fi
@@ -981,7 +1102,6 @@ log_info "  3. Type '/mcp' to see available tools"
 log_empty_line
 log_info "To stop local HTTP servers:"
 pidlist=""
-[[ -n "$ZEN_PID" ]] && pidlist+=" $ZEN_PID"
 [[ -n "$QDRANT_PID" ]] && pidlist+=" $QDRANT_PID"
 [[ "$SOURCEGRAPH_AVAILABLE" == "true" && -n "$SOURCEGRAPH_PID" ]] && pidlist+=" $SOURCEGRAPH_PID"
 [[ -n "$SEMGREP_PID" ]] && pidlist+=" $SEMGREP_PID"

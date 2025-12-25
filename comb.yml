@@ -37,6 +37,6 @@ qdrant:
   # Override by setting $QDRANT_EMBEDDING_PROVIDER
   embedding_provider: fastembed
 
-# Fixed clink tool disable list for Zen MCP
+# Fixed clink tool disable list for PAL MCP
 # (all tools below require API keys, which Beehive assumes the user does not want to use)
-zen_clink_disabled_tools: analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer
+pal_disabled_tools: analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer

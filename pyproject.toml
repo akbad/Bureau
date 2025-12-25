@@ -29,12 +29,6 @@ dev = [
     "types-PyYAML>=6.0",
     "types-requests>=2.31",
 ]
-zen-http = [
-    "starlette",
-    "uvicorn",
-    "mcp",
-    "pal-mcp-server @ git+https://github.com/BeehiveInnovations/zen-mcp-server.git",
-]
 
 [tool.pytest.ini_options]
 testpaths = ["lib/pollen/cleanup/tests"]

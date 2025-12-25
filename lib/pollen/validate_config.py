@@ -36,7 +36,6 @@ REQUIRED_SCHEMA: dict[str, Any] = {
     },
     "port_for": {
         "qdrant_db": int,
-        "zen_mcp": int,
         "qdrant_mcp": int,
         "sourcegraph_mcp": int,
         "semgrep_mcp": int,

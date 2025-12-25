@@ -146,7 +146,6 @@ path_to:
 # Server ports (change if conflicts occur)
 port_for:
   qdrant_db: 8780
-  zen_mcp: 8781
   # ... see docs/CONFIGURATION.md for full list
 ```
 

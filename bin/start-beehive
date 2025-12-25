@@ -43,8 +43,8 @@ fi
 #   - Wires role prompts into correct locations 
 #   - Creates commands and launcher wrappers for directlybusing agents in a main conversation 
 #     (i.e. as opposed to as isolated subagents)
-# Note: Must be run before tools setup since the agent files mentioned by the Zen 
-#   configs must exist when Zen is started up
+# Note: Must be run before tools setup since the agent files mentioned by the PAL
+#   configs must exist when PAL is started up
 echo ""
 echo -e "${BLUE}Setting up agents and agent launchers/slash commands...${NC}"
 echo ""
