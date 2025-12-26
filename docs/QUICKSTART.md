@@ -1,9 +1,9 @@
 # Quick setup guide
 
-Since the automated context injection enables agents to automatically and autonomously leverage Beehive's features, those who want to skip the learning curve *entirely* can follow these steps to set up as fast as possible.
+Since Bureau's automated context injection enables agents to automatically and autonomously leverage its features, those who want to skip the learning curve *entirely* can follow these steps to set up as fast as possible.
 
-> [!IMPORTANT]
-> ### Default configuration values (and how to change them)
+> [!NOTE]
+> ### Default config values (and how to change them)
 >
 > | Setting | Default | How to customize |
 > | :--- | :--- | :--- |
@@ -20,7 +20,7 @@ Since the automated context injection enables agents to automatically and autono
 
 ### Selecting CLI agents to configure
 
-By default, all 4 CLIs are enabled in `queen.yml`. To customize which CLIs are configured, edit the `agents` list in `local.yml`:
+By default, all 4 CLIs are enabled in `directives.yml`. To customize which CLIs are configured, edit the `agents` list in `local.yml`:
 
 ```yaml
 # local.yml
@@ -33,11 +33,11 @@ agents:
 ### Run the startup/bootstrap script
 
 ```bash
-./bin/start-beehive
+./bin/open-bureau
 ```
 
 > [!TIP]
-> Add the [root-level `bin/` directory](../bin/) to your shell's `$PATH` to be able to start up (and take down) Beehive's services from anywhere on your machine.
+> Add the [root-level `bin/` directory](../bin/) to your shell's `$PATH` to be able to start up (and take down) Bureau's services from anywhere on your machine by simply running `<open|close>-bureau`.
 
 ### *If using Claude Code:* install the [`claude-mem` automatic context management](https://github.com/thedotmack/claude-mem) and the [Obra Superpowers](https://github.com/obra/superpowers) plugins
 
@@ -52,7 +52,7 @@ After launching Claude Code, run:
 ```
 
 > [!NOTE]
-> The Superpowers plugin also works for Codex. The setup script automatically installs it under `~/.codex/superpowers/` — no manual command needed.
+> The Superpowers plugin also works for Codex; the setup script automatically installs it under `~/.codex/superpowers/`. *No* manual setup is required.
 
 ### Verify setup
 

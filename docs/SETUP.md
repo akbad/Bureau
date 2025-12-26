@@ -1,4 +1,4 @@
-# Beehive: setup guide
+# Bureau: setup guide
 
 > [!TIP]
 > You don't technically have to learn what the different agents and MCPs available are (other than for setting up prerequisites), they should all be used automatically by your CLI agents when needed.
@@ -7,10 +7,10 @@
 
 ## Selecting CLI agents to configure
 
-Beehive configures CLIs based on the `agents` list in your configuration files:
+Bureau configures CLIs based on the `agents` list in your configuration files:
 
 ```yaml
-# queen.yml (or local.yml for personal overrides)
+# directives.yml (or local.yml for personal overrides)
 agents:
   - claude    # Claude Code
   - gemini    # Gemini CLI
@@ -20,36 +20,36 @@ agents:
 
 ### Adding or removing CLIs
 
-Edit `queen.yml` (for team-wide changes) or create `local.yml` (for personal overrides) and modify the `agents` list. Then re-run `./bin/start-beehive`.
+Edit `directives.yml` (for team-wide changes) or create `local.yml` (for personal overrides) and modify the `agents` list. Then re-run `./bin/open-bureau`.
 
 > [!NOTE]
 > The CLI's config directory must exist for configuration to succeed (e.g., `~/.claude/` for Claude Code).
 
-## Beehive configuration
+## Bureau configuration
 
-Beehive uses YAML configuration files at the repository root. These control which agents are configured, retention periods, server ports, and more.
+Bureau uses YAML configuration files at the repository root. These control which agents are configured, retention periods, server ports, and more.
 
 ### Configuration hierarchy
 
 Configuration loads in order *(i.e. settings/config values in later sources override those from earlier ones)*:
 
-1. **`comb.yml`** - Fixed system defaults
+1. **`charter.yml`** - Fixed system defaults
    - Cloud endpoints (Sourcegraph, Context7, Tavily)
    - Package-standard paths (`~/.claude-mem/`, `~/.memory-mcp/`)
    - Qdrant settings (collection name, embedding provider)
 
-2. **`queen.yml`** - Team/shared configuration
+2. **`directives.yml`** - Team/shared configuration
    - Agent selection (which CLIs to configure)
    - Retention periods (how long to keep memories)
    - Server ports and startup timeouts
    - Workspace paths
 
 3. **`local.yml`** - Personal overrides not meant to be tracked by git
-   - Any value from `queen.yml` can be overridden
+   - Any value from `directives.yml` can be overridden
    - Create this file for settings you don't want to share
 
 4. **Environment variables** - Highest priority, overrides all other settings/config sources
-   - `BEEHIVE_WORKSPACE`, `MEMORY_MCP_STORAGE_PATH`, etc.
+   - `BUREAU_WORKSPACE`, `MEMORY_MCP_STORAGE_PATH`, etc.
 
 See [CONFIGURATION.md](CONFIGURATION.md) for all available options.
 
@@ -84,7 +84,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for all available options.
 >     only
 >
 >
->    📝 [beehive] recent context
+>    📝 [bureau] recent context
 >    ────────────────────────────────────────────────────────
 >
 >    Legend: 🎯 session-request | 🔴 gotcha | 🟡 
@@ -101,8 +101,8 @@ See [CONFIGURATION.md](CONFIGURATION.md) for all available options.
 > - See [`tools/tools.md`](../tools/tools.md) for the full list (and [`tools/tools-decision-guide.md`](../tools/tools-decision-guide.md) for more details)
 > - What the agents (that you'll set up in the next section) will see:
 >    
->     - [`compact-mcp-list.md`](../agents/reference/compact-mcp-list.md) as a file they *have* to read
->     - Contains links to guides to MCPs [by category](../agents/reference/mcps-by-category/) and [deep dive guides for the non-basic MCPs](../agents/reference/mcp-deep-dives/)
+>     - [`tools-guide.md`](../protocols/context/guides/tools-guide.md) as a file they *have* to read
+>     - Contains links to guides to MCPs [by category](../protocols/context/guides/by-category/) and [deep dive guides for the non-basic MCPs](../protocols/context/guides/deep-dives/)
 
 ## Config files
 
@@ -117,25 +117,25 @@ See [CONFIGURATION.md](CONFIGURATION.md) for all available options.
 >
 > If the markdown config files above already exist in your system, instead of running the script:
 >
-> - append the contents of [`CLAUDE.template.md`](../configs/context/templates/CLAUDE.template.md) to your `CLAUDE.md`
-> - append the contents of [`AGENTS.template.md`](../configs/context/templates/AGENTS.template.md) to your `AGENTS.md` and `GEMINI.md`
+> - append the contents of [`CLAUDE.template.md`](../protocols/context/templates/CLAUDE.template.md) to your `CLAUDE.md`
+> - append the contents of [`AGENTS.template.md`](../protocols/context/templates/AGENTS.template.md) to your `AGENTS.md` and `GEMINI.md`
 
 Run the config setup script:
 
 ```bash
-configs/scripts/set-up-configs.sh
+protocols/scripts/set-up-configs.sh
 ```
 
-This generates config files from templates ([`AGENTS.template.md`](../configs/context/templates/AGENTS.template.md) and [`CLAUDE.template.md`](../configs/context/templates/CLAUDE.template.md)) with absolute paths to the repository, writing them directly to:
+This generates config files from templates ([`AGENTS.template.md`](../protocols/context/templates/AGENTS.template.md) and [`CLAUDE.template.md`](../protocols/context/templates/CLAUDE.template.md)) with absolute paths to the repository, writing them directly to:
 - `~/.gemini/GEMINI.md` (for Gemini CLI)
 - `~/.codex/AGENTS.md` (for Codex)
 - `~/.claude/CLAUDE.md` (for Claude Code)
-- `~/.config/opencode/opencode.json` (for OpenCode — MCP configs merged from [`opencode.json`](../configs/config/templates/opencode.json) template)
+- `~/.config/opencode/opencode.json` (for OpenCode — MCP configs merged from [`opencode.json`](../protocols/config/templates/opencode.json) template)
 
 **The result will be that each agent will always be instructed to read:**
 
-- the [compact list/decision guide of MCPs available](../agents/reference/compact-mcp-list.md)
-- the [handoff guide for using various agents/models together](../agents/reference/handoff-guidelines.md)
+- the [compact list/decision guide of MCPs available](../protocols/context/guides/tools-guide.md)
+- the [handoff guide for using various agents/models together](../protocols/context/guides/handoff-guide.md)
 
 > Templates are used since the config files need to use *absolute* paths to reference files in this repo. 
 > 
@@ -147,7 +147,7 @@ This generates config files from templates ([`AGENTS.template.md`](../configs/co
 
 1. Relaunch Gemini CLI
 2. You should see a line under `Using:` saying `1 GEMINI.md file` (or however many you had before + 1)
-3. To be fully sure, run **`/memory show`**; you should see the content from the [`AGENTS.template.md`](../configs/context/templates/AGENTS.template.md) written to `~/.gemini/GEMINI.md`
+3. To be fully sure, run **`/memory show`**; you should see the content from the [`AGENTS.template.md`](../protocols/context/templates/AGENTS.template.md) written to `~/.gemini/GEMINI.md`
 
 #### Codex
 
@@ -166,12 +166,13 @@ This generates config files from templates ([`AGENTS.template.md`](../configs/co
 #### OpenCode
 
 1. Restart OpenCode
-2. Run **`/status`**: you should see Beehive's MCP servers listed (e.g., `pal`, `qdrant`, `sourcegraph`, `context7`, etc.) with their statuses shown as "connected"
-3. Verify agents are available by pressing Tab to cycle through registered agents — Beehive agents like `architect`, `debugger`, `frontend` should appear
+2. Run **`/status`**: you should see Bureau's MCP servers listed (e.g., `pal`, `qdrant`, `sourcegraph`, `context7`, etc.) with their statuses shown as "connected"
+3. Verify agents are available by pressing Tab to cycle through registered agents: Bureau agents like `architect`, `debugger`, `frontend` should appear
 
 ## *Sub*agents
 
-> The setup script at [`agents/scripts/set-up-agents.sh`](../agents/scripts/set-up-agents.sh) automates all the tasks in this section.
+> [!TIP]
+> The setup script at [`agents/scripts/set-up-agents.sh`](../agents/scripts/set-up-agents.sh) **automates all the tasks in this section**.
 >
 > **Warning: it will overwrite any existing files in `~/.claude/agents/*.md` whose names match any of the filenames in [`claude-subagents/`](../agents/claude-subagents/)**
 
@@ -189,13 +190,13 @@ The sections below set up the same agent roles on different platforms:
 
    ```bash
    mkdir -p ~/.pal/cli_clients/systemprompts
-   ln -s beehive/agents/role-prompts ~/.pal/cli_clients/systemprompts/role-prompts
+   ln -s bureau/agents/role-prompts ~/.pal/cli_clients/systemprompts/role-prompts
    ```
 
 2. Copy the PAL configs for each CLI to the user-scoped PAL config folder:
 
    ```bash
-   cp beehive/agents/configs/pal/*.json ~/.pal/cli_clients/
+   cp bureau/protocols/pal/*.json ~/.pal/cli_clients/
    ```
 
 3. Restart PAL MCP server to reload updated configs
@@ -228,7 +229,7 @@ The sections below set up the same agent roles on different platforms:
 2. Symlink the Claude subagent files:
 
    ```bash
-   ln -s beehive/agents/claude-subagents/*.md ~/.claude/agents/
+   ln -s bureau/agents/claude-subagents/*.md ~/.claude/agents/
    ```
 
 3. Verify in Claude Code by running `/agents` to confirm the subagents appear
@@ -248,7 +249,7 @@ The sections below set up the same agent roles on different platforms:
 
 1. The setup script symlinks role prompts to `~/.config/opencode/agent/bees/`
 2. Each role is registered in `~/.config/opencode/opencode.json` under the `agent` key with `mode: "subagent"`
-3. Verify by pressing Tab in OpenCode to cycle through available agents — Beehive agents should appear
+3. Verify by pressing Tab in OpenCode to cycle through available agents: Bureau agents should appear
 
 > [!TIP]
 > **To spawn subagents in OpenCode:**

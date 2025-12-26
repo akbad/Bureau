@@ -31,7 +31,7 @@ Mirror CI checks locally before pushing:
 - Calls the [`uv run` workflow](#uv-run-reusable-uv-setup--command-execution) with the command:
 
     ```sh
-    uv run pytest lib/pollen/cleanup/tests -v
+    uv run pytest operations/cleanup/tests -v
     ```
 
     which runs the test suite at the location given in the command.
@@ -43,7 +43,7 @@ Mirror CI checks locally before pushing:
 - Calls the [`uv run` workflow](#uv-run-reusable-uv-setup--command-execution) with the command:
 
     ```sh
-    uv run mypy lib/pollen --ignore-missing-imports
+    uv run mypy operations --ignore-missing-imports
     ```
 
 - The job passes iff all typechecking passes.

@@ -1,4 +1,4 @@
-# Beehive
+# Bureau
 
 Versatile tools across Gemini CLI, Claude Code, Codex and OpenCode, with the intelligence to leverage & orchestrate them autonomously.
 
@@ -45,8 +45,8 @@ Power users rotating between these (as is often the best option, given providers
 - **Direct** use and interaction **in main/current conversation** (using custom-generated wrappers/commands): 
     
     - **Codex, Gemini CLIs:** launch CLI with chosen agent active in main conversation (using automatically-configured wrappers like `codex-debugger` and `gemini-architect`)
-    - **Claude Code:** automatically activate any agent in the current conversation using slash commands (that are automatically set up by Beehive)
-    - **OpenCode:** use any Beehive agent as a [primary agent](https://opencode.ai/docs/agents/#primary-agents)
+    - **Claude Code:** automatically activate any agent in the current conversation using slash commands (that are automatically set up by Bureau)
+    - **OpenCode:** use any Bureau agent as a [primary agent](https://opencode.ai/docs/agents/#primary-agents)
 
 ### 13 MCP servers
 
@@ -65,8 +65,8 @@ Including:
 
 All agents automatically read these files at startup:
 
-- [`agents/reference/handoff-guidelines.md`](agents/reference/handoff-guidelines.md) → when to delegate to subagents + which model to use
-- [`agents/reference/compact-mcp-list.md`](agents/reference/compact-mcp-list.md) → MCP tool selection guide
+- [`protocols/context/guides/handoff-guide.md`](protocols/context/guides/handoff-guide.md) → when to delegate to subagents + which model to use
+- [`protocols/context/guides/tools-guide.md`](protocols/context/guides/tools-guide.md) → MCP tool selection guide
 
     - Serves as an entrypoint to documentation progressively disclosing each MCP servers' tool capabilities
 
@@ -81,7 +81,7 @@ with each of the 3 files above generated from templates (for portability regardl
 > [!NOTE]
 > **CLI agent selection**
 >
-> - Configure which CLIs to set up via the `agents` list in `queen.yml` (or `local.yml` for personal overrides)
+> - Configure which CLIs to set up via the `agents` list in `directives.yml` (or `local.yml` for personal overrides)
 > - See [SETUP.md](SETUP.md#selecting-cli-agents-to-configure) or [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for details
 
 ## Usage patterns
@@ -128,11 +128,11 @@ You can cycle through available agents simply using the Tab key.
 agents/
 ├── role-prompts/          # Agent role prompts for both PAL's clink and OpenCode
 ├── claude-subagents/      # Same role prompts as above, except with Claude Code-specific YAML frontmatter
-├── reference/             # MCP guides (injected via config files)
 └── scripts/               # Setup automation
 
-configs/
-├── *.template             # Config templates with {{REPO_ROOT}} placeholders
+protocols/
+├── context/guides/        # MCP guides (injected via config files)
+├── config/templates/      # Config templates with {{REPO_ROOT}} placeholders
 └── scripts/               # Generates ~/.claude/CLAUDE.md, ~/.codex/AGENTS.md, etc.
 
 tools/
@@ -143,14 +143,14 @@ tools/
 
 ## Configuration
 
-Beehive uses a YAML-based configuration system with team defaults and personal overrides:
+Bureau uses a YAML-based configuration system with team defaults and personal overrides:
 
 | File | Purpose | Committed? |
 |:-----|:--------|:-----------|
-| `comb.yml` | Fixed system defaults (endpoints, package paths) | Yes |
-| `queen.yml` | Team settings (agents, retention periods, ports, paths) | Yes |
+| `charter.yml` | Fixed system defaults (endpoints, package paths) | Yes |
+| `directives.yml` | Team settings (agents, retention periods, ports, paths) | Yes |
 | `local.yml` | Personal overrides | No (gitignored) |
 
-Configuration loads in order: `comb.yml` → `queen.yml` → `local.yml` → environment variables.
+Configuration loads in order: `charter.yml` → `directives.yml` → `local.yml` → environment variables.
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full reference.

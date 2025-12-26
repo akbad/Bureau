@@ -13,11 +13,11 @@ jobs:
     uses: ./.github/workflows/uv-run.yml
     with:
       command_name: Run tests
-      command: uv run pytest lib/pollen/cleanup/tests/ -v
+      command: uv run pytest operations/cleanup/tests/ -v
 
   typecheck:
     name: Typechecks
     uses: ./.github/workflows/uv-run.yml
     with:
       command_name: Run mypy
-      command: uv run mypy lib/pollen --ignore-missing-imports
+      command: uv run mypy operations --ignore-missing-imports
