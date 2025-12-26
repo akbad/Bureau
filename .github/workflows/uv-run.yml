@@ -24,6 +24,7 @@ jobs:
         with:
           enable-cache: true  # cache deps
           cache-python: true  # cache Python installation
+          version-file: ".python-version"
 
       - name: Install dependencies
         run: uv sync
