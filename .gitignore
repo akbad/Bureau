@@ -16,3 +16,6 @@ local.yml
 
 # Operational state and trash (machine-specific)
 .archives/
+
+# MCP server clones (shared across worktrees)
+.mcp-servers/

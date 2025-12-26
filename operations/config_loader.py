@@ -118,6 +118,46 @@ def find_repo_root(start_path: Path | None = None) -> Path:
     )
 
 
+def get_main_repo_root() -> Path:
+    """Get the main repository root (not worktree root).
+
+    Uses `git rev-parse --git-common-dir` which returns:
+      - Main repo: `.git` (relative)
+      - Worktree: `/path/to/main/.git` (absolute path to main repo's .git)
+
+    The parent of the git directory is the main repo root.
+
+    Returns:
+        Path to main repository root.
+
+    Raises:
+        FileNotFoundError: If not in a git repository.
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_common_dir = Path(result.stdout.strip())
+
+        # If relative path (like `.git`), resolve from cwd
+        if not git_common_dir.is_absolute():
+            git_common_dir = (Path.cwd() / git_common_dir).resolve()
+        else:
+            git_common_dir = git_common_dir.resolve()
+
+        # Parent of .git is the repo root
+        return git_common_dir.parent
+    except subprocess.CalledProcessError as e:
+        raise FileNotFoundError(
+            f"Not in a git repository: {e.stderr.strip()}"
+        ) from e
+
+
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Deep merge two dicts, with the `override` dict taking precedence.
 
@@ -217,8 +257,11 @@ def get_config() -> Config:
             path_to["serena_projects"] = workspace
         if "fs_mcp_whitelist" not in path_to:
             path_to["fs_mcp_whitelist"] = workspace
-        if "mcp_clones" not in path_to:
-            path_to["mcp_clones"] = f"{workspace}/mcp-servers"
+
+    # Resolve mcp_clones: relative paths are resolved from main repo root (shared across worktrees)
+    if mcp_clones := path_to.get("mcp_clones"):
+        if not mcp_clones.startswith("/") and not mcp_clones.startswith("~"):
+            path_to["mcp_clones"] = str(get_main_repo_root() / mcp_clones)
 
     # Derive qdrant_url if not provided: use port_for.qdrant_db
     if "qdrant_url" not in path_to:

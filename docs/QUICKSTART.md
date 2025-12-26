@@ -8,7 +8,7 @@ Since Bureau's automated context injection enables agents to automatically and a
 > | Setting | Default | How to customize |
 > | :--- | :--- | :--- |
 > | Filesystem MCP whitelist | `~/code` | Set `path_to.fs_mcp_whitelist` in `local.yml` |
-> | MCP server clone directory | `~/code/mcp-servers` | Set `path_to.mcp_clones` in `local.yml` |
+> | MCP server clone directory | `.mcp-servers/` (in repo root, shared across worktrees) | Set `path_to.mcp_clones` in `local.yml` |
 > | Enabled CLI agents | All 4 (claude, gemini, codex, opencode) | Set `agents` list in `local.yml` |
 > | Memory retention | 30d-365d depending on storage | Set `retention_period_for.*` in `local.yml` |
 >

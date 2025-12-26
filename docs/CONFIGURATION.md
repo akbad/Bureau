@@ -207,29 +207,48 @@ Change these if you have port conflicts.
 
 **File:** `directives.yml` (user-tunable) and `charter.yml` (package defaults)
 
-#### User-tunable paths (in `directives.yml`)
+File and directory paths used by Bureau and its tools.
+
+| Setting | Default | Description |
+|:--------|:--------|:------------|
+| `workspace` | `~/code` | Base workspace directory; other paths derive from this |
+| `serena_projects` | (= `workspace`) | Where Serena looks for project memories |
+| `fs_mcp_whitelist` | (= `workspace`) | Directory boundary for Filesystem MCP access |
+| `mcp_clones` | `.mcp-servers/` | Clone location for MCP server source code |
+| `storage_for.claude_mem` | `~/.claude-mem/claude-mem.db` | Claude-mem SQLite database path |
+| `storage_for.memory_mcp` | `~/.memory-mcp/memory.jsonl` | Memory MCP knowledge graph storage |
+| `storage_for.qdrant` | `~/.qdrant/storage` | Qdrant Docker volume mount point |
+
+> [!NOTE]
+> 
+> #### Paths automatically derived from `workspace`
+> 
+> When `workspace` is set, the following paths are automatically derived from it (unless explicitly overridden):
+> 
+> - `serena_projects` → same as `workspace`
+> - `fs_mcp_whitelist` → same as `workspace`
+> 
+> This means you only need to configure `workspace` in `local.yml` to change all workspace-related paths at once.
+
+> [!NOTE]
+>
+> #### MCP server clone location is *shared across worktrees*
+> 
+> `mcp_clones` is **not** derived from `workspace`. It defaults to `.mcp-servers/` in the main repo root and is shared across all git worktrees (so worktrees won't re-clone MCP server code).
+
+#### YML example
 
 ```yaml
 path_to:
-  workspace: ~/code        # Base workspace directory
-```
+  # User-tunable paths
+  workspace: ~/code                           # Base workspace directory
+  serena_projects: ~/code                     # Serena project search location
+  fs_mcp_whitelist: ~/code                    # Filesystem MCP security boundary
+  mcp_clones: .mcp-servers/                   # MCP server clone location (in repo root)
 
-**Path derivation:** When `workspace` is set, the following paths are automatically derived from it (unless explicitly overridden):
-
-- `serena_projects` → same as `workspace`
-- `fs_mcp_whitelist` → same as `workspace`
-- `mcp_clones` → `{workspace}/mcp-servers`
-
-This means you only need to configure `workspace` in `local.yml` to change all workspace-related paths at once.
-
-#### Storage paths (nested under `path_to`)
-
-Storage paths for memory backends are configured under `path_to.storage_for`:
-
-```yaml
-path_to:
+  # Storage paths for memory backends
   storage_for:
-    claude_mem: ~/.claude-mem/claude-mem.db   # Claude-mem database
+    claude_mem: ~/.claude-mem/claude-mem.db   # Claude-mem SQLite database
     memory_mcp: ~/.memory-mcp/memory.jsonl    # Memory MCP JSONL storage
     qdrant: ~/.qdrant/storage                 # Qdrant Docker volume mount
 ```
@@ -312,13 +331,13 @@ path_to:
   workspace: ~/Projects  # All other paths derive from this automatically
 ```
 
-Or if you need to override individual derived paths:
+Or if you need to override individual paths:
 
 ```yaml
 # local.yml
 path_to:
   workspace: ~/Projects
-  mcp_clones: ~/CustomMCPLocation  # Override just this one
+  mcp_clones: ~/CustomMCPLocation  # Override the default (.mcp-servers/ in repo root)
 ```
 
 ### Change ports to avoid conflicts
