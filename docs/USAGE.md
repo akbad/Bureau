@@ -1,7 +1,7 @@
 # Usage guide
 
 > [!IMPORTANT]
-> This guide assumes the setup steps in [`SETUP.md`](SETUP.md) have been completed and doesn't restate information/guidance available there.
+> This guide assumes setup is complete. See [`SETUP.md`](SETUP.md) if you haven't run `./bin/open-bureau` yet.
 
 **<ins>Contents</ins>**
 - [Overview](#overview)
@@ -80,16 +80,16 @@
 > - Prompts for the <ins>same role</ins> have the <ins>same body across both locations</ins> *(the `claude-subagents` files simply have some extra header YAML that makes them smoother to use with Claude Code)*
 
 > [!TIP]
-> Read [`handoff-guidelines.md`](../agents/reference/handoff-guidelines.md) to see the guidance that the CLIs will read at startup that will teach them:
+> Read [`handoff-guide.md`](../protocols/context/guides/handoff-guide.md) to see the guidance that the CLIs will read at startup that will teach them:
 > - when to delegate tasks to subagents
 > - which CLIs/models to use for specific subagent tasks
 
 ### Managing CLI agent selection
 
-Beehive configures CLIs based on the `agents` config setting:
+Bureau configures CLIs based on the `agents` config setting:
 
 ```yaml
-# queen.yml (or local.yml for personal overrides)
+# directives.yml (or local.yml for personal overrides)
 agents:
   - claude    # Claude Code
   - gemini    # Gemini CLI
@@ -97,7 +97,7 @@ agents:
   - opencode  # OpenCode
 ```
 
-**Enable/disable a CLI:** Add or remove it from the `agents` list, then re-run `./bin/start-beehive`.
+**Enable/disable a CLI:** Add or remove it from the `agents` list, then re-run `./bin/open-bureau`.
 
 > [!NOTE]
 > The CLI's config directory must exist for configuration to succeed (e.g., `~/.claude/` for Claude Code). See [CONFIGURATION.md](CONFIGURATION.md) for all configuration options.
@@ -140,7 +140,7 @@ Launch the CLI using the **generated wrapper scripts**, named in the format **`<
 
 #### OpenCode
 
-Use the [**primary agents mechanism**](https://opencode.ai/docs/agents/#primary-agents): press **Tab** to cycle through registered Beehive agents.
+Use the [**primary agents mechanism**](https://opencode.ai/docs/agents/#primary-agents): press **Tab** to cycle through registered Bureau agents.
 
 ### As subagents
 
@@ -228,8 +228,8 @@ Simply explicitly mention the subagent you want to use and it will automatically
 > [!TIP]
 > To learn more about the available MCPs and the specific guidance agents receive on how to use them, read:
 >
-> - [`compact-mcp-list.md`](../agents/reference/compact-mcp-list.md): quick decision guide for selecting the best tool for a given task.
-> - [`mcp-deep-dives/`](../agents/reference/mcp-deep-dives/): 
+> - [`tools-guide.md`](../protocols/context/guides/tools-guide.md): quick decision guide for selecting the best tool for a given task.
+> - [`deep-dives/`](../protocols/context/guides/deep-dives/): 
 > 
 >     - Collection of in-depth guides for each MCP, detailing their capabilities and advanced usage patterns. Only read by agents when necessary to preserve context
 
@@ -237,12 +237,12 @@ Simply explicitly mention the subagent you want to use and it will automatically
 
 - **GitHub SpecKit:** for devising detailed specifications and subsequently using them to devise development plans and tasks *(your agents will never hallucinate or get distracted again)*
 
-- **Beehive utilities:** convenience scripts for configuration and maintenance
+- **Bureau utilities:** convenience scripts for configuration and maintenance
 
     | Command | Description |
     |---------|-------------|
-    | `uv run get-config` | Display resolved Beehive configuration |
-    | `uv run sweep-hive` | Clean up temporary/generated files |
+    | `uv run get-config` | Display resolved Bureau configuration |
+    | `uv run sweep` | Clean up temporary/generated files |
     | `uv run validate-config` | Validate configuration files |
 
 ## Preserving context & memories across sessions
@@ -273,11 +273,11 @@ There are 2 methods for this:
 | :--- | :--- |
 | **GitHub SpecKit** *(optional user-called CLI tool)* | **What** to build and **why** (i.e. top-down planning & specification) |
 | ***Superpowers*-defined** (and other) **skills** | **How** to perform a task *(if defined for that task)*
-| [**Handoff guidelines**](../agents/reference/handoff-guidelines.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
-| [**Tool guidance**](../agents/reference/compact-mcp-list.md) | **Tools to use** for a task |
+| [**Handoff guidelines**](../protocols/context/guides/handoff-guide.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
+| [**Tool guidance**](../protocols/context/guides/tools-guide.md) | **Tools to use** for a task |
 
 > [!NOTE]
-> The [handoff guidelines](../agents/reference/handoff-guidelines.md) and [tool guidance](../agents/reference/compact-mcp-list.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../configs/)).
+> The [handoff guidelines](../protocols/context/guides/handoff-guide.md) and [tool guidance](../protocols/context/guides/tools-guide.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../protocols/)).
 
 #### Sample comprehensive workflow
 
@@ -285,8 +285,8 @@ There are 2 methods for this:
 2. Read `specs/<new-feature>/tasks.md` and delegate tasks to specialized agents via `clink`
 3. Within each agent session:
     
-    - [Tool guidance doc](../agents/reference/compact-mcp-list.md) ensures agents know appropriate tools to use for their task
-    - [Handoff guidelines doc](../agents/reference/handoff-guidelines.md) teaches agents:
+    - [Tool guidance doc](../protocols/context/guides/tools-guide.md) ensures agents know appropriate tools to use for their task
+    - [Handoff guidelines doc](../protocols/context/guides/handoff-guide.md) teaches agents:
         
         - When to delegate *(i.e. recursively)*
         - The *right* agents to delegate subtasks to
@@ -339,11 +339,11 @@ A skills library that enforces mandatory workflows for common engineering tasks 
 | :--- | :--- |
 | **GitHub SpecKit** *(optional user-called CLI tool)* | **What** to build and **why** (i.e. top-down planning & specification) |
 | ***Superpowers*-defined** (and other) **skills** | **How** to perform a task *(if defined for that task)*
-| [**Handoff guidelines**](../agents/reference/handoff-guidelines.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
-| [**Tool guidance**](../agents/reference/compact-mcp-list.md) | **Tools to use** for a task |
+| [**Handoff guidelines**](../protocols/context/guides/handoff-guide.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
+| [**Tool guidance**](../protocols/context/guides/tools-guide.md) | **Tools to use** for a task |
 
 > [!NOTE]
-> The [handoff guidelines](../agents/reference/handoff-guidelines.md) and [tool guidance](../agents/reference/compact-mcp-list.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../configs/)).
+> The [handoff guidelines](../protocols/context/guides/handoff-guide.md) and [tool guidance](../protocols/context/guides/tools-guide.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../protocols/)).
 
 #### How skills activate 
 
@@ -400,7 +400,7 @@ A skills library that enforces mandatory workflows for common engineering tasks 
 >     only
 >
 >
->    📝 [beehive] recent context
+>    📝 [bureau] recent context
 >    ─────────────────────────────────────────────────────
 >
 >    Legend: 🎯 session-request | 🔴 gotcha | 🟡 

@@ -29,7 +29,7 @@
 
 ### Must-read (all roles)
 
-#### MCP quick decision tree (`compact-mcp-list.md`)
+#### MCP quick decision tree (`tools-guide.md`)
 
 - 1,000-1,500 chars (~330 tokens)
 - Fast decision tree for MCPs available by use case (code search, web research, memory, etc.)
@@ -41,7 +41,7 @@
 
     - Links to per-category MCP decision guides ("tier 2") and per-MCP reference docs ("tier 3")
 
-#### Handoff guidelines (`handoff-guidelines.md`): 
+#### Handoff guidelines (`handoff-guide.md`): 
 
 **Guide for agents: when to delegate vs. when to ask the user for guidance**
 
@@ -70,12 +70,12 @@
 > ---
 > 
 > You are a senior code reviewer. Before starting, read these files:
-> - `agents/reference/compact-tool-list.md` – Tier 1 tool quick ref
-> - `agents/must-reads/style-guide.md` – Project coding standards
-> - `agents/must-reads/handoff-guidelines.md` – When to delegate
+> - `protocols/context/guides/tools-guide.md` – Tier 1 tool quick ref
+> - `protocols/context/guides/style-guide.md` – Project coding standards
+> - `protocols/context/guides/handoff-guide.md` – When to delegate
 > 
 > If you need detailed Semgrep usage, read:
-> - `agents/reference/tools/semgrep.md` – Tier 3 deep dive
+> - `protocols/context/guides/tools/semgrep.md` – Tier 3 deep dive
 > 
 > [Rest of role prompt body...]
 > ```
@@ -86,11 +86,11 @@
 > You are a research synthesis specialist.
 > 
 > At startup, read:
-> - agents/reference/compact-tool-list.md (tier 1: tool selection)
-> - agents/must-reads/handoff-guidelines.md (delegation rules)
+> - protocols/context/guides/tools-guide.md (tier 1: tool selection)
+> - protocols/context/guides/handoff-guide.md (delegation rules)
 > 
 > When comparing web research tools, read:
-> - agents/reference/category/web-research.md (tier 2: Tavily vs Brave vs Fetch)
+> - protocols/context/guides/category/web-research.md (tier 2: Tavily vs Brave vs Fetch)
 > 
 > [Rest of role prompt body...]
 > ```
@@ -132,7 +132,7 @@
 
 ### Per-MCP deep dives (read on-demand for complex tools)
 
-- **Location**: `reference/mcp-deep-dives/*.md` (planned)
+- **Location**: `reference/deep-dives/*.md` (planned)
 - **Size**: 4,000-6,000 characters each
 - **Content per MCP**:
 
@@ -181,10 +181,10 @@ Example (`~/.pal/cli_clients/gemini.json`):
   "env": {},
   "roles": {
     "frontend": {
-      "prompt_path": "/path/to/beehive/agents/role-prompts/frontend.md"
+      "prompt_path": "/path/to/bureau/agents/role-prompts/frontend.md"
     },
     "testing": {
-      "prompt_path": "/path/to/beehive/agents/role-prompts/testing.md"
+      "prompt_path": "/path/to/bureau/agents/role-prompts/testing.md"
     }
   }
 }
@@ -194,7 +194,7 @@ Or using a symlinked layout:
 
 ```bash
 mkdir -p ~/.pal/cli_clients/systemprompts/clink
-ln -s "$PWD/beehive/agents/role-prompts" \
+ln -s "$PWD/bureau/agents/role-prompts" \
       ~/.pal/cli_clients/systemprompts/clink/for-use-prompts
 ```
 
@@ -222,10 +222,10 @@ ln -s "$PWD/beehive/agents/role-prompts" \
     - You can pass file paths as context, for example: `clink with codex role=architecture_audit on src/, services/auth/`.
     - If only one CLI is configured, clink can default to it and allow omitting `cli_name`.
     - Troubleshoot: bad paths raise "Prompt file not found: …". Check PAL server logs for details.
-    - The clink tool schema enumerates available `cli_name` and `role` values—use it to confirm your roles are loaded.
+    - The clink tool schema enumerates available `cli_name` and `role` values: use it to confirm your roles are loaded.
     - The example JSONs include permissive flags (for example, Codex `--dangerously-bypass-approvals-and-sandbox`). Remove or adjust them for stricter guardrails.
 
-Tip: Keep role bodies short and reference Tier‑1/2/3 docs from `agents/reference/` in the prompt text (don’t inline).
+Tip: Keep role bodies short and reference Tier‑1/2/3 docs from `protocols/context/guides/` in the prompt text (don’t inline).
 
 ## Using with Claude Code subagents
 
@@ -239,8 +239,8 @@ This repo’s subagent files in `agents/claude-subagents/` are ready to install.
 
 ```bash
 mkdir -p ~/.claude/agents
-ln -s "$PWD/beehive/agents/claude-subagents/frontend.md" ~/.claude/agents/frontend.md
-ln -s "$PWD/beehive/agents/claude-subagents/testing.md" ~/.claude/agents/testing.md
+ln -s "$PWD/bureau/agents/claude-subagents/frontend.md" ~/.claude/agents/frontend.md
+ln -s "$PWD/bureau/agents/claude-subagents/testing.md" ~/.claude/agents/testing.md
 ```
 
 - Minimal, correct frontmatter (already included):
@@ -276,14 +276,14 @@ claude --agents '{
 }'
 ```
 
-Note: Role bodies should reference `agents/reference/compact-mcp-list.md` (Tier 1) and any relevant Tier‑2/3 guides. We'll add `agents/handoff-guidelines.md` next and reference it as a must‑read for delegation rules.
+Note: Role bodies should reference `protocols/context/guides/tools-guide.md` (Tier 1) and any relevant Tier‑2/3 guides. We'll add `agents/handoff-guide.md` next and reference it as a must‑read for delegation rules.
 
 ## Using with OpenCode subagents
 
 This repo's role prompts in `agents/role-prompts/` are automatically configured as OpenCode subagents by the setup script.
 
 - Where they live
-    - Role prompts are symlinked to `~/.config/opencode/agent/bees/`
+    - Role prompts are symlinked to `~/.config/opencode/agent/bureau-agents/`
     - Agents are registered in `~/.config/opencode/opencode.json` under the `agent` key with `mode: "subagent"`
 
 - Install (via setup script)
@@ -293,10 +293,10 @@ agents/scripts/set-up-agents.sh
 ```
 
 The setup script:
-1. Creates symlinks from `agents/role-prompts/*.md` to `~/.config/opencode/agent/bees/`
+1. Creates symlinks from `agents/role-prompts/*.md` to `~/.config/opencode/agent/bureau-agents/`
 2. Registers each agent in `opencode.json` with `mode: "all"`
 
 - Verify and use
-    - Press **Tab** in OpenCode to cycle through available agents — Beehive agents should appear
+    - Press **Tab** in OpenCode to cycle through available agents: Bureau agents should appear
     - Use natural prompts and let OpenCode auto-delegate, or explicitly mention a subagent by name
     - Example: `Have the debugger agent investigate this stack trace`
