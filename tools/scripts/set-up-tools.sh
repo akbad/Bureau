@@ -1122,6 +1122,7 @@ TAKE_DOWN_FILE="$REPO_ROOT/bin/close-bureau"
 echo "#!/usr/bin/env bash" > "$TAKE_DOWN_FILE"
 echo -e "# Run this script to stop servers and containers launched by Bureau's tools script\n" >> "$TAKE_DOWN_FILE"
 echo -e "$KILL_HTTPS_CMD\n$QDRANT_STOP_CMD" >> "$TAKE_DOWN_FILE"
+chmod +x "$TAKE_DOWN_FILE"
 log_info "✔︎ Stop commands also saved to $RED$TAKE_DOWN_FILE$NC for convenience"
 
 if [[ "$AUTO_APPROVE_MCP" == true ]]; then
