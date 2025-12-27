@@ -1,7 +1,7 @@
 # Usage guide
 
 > [!IMPORTANT]
-> This guide assumes the setup steps in [`SETUP.md`](SETUP.md) have been completed and doesn't restate information/guidance available there.
+> This guide assumes setup is complete. See [`SETUP.md`](SETUP.md) if you haven't run `./bin/open-bureau` yet.
 
 **<ins>Contents</ins>**
 - [Overview](#overview)

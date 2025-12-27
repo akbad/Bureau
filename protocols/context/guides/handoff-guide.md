@@ -63,11 +63,11 @@
 
 **Handle tasks directly (don't delegate) when:**
 
-- **Task is simple and well-understood** — 1-2 file edits with clear requirements; faster to do than explain
-- **Requires tight iteration loops** — Debugging with frequent hypothesis testing; trial-and-error exploration
-- **Context loss would be expensive** — Deeply nested state that's hard to summarize; extensive prior conversation history
-- **You already have necessary context loaded** — Files read, relationships understood; delegation = wasteful reloading
-- **Explanation overhead > execution time** — If describing the task takes longer than doing it
+- **Task is simple and well-understood:** 1-2 file edits with clear requirements; faster to do than explain
+- **Requires tight iteration loops:** Debugging with frequent hypothesis testing; trial-and-error exploration
+- **Context loss would be expensive:** Deeply nested state that's hard to summarize; extensive prior conversation history
+- **You already have necessary context loaded:** Files read, relationships understood; delegation = wasteful reloading
+- **Explanation overhead > execution time:** If describing the task takes longer than doing it
 
 **Cost of delegation:**
 - Context summarization overhead (lossy compression of your current understanding)
@@ -81,7 +81,7 @@
 
 #### Precedence rule when both systems apply
 
-1. **Process enforcement (*Superpowers*)**: If a *Superpowers* skill mandates a specific workflow (e.g., TDD, systematic debugging), you MUST follow it — this is non-negotiable per the skill's requirements.
+1. **Process enforcement (*Superpowers*)**: If a *Superpowers* skill mandates a specific workflow (e.g., TDD, systematic debugging), you MUST follow it; this is non-negotiable per the skill's requirements.
 2. **Capability selection**: Within that mandated workflow, use handoff guidelines (this file) and model selection guide to choose:
 
     - Which model/CLI to use (`clink` with appropriate role)
@@ -257,7 +257,7 @@ Parallel execution only helps if you consolidate the answers rigorously. After e
 **For `clink`:**
 - **Reuse `continuation_id`** to preserve conversation context across multiple turns
 - Provide **absolute file paths**, never relative paths
-- Specify **role explicitly** (e.g., `debugger`, `architect`) — don't assume defaults
+- Specify **role explicitly** (e.g., `debugger`, `architect`); don't assume defaults
 - Include **images** parameter if visual context is needed (screenshots, diagrams)
 
 **For `Task` tool (Claude Code):**
@@ -274,7 +274,7 @@ Parallel execution only helps if you consolidate the answers rigorously. After e
 
 **DON'T:**
 - ❌ Say "investigate this bug" without providing error messages, stack traces, or relevant files
-- ❌ Assume subagent has your conversation history (it doesn't — provide needed context)
+- ❌ Assume subagent has your conversation history (it doesn't; provide needed context)
 - ❌ Use vague success criteria like "make it better" or "fix the issues"
 - ❌ Forget to mention approval requirements (subagent might commit/delete without knowing)
 - ❌ Provide relative paths when codebase structure is ambiguous
@@ -349,10 +349,10 @@ Use this flowchart for fast model selection based on **hard constraints** and **
 When delegating via `clink`, adjust thinking levels in your prompt for better performance:
 
 **Codex (effort levels):**
-- `"minimal effort"` — formatting, regex, simple text transforms
-- `"low effort"` — single-file edits, straightforward changes
-- *(default)* — cross-file analysis, moderate complexity
-- `"high effort"` — migrations, concurrency, complex refactors, math-heavy work
+- `"minimal effort"`: formatting, regex, simple text transforms
+- `"low effort"`: single-file edits, straightforward changes
+- *(default)*: cross-file analysis, moderate complexity
+- `"high effort"`: migrations, concurrency, complex refactors, math-heavy work
 
 **Claude (extended thinking):**
 

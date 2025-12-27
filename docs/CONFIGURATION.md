@@ -363,7 +363,7 @@ When you delegate tasks via `clink`, the spawned CLI (Claude, Codex, or Gemini) 
 **This is intentional:** 
 
 - Subagents are spawned programmatically (whether autonomously or via explicit prompting) by a parent agent that already has your trust. 
-- Requiring interactive approval for each subagent action would break the automation flow—the whole point of delegation is autonomous execution.
+- Requiring interactive approval for each subagent action would break the automation flow: the whole point of delegation is autonomous execution.
 
 ### Solutions
 

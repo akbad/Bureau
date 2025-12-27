@@ -1,67 +1,91 @@
 # Bureau
 
-Versatile tools across Gemini CLI, Claude Code, Codex and OpenCode, with the intelligence to leverage & orchestrate them autonomously.
+> *Endowing agents with the intelligence to **leverage versatile custom tools** and **orchestrate each other, autonomously.***
+> 
+> *Supports Gemini CLI, Claude Code, Codex and OpenCode.*
 
 > [!IMPORTANT]
 > ### Shortcuts to key resources
-> 
-> - [**Quick setup guide**](QUICKSTART.md)
-> - [**Full setup guide**](SETUP.md)
-> - [**Usage guide**](USAGE.md)
+>
+> - [**Setup guide *(5 minutes)***](docs/SETUP.md)
+> - [**Usage guide**](docs/USAGE.md)
+> - [**Configuration**](docs/CONFIGURATION.md)
 
 ## Purpose
 
 Agentic coding CLIs, such as Claude Code, Gemini CLI, and Codex, are fragmented: each have unique strengths but incompatible tooling. 
 
-Power users rotating between these (as is often the best option, given providers' unpredictable model throttling and capricious rate limit changes, even for paid plans) **lose time rebuilding and reconfiguring context, tools, and custom workflows**. At the same time, **many (solo- or multi-agent) orchestration frameworks have considerable learning curves and enforce opinionated orchestration patterns** (e.g. graphs, crews, pipelines), rather than adapting to users' ad-hoc workflows or permitting open-ended exploration/building.
+- Power users rotating between these (as is often the best option, given providers' unpredictable model throttling and capricious rate limit changes, even for paid plans) **lose time rebuilding and reconfiguring context, tools, and custom workflows**. 
+- Meanwhile, many agentic orchestration frameworks intending to help solve this problem:
+  
+    - have **considerable learning curves** 
+    - enforce **opinionated orchestration patterns** (e.g. graphs, crews, pipelines)
+    
+    rather than adapting to users' ad-hoc workflows or permitting open-ended exploration/building.
 
-**This repo solves that** by:
+**<ins>Bureau solves that</ins>** by:
 
-- **Providing a unified, consistent set of 13 MCP servers (+ extra plugins)** across all 3 platforms (Sourcegraph, Semgrep, Brave, Tavily, Context7, etc.)
-- **Defining 39 specialized agent roles** once, usable everywhere (debugger, architect, security-compliance, etc.) and spawnable as *cross-CLI subagents*
-- **Minimizing task delegation overhead** from ~5 minutes of setup to <30 seconds
-- **Reducing the learning curve to <ins>near-zero</ins>** 
+- **Providing a unified, cohesive set of MCP servers (+ extra plugins)** across all 3 platforms covering a wide range of daily task categories
+- **Defining 66 specialized agent roles** once and making them:
+    - usable everywhere
+    - spawnable as ***cross-CLI* subagents**
+- **Minimizing task delegation overhead** from minutes of setup to *<30 seconds*
+- **Reducing the learning curve** to ***near-zero*** (while offering thorough customization for power users):
 
-  - **Automated context injection** ensures agents *automatically and judiciously* use all functionality made available by this repo
+  - **Automated context injection** ensures agents *automatically and judiciously* use all functionality Bureau configures them to have access to
   - **Minimal explicit directions needed** from the user
+  - **Sensible defaults** for quick setup 
 
 ## Feature list
 
 ### Consistent agent roles across 4 CLI platforms
 
-- 39 specialized roles (architect, debugger, etc.)
-- Same role definitions work everywhere via shared prompt sources
-- Choose model per task (e.g. Claude for architecture, Gemini for broad code search)
+- [66 specialized roles](agents/role-prompts/) (architect, debugger, etc.) configured for use in *all* supported CLIs
+- Can choose a specific model per task (e.g. Claude for architecture, Gemini for broad code search)
 
 ### 2 ways of invoking agents
 
-- As **subagents** (what you're probably more used to): spawn isolated tasks with separate context, get only the results back
+#### As <ins>subagents</ins> 
 
-    - Done using both:
-        
-        1. Claude Code and OpenCode's built-in subagents features
-        2. PAL's `clink` (for Codex and Gemini CLIs, as well as cross-model/-CLI collaboration)
-
-- **Direct** use and interaction **in main/current conversation** (using custom-generated wrappers/commands): 
+> *Isolated agents that use a **separate context** and return results **only***
     
-    - **Codex, Gemini CLIs:** launch CLI with chosen agent active in main conversation (using automatically-configured wrappers like `codex-debugger` and `gemini-architect`)
-    - **Claude Code:** automatically activate any agent in the current conversation using slash commands (that are automatically set up by Bureau)
-    - **OpenCode:** use any Bureau agent as a [primary agent](https://opencode.ai/docs/agents/#primary-agents)
+| CLI | Subagent usage method |
+| :--- | :--- |
+| **Claude Code** & **OpenCode** <ins>only</ins> | Native/built-in subagent functionality |
+| **All** CLIs, including ***cross-CLI* subagents** | PAL MCP's [`clink` tool](https://github.com/BeehiveInnovations/pal-mcp-server/blob/main/docs/tools/clink.md) |
 
-### 13 MCP servers
+#### As <ins>interactive main agents</ins>
 
-Including:
+> *For **direct use** in the **main conversation*** 
 
-- Code search (Sourcegraph, Serena)
-- Web research (Brave, Tavily, Fetch)
-- API documentation (Context7)
-- Memory/persistence (Qdrant, claude-mem)
-- Security scanning (Semgrep)
-- Browser automation (Playwright)
+| CLI | Main agent activation method |
+| :--- | :--- | 
+| **Claude Code** | Activate at any time using **custom slash commands** set up by Bureau |
+| **OpenCode** | Use built-in [primary agent functionality](https://opencode.ai/docs/agents/#primary-agents) |
+| **Codex** & **Gemini CLI** | Use **custom role-specific launch wrappers** (e.g. `codex-debugger`, `gemini-architect`) set up by Bureau |
+
+> [!TIP]
+> See details on how to use these 2 agent invocation methods in the [*Usage patterns* section below](#usage-patterns). 
+
+### Cohesive MCP server set
+
+Handling essential tasks like:
+
+- **Code search** 
+    - *Sourcegraph* ➔ remote, public repos
+    - *Serena* ➔ local projects
+- **Web research** (*Brave*, *Tavily*, *Fetch*)
+- **Retrieving API docs** (*Context7*)
+- **Memory persistence**
+    - *Qdrant* ➔ semantic memories
+    - *Memory MCP* ➔ structural memories 
+    - *claude-mem* ➔ automatic context storage/injection w/ progressive disclosure *(Claude Code only)*
+- Security scanning (*Semgrep*)
+- Browser automation (*Playwright*)
 
 ### Automatic config injection
 
-> Meant to enable *automatic* use of features listed above by the CLIs (even when not using any particular agent).
+> Enables *automatic* and *timely* use of the functionality listed above by all supported CLI agents.
 
 All agents automatically read these files at startup:
 
@@ -79,14 +103,15 @@ Injected via these files (created in setup steps)
 with each of the 3 files above generated from templates (for portability regardless of repo clone location).
 
 > [!NOTE]
-> **CLI agent selection**
+> 
+> **Enabling/disabling CLI agents for use with Bureau**
 >
-> - Configure which CLIs to set up via the `agents` list in `directives.yml` (or `local.yml` for personal overrides)
-> - See [SETUP.md](SETUP.md#selecting-cli-agents-to-configure) or [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for details
+> - Configure which CLIs to set up by overriding the `agents` list (in `directives.yml`) in your `local.yml`
+> - See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#agents) for details
 
 ## Usage patterns
 
-### Subagents (for isolated execution)
+### Spawning subagents
 
 **Claude Code & OpenCode** *(via native subagents):*
 ```
@@ -101,56 +126,51 @@ with each of the 3 files above generated from templates (for portability regardl
 "clink with codex observability to analyze these metrics"
 ```
 
-### Direct use in the main conversation
+### Activating interactive main agents
 
-**Claude Code** (via slash commands)
+- **Claude Code** ➔ use slash commands:
 
-```bash
-claude
-> /explainer
-# begin interactive conversation helping you understand the repo you spawned it in
-```
+    ```bash
+    claude
+    > /explainer
+    # explainer role activated, interactive conversation begins
+    ```
 
-**Gemini/Codex** (via wrapper scripts)
+- **Gemini/Codex** ➔ use launch wrapper scripts:
 
-```bash
-gemini-explainer                        # use explainer role w/ Gemini CLI
-codex-architect --model gpt-5-codex     # architect role w/ GPT-5-Codex via Codex
-```
+    ```bash
+    gemini-explainer                        # launch Gemini CLI w/ explainer role active
+    codex-architect --model gpt-5.2-codex   # launch Codex using GPT-5.2-Codex w/ architect role active
+    ```
 
-**OpenCode** (via the [primary agents mechanism](https://opencode.ai/docs/agents/#primary-agents))
+- **OpenCode** ➔ use the built-in [primary agents mechanism](https://opencode.ai/docs/agents/#primary-agents): simply cycle through available agents using the `Tab` key.
 
-You can cycle through available agents simply using the Tab key.
+## Configuration
+
+| File | Purpose | Tracked? |
+| :--- | :--- | :--- |
+| `charter.yml` | Fixed, rarely-changed system defaults | Yes |
+| `directives.yml` | User-oriented, often-tweaked settings | Yes |
+| **`local.yml`** | **Personal customizations/overrides** (gitignored) | **No** (gitignored) |
+
+
+> [!IMPORTANT]
+> Configuration loads based on the following hierarchy *(later config sources override earlier ones)*: \
+> **`charter.yml` → `directives.yml` → `local.yml` → environment variables**
+
+See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for full reference.
 
 ## Repo structure
 
 ```
-agents/
-├── role-prompts/          # Agent role prompts for both PAL's clink and OpenCode
-├── claude-subagents/      # Same role prompts as above, except with Claude Code-specific YAML frontmatter
-└── scripts/               # Setup automation
-
-protocols/
-├── context/guides/        # MCP guides (injected via config files)
-├── config/templates/      # Config templates with {{REPO_ROOT}} placeholders
-└── scripts/               # Generates ~/.claude/CLAUDE.md, ~/.codex/AGENTS.md, etc.
-
-tools/
-├── tools.md               # Complete MCP listing
-├── tools-decision-guide.md
-└── scripts/               # MCP installation automation
+bureau/
+├── bin/            # CLI entry points (open-bureau, close-bureau, check-prereqs)
+├── agents/         # Agent definitions and setup
+├── protocols/      # Context/guidance files for agents
+├── tools/          # MCP servers and their documentation
+├── operations/     # Python modules (config loading, cleanup, etc.)
+│
+│   GITIGNORED:
+├── .archives/      # Operational state (trash, cleanup timestamps)
+└── .mcp-servers/   # Cloned MCP server repos (shared across worktrees)
 ```
-
-## Configuration
-
-Bureau uses a YAML-based configuration system with team defaults and personal overrides:
-
-| File | Purpose | Committed? |
-|:-----|:--------|:-----------|
-| `charter.yml` | Fixed system defaults (endpoints, package paths) | Yes |
-| `directives.yml` | Team settings (agents, retention periods, ports, paths) | Yes |
-| `local.yml` | Personal overrides | No (gitignored) |
-
-Configuration loads in order: `charter.yml` → `directives.yml` → `local.yml` → environment variables.
-
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full reference.

@@ -31,7 +31,7 @@
 ## GitHub access
 
 > [!CAUTION]
-> **DON'T** use Fetch MCP on `github.com` URLs — returns page navigation/wrapper HTML, not file content.
+> **DON'T** use Fetch MCP on `github.com` URLs: it returns page navigation/wrapper HTML, not file content.
 
 **For GitHub file content:**
 

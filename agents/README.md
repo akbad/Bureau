@@ -222,7 +222,7 @@ ln -s "$PWD/bureau/agents/role-prompts" \
     - You can pass file paths as context, for example: `clink with codex role=architecture_audit on src/, services/auth/`.
     - If only one CLI is configured, clink can default to it and allow omitting `cli_name`.
     - Troubleshoot: bad paths raise "Prompt file not found: …". Check PAL server logs for details.
-    - The clink tool schema enumerates available `cli_name` and `role` values—use it to confirm your roles are loaded.
+    - The clink tool schema enumerates available `cli_name` and `role` values: use it to confirm your roles are loaded.
     - The example JSONs include permissive flags (for example, Codex `--dangerously-bypass-approvals-and-sandbox`). Remove or adjust them for stricter guardrails.
 
 Tip: Keep role bodies short and reference Tier‑1/2/3 docs from `protocols/context/guides/` in the prompt text (don’t inline).
