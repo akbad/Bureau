@@ -90,31 +90,31 @@ class TestSaveState:
         tmp_path: Path,
         monkeypatch,
     ):
-        """Creates .wax directory if it doesn't exist."""
-        wax_dir = tmp_path / ".wax"
-        state_path = wax_dir / "state.json"
+        """Creates .archives directory if it doesn't exist."""
+        archives_dir = tmp_path / ".archives"
+        state_path = archives_dir / "state.json"
 
-        monkeypatch.setattr("operations.cleanup.state.WAX_DIR", wax_dir)
+        monkeypatch.setattr("operations.cleanup.state.ARCHIVES_DIR", archives_dir)
         monkeypatch.setattr("operations.cleanup.state.STATE_PATH", state_path)
 
         save_state({"last_cleanup_run": "2024-01-15T12:00:00+00:00"})
 
-        assert wax_dir.exists()
+        assert archives_dir.exists()
         assert state_path.exists()
 
     def test_preserves_existing_keys(
         self,
-        wax_dir: Path,
+        archives_dir: Path,
         monkeypatch,
     ):
         """Preserves other keys when updating state."""
-        state_path = wax_dir / "state.json"
+        state_path = archives_dir / "state.json"
         state_path.write_text(json.dumps({
             "existing_key": "existing_value",
             "last_cleanup_run": "old_value",
         }))
 
-        monkeypatch.setattr("operations.cleanup.state.WAX_DIR", wax_dir)
+        monkeypatch.setattr("operations.cleanup.state.ARCHIVES_DIR", archives_dir)
         monkeypatch.setattr("operations.cleanup.state.STATE_PATH", state_path)
 
         save_state({"last_cleanup_run": "new_value"})
@@ -127,13 +127,13 @@ class TestSaveState:
 
     def test_writes_valid_json(
         self,
-        wax_dir: Path,
+        archives_dir: Path,
         monkeypatch,
     ):
         """Writes valid, formatted JSON."""
-        state_path = wax_dir / "state.json"
+        state_path = archives_dir / "state.json"
 
-        monkeypatch.setattr("operations.cleanup.state.WAX_DIR", wax_dir)
+        monkeypatch.setattr("operations.cleanup.state.ARCHIVES_DIR", archives_dir)
         monkeypatch.setattr("operations.cleanup.state.STATE_PATH", state_path)
 
         save_state({

@@ -154,7 +154,7 @@ responses_map = {
 
 | Fixture | Description |
 | :--- | :--- |
-| `wax_dir` | Temporary `.archives/` directory |
+| `archives_dir` | Temporary `.archives/` directory |
 | `trash_dir` | Temporary `.archives/trash/` subdirectory |
 | `state_file` | Path to `state.json` (may or may not exist) |
 
@@ -169,7 +169,7 @@ This fixture is the **central orchestrator** patching all configuration function
 | `get_path("serena_projects")` | `tmp_path/projects/` |
 | `get_qdrant_url()` | `http://127.0.0.1:8780` |
 | `get_qdrant_collection()` | `coding-memory` |
-| `get_wax_dir()` | `tmp_path/.archives/` |
+| `get_archives_dir()` | `tmp_path/.archives/` |
 | `get_base_trash_dir()` | `tmp_path/.archives/trash/` |
 | `get_state_path()` | `tmp_path/.archives/state.json` |
 

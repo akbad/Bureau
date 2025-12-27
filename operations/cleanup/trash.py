@@ -1,4 +1,4 @@
-"""Trash management for Beehive cleanup."""
+"""Trash management for Bureau cleanup."""
 import json
 import shutil
 from datetime import datetime, timezone
@@ -14,7 +14,7 @@ BASE_TRASH_DIR = get_base_trash_dir()
 def get_trash_dir(backend_name: str) -> Path:
     """
         Find trash directory for a specific memory backend.
-        Trash directories are defined per backend: .wax/trash/<backend-name>
+        Trash directories are defined per backend: .archives/trash/<backend-name>
     """
     trash_path = BASE_TRASH_DIR / backend_name
     trash_path.mkdir(parents=True, exist_ok=True)

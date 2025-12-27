@@ -2,7 +2,7 @@
 
 **<ins>What it does</ins>**
 
-Handles **automatic, retention-based cleanup for Beehive's memory backends**
+Handles **automatic, retention-based cleanup for Bureau's memory backends**
 
 - Enforces configurable retention periods across all storage systems
 - Provides a recoverable trash system where stale memories are initially moved to
@@ -10,7 +10,7 @@ Handles **automatic, retention-based cleanup for Beehive's memory backends**
 **<ins>Contents</ins>**
 - [Purpose](#purpose)
 - [CLI commands](#cli-commands)
-  - [`sweep-hive` options](#sweep-hive-options)
+  - [`sweep` options](#sweep-options)
 - [Configuration](#configuration)
 - [Implementation](#implementation)
   - [Overall cleanup orchestration](#overall-cleanup-orchestration)
@@ -35,12 +35,12 @@ Handles **automatic, retention-based cleanup for Beehive's memory backends**
 
 | Command | Description |
 |:--------|:------------|
-| `sweep-hive` | Primary cleanup CLI (run via `uv run sweep-hive`) |
-| `./bin/beehive-prune` | Wrapper for `sweep-hive` |
-| `./bin/beehive-empty-trash` | Immediately purge all trash (bypass grace period) |
-| `./bin/beehive-wipe <storage>` | Completely erase a storage backend |
+| `sweep` | Primary cleanup CLI (run via `uv run sweep`) |
+| `./bin/prune` | Wrapper for `sweep` |
+| `./bin/empty-trash` | Immediately purge all trash (bypass grace period) |
+| `./bin/wipe <storage>` | Completely erase a storage backend |
 
-### `sweep-hive` options
+### `sweep` options
 
 | Flag | Description |
 |:-----|:------------|
@@ -58,16 +58,16 @@ Handles **automatic, retention-based cleanup for Beehive's memory backends**
 
 ```bash
 # Standard cleanup (respects 24h rate limit)
-uv run sweep-hive
+uv run sweep
 
 # Force cleanup of just Qdrant and Serena
-uv run sweep-hive -f -s qs
+uv run sweep -f -s qs
 
 # Dry run to see what would be deleted
-uv run sweep-hive -n -v
+uv run sweep -n -v
 
 # Wipe all data from claude-mem (with backup)
-uv run sweep-hive --wipe claude-mem
+uv run sweep --wipe claude-mem
 ```
 
 ## Configuration

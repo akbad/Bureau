@@ -96,7 +96,7 @@ class QdrantHandler(CleanupHandler):
                         point_date = datetime.strptime(created_str, "%Y-%m-%d")
 
                     # ensure point_date is timezone-aware (use UTC since this is the timezone agents 
-                    #   are directed to use for all memories in Beehive's context files)
+                    #   are directed to use for all memories in Bureau's context files)
                     if point_date.tzinfo is None:
                         point_date = point_date.replace(tzinfo=timezone.utc)
 

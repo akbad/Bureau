@@ -188,7 +188,7 @@ def wipe_memory_backends(
     return {"results": results}
 
 
-# Entrypoint for cleanup CLI: called via `uv run sweep-hive [args]`
+# Entrypoint for cleanup CLI: called via `uv run sweep [args]`
 def main():
     STORAGE_MAP = {
         "q": "qdrant",
@@ -205,7 +205,7 @@ def main():
         return [STORAGE_MAP[ch] for ch in letters]
 
     parser = argparse.ArgumentParser(
-        description="Beehive cleanup: remove old memories based on retention settings"
+        description="Bureau cleanup: remove old memories based on retention settings"
     )
     parser.add_argument(
         "--force", "-f",

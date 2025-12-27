@@ -284,7 +284,7 @@ Parallel execution only helps if you consolidate the answers rigorously. After e
 - ✅ Summarize findings: "Found 3 similar bugs in `auth/` module, all related to session handling"
 - ✅ Set concrete goals: "Refactor `processPayment()` to extract retry logic into separate function"
 - ✅ State constraints clearly: "Don't modify database schema; only change application code"
-- ✅ Give absolute paths: `/Users/you/beehive/protocols/context/guides/handoff-guide.md`
+- ✅ Give absolute paths: `/Users/you/bureau/protocols/context/guides/handoff-guide.md`
 
 ## Choosing *models* when spawning subagents
 

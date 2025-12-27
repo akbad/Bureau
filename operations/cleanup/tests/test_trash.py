@@ -24,7 +24,7 @@ class TestGetTrashDir:
         monkeypatch,
     ):
         """Creates trash directory if it doesn't exist."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         monkeypatch.setattr(
             "operations.cleanup.trash.BASE_TRASH_DIR",
             trash_base
@@ -189,7 +189,7 @@ class TestMoveToTrash:
         monkeypatch,
     ):
         """File is moved (not copied) to trash directory."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         trash_base.mkdir(parents=True)
         monkeypatch.setattr(
             "operations.cleanup.trash.BASE_TRASH_DIR",
@@ -213,7 +213,7 @@ class TestMoveToTrash:
         monkeypatch,
     ):
         """Creates project subdirectory for Serena memories."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         trash_base.mkdir(parents=True)
         monkeypatch.setattr(
             "operations.cleanup.trash.BASE_TRASH_DIR",
@@ -240,7 +240,7 @@ class TestEmptyExpiredTrash:
         monkeypatch,
     ):
         """Files older than grace period are deleted."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         storage_dir = trash_base / "backend"
         storage_dir.mkdir(parents=True)
         monkeypatch.setattr(
@@ -273,7 +273,7 @@ class TestEmptyExpiredTrash:
         monkeypatch,
     ):
         """Files newer than grace period are preserved."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         storage_dir = trash_base / "backend"
         storage_dir.mkdir(parents=True)
         monkeypatch.setattr(
@@ -320,7 +320,7 @@ class TestEmptyExpiredTrash:
         monkeypatch,
     ):
         """Skips storage directories with corrupt manifests."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         storage_dir = trash_base / "backend"
         storage_dir.mkdir(parents=True)
         monkeypatch.setattr(
@@ -344,7 +344,7 @@ class TestEmptyExpiredTrash:
         monkeypatch,
     ):
         """Regression test: handles FileNotFoundError (Issue TOCTOU race)."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         storage_dir = trash_base / "backend"
         storage_dir.mkdir(parents=True)
         monkeypatch.setattr(
@@ -372,7 +372,7 @@ class TestEmptyExpiredTrash:
         monkeypatch,
     ):
         """Falls back to mtime comparison when files list is empty."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         storage_dir = trash_base / "backend"
         storage_dir.mkdir(parents=True)
         monkeypatch.setattr(
@@ -408,7 +408,7 @@ class TestEmptyExpiredTrash:
         monkeypatch,
     ):
         """Removes storage directory when all entries are purged."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         storage_dir = trash_base / "backend"
         storage_dir.mkdir(parents=True)
         monkeypatch.setattr(
@@ -441,7 +441,7 @@ class TestEmptyExpiredTrash:
         monkeypatch,
     ):
         """Preserves storage directory when some entries remain."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         storage_dir = trash_base / "backend"
         storage_dir.mkdir(parents=True)
         monkeypatch.setattr(
@@ -492,7 +492,7 @@ class TestEmptyExpiredTrash:
         monkeypatch,
     ):
         """Handles legacy single-object manifest format."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         storage_dir = trash_base / "backend"
         storage_dir.mkdir(parents=True)
         monkeypatch.setattr(
@@ -527,7 +527,7 @@ class TestEmptyAllTrash:
         monkeypatch,
     ):
         """Deletes all trash items regardless of age."""
-        trash_base = tmp_path / ".wax" / "trash"
+        trash_base = tmp_path / ".archives" / "trash"
         storage_dir = trash_base / "backend"
         storage_dir.mkdir(parents=True)
         monkeypatch.setattr(

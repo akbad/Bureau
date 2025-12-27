@@ -283,7 +283,7 @@ Note: Role bodies should reference `protocols/context/guides/tools-guide.md` (Ti
 This repo's role prompts in `agents/role-prompts/` are automatically configured as OpenCode subagents by the setup script.
 
 - Where they live
-    - Role prompts are symlinked to `~/.config/opencode/agent/bees/`
+    - Role prompts are symlinked to `~/.config/opencode/agent/bureau-agents/`
     - Agents are registered in `~/.config/opencode/opencode.json` under the `agent` key with `mode: "subagent"`
 
 - Install (via setup script)
@@ -293,7 +293,7 @@ agents/scripts/set-up-agents.sh
 ```
 
 The setup script:
-1. Creates symlinks from `agents/role-prompts/*.md` to `~/.config/opencode/agent/bees/`
+1. Creates symlinks from `agents/role-prompts/*.md` to `~/.config/opencode/agent/bureau-agents/`
 2. Registers each agent in `opencode.json` with `mode: "all"`
 
 - Verify and use

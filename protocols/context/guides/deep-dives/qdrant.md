@@ -242,7 +242,7 @@ Example:
 
 ## Local Setup Notes
 
-For the provided setup script (beehive/tools/scripts/set-up-tools.sh):
+For the provided setup script (bureau/tools/scripts/set-up-tools.sh):
 
 - Qdrant DB: `http://127.0.0.1:8780` (Docker maps host 8780 → container 6333)
 - Persistence: Docker bind mount to `~/.qdrant/storage/` (by default)

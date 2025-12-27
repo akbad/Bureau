@@ -1,4 +1,4 @@
-"""Config validator for Beehive cleanup module.
+"""Config validator for Bureau cleanup module.
 
 Validates that all required configuration fields are present before
 cleanup operations run. This prevents silent failures from missing keys.

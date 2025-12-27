@@ -292,25 +292,25 @@ def qdrant_collection() -> str:
 # =============================================================================
 
 @pytest.fixture
-def wax_dir(tmp_path: Path) -> Path:
-    """Create temporary .wax directory for state and trash."""
-    wax = tmp_path / ".wax"
-    wax.mkdir()
-    return wax
+def archives_dir(tmp_path: Path) -> Path:
+    """Create temporary .archives directory for state and trash."""
+    archives = tmp_path / ".archives"
+    archives.mkdir()
+    return archives
 
 
 @pytest.fixture
-def trash_dir(wax_dir: Path) -> Path:
+def trash_dir(archives_dir: Path) -> Path:
     """Create trash subdirectory."""
-    trash = wax_dir / "trash"
+    trash = archives_dir / "trash"
     trash.mkdir()
     return trash
 
 
 @pytest.fixture
-def state_file(wax_dir: Path) -> Path:
+def state_file(archives_dir: Path) -> Path:
     """Path to state.json (may or may not exist)."""
-    return wax_dir / "state.json"
+    return archives_dir / "state.json"
 
 
 # =============================================================================
@@ -323,7 +323,7 @@ def apply_mock_patches(
     sqlite_db: Path,
     jsonl_file: Path,
     serena_projects: Path,
-    wax_dir: Path,
+    archives_dir: Path,
     qdrant_base_url: str,
     qdrant_collection: str,
     mock_config: dict,
@@ -355,7 +355,7 @@ def apply_mock_patches(
     - get_qdrant_url() to return test URL
     - get_qdrant_collection() to return test collection
     - get_config() to return mock_config
-    - get_wax_dir() to return test wax dir
+    - get_archives_dir() to return test archives dir
     - get_trash_dir() to return test trash dir
     - get_state_path() to return test state path
     """
@@ -399,24 +399,24 @@ def apply_mock_patches(
 
     # patch state module
     monkeypatch.setattr(
-        "operations.cleanup.state.get_wax_dir",
-        lambda: wax_dir
+        "operations.cleanup.state.get_archives_dir",
+        lambda: archives_dir
     )
     monkeypatch.setattr(
         "operations.cleanup.state.get_state_path",
-        lambda: wax_dir / "state.json"
+        lambda: archives_dir / "state.json"
     )
     monkeypatch.setattr(
-        "operations.cleanup.state.WAX_DIR",
-        wax_dir
+        "operations.cleanup.state.ARCHIVES_DIR",
+        archives_dir
     )
     monkeypatch.setattr(
         "operations.cleanup.state.STATE_PATH",
-        wax_dir / "state.json"
+        archives_dir / "state.json"
     )
 
     # Patch trash module
-    trash_dir = wax_dir / "trash"
+    trash_dir = archives_dir / "trash"
     monkeypatch.setattr(
         "operations.cleanup.trash.get_base_trash_dir",
         lambda: trash_dir

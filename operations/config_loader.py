@@ -1,4 +1,4 @@
-"""Beehive configuration loader providing type-safe access to all Beehive settings.
+"""Bureau configuration loader providing type-safe access to all Bureau settings.
 
 1. Merges configuration from YAML files with the following precedence hierarchy
    (later sources override earlier ones):  
@@ -231,7 +231,7 @@ def get_config() -> Config:
     # Apply environment variable overrides for path_to
     path_to = config.get("path_to", {})
     path_env_overrides = {
-        "serena_projects": "BEEHIVE_WORKSPACE",
+        "serena_projects": "BUREAU_WORKSPACE",
     }
 
     for path_key, env_var in path_env_overrides.items():
@@ -371,23 +371,19 @@ def get_repo_root() -> Path:
         return Path.cwd()
 
 
-def get_wax_dir() -> Path:
-    """Get .archives directory path (in repo root).
-
-    The wax stores operational state and trash - like
-    storage cells in a beehive.
-    """
+def get_archives_dir() -> Path:
+    """Get .archives directory path (in repo root)."""
     return get_repo_root() / ".archives"
 
 
 def get_state_path() -> Path:
     """Get state.json path."""
-    return get_wax_dir() / "state.json"
+    return get_archives_dir() / "state.json"
 
 
 def get_trash_dir() -> Path:
     """Get trash directory path."""
-    return get_wax_dir() / "trash"
+    return get_archives_dir() / "trash"
 
 
 def get_qdrant_url() -> str:

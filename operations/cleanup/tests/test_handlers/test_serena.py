@@ -234,7 +234,7 @@ class TestSerenaDeleteItems:
         os.utime(memory_file, (old_time, old_time))
 
         # setup trash dir
-        trash_dir = tmp_path / ".wax" / "trash"
+        trash_dir = tmp_path / ".archives" / "trash"
         monkeypatch.setattr(
             "operations.cleanup.trash.BASE_TRASH_DIR",
             trash_dir

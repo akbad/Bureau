@@ -1,5 +1,5 @@
 #!/usr/bin/env -S uv run
-"""CLI tool for shell scripts to read Beehive configuration.
+"""CLI tool for shell scripts to read Bureau configuration.
 
 1. Merges configs using the order: charter.yml → directives.yml → local.yml → env)
 2. Reads from merged config

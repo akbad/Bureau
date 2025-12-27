@@ -242,7 +242,7 @@ Simply explicitly mention the subagent you want to use and it will automatically
     | Command | Description |
     |---------|-------------|
     | `uv run get-config` | Display resolved Bureau configuration |
-    | `uv run sweep-hive` | Clean up temporary/generated files |
+    | `uv run sweep` | Clean up temporary/generated files |
     | `uv run validate-config` | Validate configuration files |
 
 ## Preserving context & memories across sessions

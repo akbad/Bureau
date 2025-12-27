@@ -71,7 +71,7 @@ class MemoryMcpHandler(CleanupHandler):
                     continue
 
             # ensure created_dt is timezone-aware (use UTC since this is the timezone agents
-            #   are directed to use for all memories in Beehive's context files)
+            #   are directed to use for all memories in Bureau's context files)
             if created_dt.tzinfo is None:
                 created_dt = created_dt.replace(tzinfo=timezone.utc)
 
