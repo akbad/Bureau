@@ -117,10 +117,10 @@ All configuration is done via YAML files. See [Configuration](#configuration) fo
 
 ## Configuration
 
-Beehive uses YAML configuration files at the repo root. Settings are loaded in this order (later sources override earlier):
+Bureau uses YAML configuration files at the repo root. Settings are loaded in this order (later sources override earlier):
 
-1. **`comb.yml`** - System defaults (endpoints, package paths) - **do not edit**
-2. **`queen.yml`** - Team/shared settings (agents, retention, ports, paths)
+1. **`charter.yml`** - System defaults (endpoints, package paths) - **do not edit**
+2. **`directives.yml`** - Team/shared settings (agents, retention, ports, paths)
 3. **`local.yml`** - Personal overrides (gitignored)
 4. **Environment variables** - Highest priority for paths
 
@@ -129,7 +129,7 @@ For full configuration reference, see [docs/CONFIGURATION.md](../docs/CONFIGURAT
 ### Key settings
 
 ```yaml
-# queen.yml - customize these as needed
+# directives.yml - customize these as needed
 
 # Which agents to configure
 agents:
@@ -151,11 +151,11 @@ port_for:
 
 ## Data retention
 
-Beehive automatically cleans up old memories to prevent unbounded storage growth.
+Bureau automatically cleans up old memories to prevent unbounded storage growth.
 
 ### Retention configuration
 
-Edit `queen.yml` to customize retention periods:
+Edit `directives.yml` to customize retention periods:
 
 ```yaml
 retention_period_for:
@@ -182,10 +182,10 @@ Set to `"never"` to disable cleanup for a storage.
 
 ### Commands
 
-- **Automatic cleanup**: Runs on `./bin/start-beehive` if >24h since last run
-- **Manual prune**: `./bin/beehive-prune [--force] [--dry-run] [--storage L]` where `L` is a combo of letters `q` (Qdrant), `c` (claude-mem), `s` (Serena), `m` (memory-mcp); e.g., `-s smq`
-- **Empty trash**: `./bin/beehive-empty-trash`
-- **Wipe storage**: `./bin/beehive-wipe <storage> [<storage>...] [--no-backup] [--yes]`
+- **Automatic cleanup**: Runs on `./bin/open-bureau` if >24h since last run
+- **Manual prune**: `./bin/prune [--force] [--dry-run] [--storage L]` where `L` is a combo of letters `q` (Qdrant), `c` (claude-mem), `s` (Serena), `m` (memory-mcp); e.g., `-s smq`
+- **Empty trash**: `./bin/empty-trash`
+- **Wipe storage**: `./bin/wipe <storage> [<storage>...] [--no-backup] [--yes]`
 
 ### Complete wipe
 
@@ -193,21 +193,21 @@ To completely erase all data from one or more storages:
 
 ```bash
 # Wipe a single storage (backs up to trash first)
-./bin/beehive-wipe claude-mem
+./bin/wipe claude-mem
 
 # Wipe multiple storages
-./bin/beehive-wipe claude-mem qdrant
+./bin/wipe claude-mem qdrant
 
 # Wipe all storages
-./bin/beehive-wipe all
+./bin/wipe all
 
 # Skip confirmation prompt
-./bin/beehive-wipe all --yes
+./bin/wipe all --yes
 
 # Permanent deletion (no backup - DANGEROUS)
-./bin/beehive-wipe claude-mem --no-backup --yes
+./bin/wipe claude-mem --no-backup --yes
 ```
 
 ### Soft delete
 
-Deleted items go to `.wax/trash/` with a 30-day grace period before permanent deletion.
+Deleted items go to `.archives/trash/` with a 30-day grace period before permanent deletion.

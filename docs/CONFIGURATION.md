@@ -1,6 +1,6 @@
 # Configuration reference
 
-Beehive uses a YAML-based configuration system with a three-tier hierarchy that allows team-wide defaults while supporting personal overrides.
+Bureau uses a YAML-based configuration system with a three-tier hierarchy that allows team-wide defaults while supporting personal overrides.
 
 ## Config file precedence
 
@@ -8,16 +8,16 @@ Configuration is loaded and merged in this order (later sources override earlier
 
 | Priority | File | Purpose | Tracked by git? |
 |:---------|:-----|:--------|:------------------|
-| 1 (lowest) | `comb.yml` | Fixed system defaults | Yes |
-| 2 | `queen.yml` | Team-tunable settings | Yes |
+| 1 (lowest) | `charter.yml` | Fixed system defaults | Yes |
+| 2 | `directives.yml` | Team-tunable settings | Yes |
 | 3 | `local.yml` | Personal overrides | No |
 | 4 (highest) | Environment variables | Runtime overrides | N/A |
 
 ### When to use each file
 
-- **`comb.yml`**: Don't edit unless you're changing upstream service endpoints or package conventions. These are values that rarely (if ever) need changing.
+- **`charter.yml`**: Don't edit unless you're changing upstream service endpoints or package conventions. These are values that rarely (if ever) need changing.
 
-- **`queen.yml`**: Edit to change team-wide defaults like retention periods, enabled agents, ports, or paths. Changes here affect everyone using this Beehive installation.
+- **`directives.yml`**: Edit to change team-wide defaults like retention periods, enabled agents, ports, or paths. Changes here affect everyone using this Bureau installation.
 
 - **`local.yml`**: Create this file for personal overrides that shouldn't be shared (e.g., different workspace paths, custom retention periods, disabling certain agents locally).
 
@@ -25,9 +25,9 @@ Configuration is loaded and merged in this order (later sources override earlier
 
 ### `agents`
 
-**File:** `queen.yml`
+**File:** `directives.yml`
 
-List of CLI agents that Beehive should configure during setup.
+List of CLI agents that Bureau should configure during setup.
 
 ```yaml
 agents:
@@ -41,7 +41,7 @@ Remove an agent from the list to skip configuring it. Note that the CLI's config
 
 ### `mcp`
 
-**File:** `queen.yml`
+**File:** `directives.yml`
 
 MCP tool permissions.
 
@@ -58,7 +58,7 @@ When set to `yes` or `true`, agents won't prompt for permission before using MCP
 
 ### `pal`
 
-**File:** `queen.yml`
+**File:** `directives.yml`
 
 Configures the PAL MCP server's `clink` tool, which spawns subagents across different coding CLIs (Claude, Codex, Gemini). These settings control which models are used and which role prompts are available.
 
@@ -67,7 +67,7 @@ Configures the PAL MCP server's `clink` tool, which spawns subagents across diff
 > 
 > 1. Regenerate configs by running:
 >    ```bash
->    ./configs/scripts/set-up-configs.sh
+>    ./protocols/scripts/set-up-configs.sh
 >    ```
 > 2. Restart coding CLIs (or use their MCP-related commands to reconnect to PAL).
 
@@ -117,7 +117,7 @@ pal:
 
 ### `retention_period_for`
 
-**File:** `queen.yml`
+**File:** `directives.yml`
 
 Retention periods for each memory backend. Memories older than these thresholds are automatically moved to trash during cleanup.
 
@@ -148,7 +148,7 @@ retention_period_for:
 
 ### `cleanup`
 
-**File:** `queen.yml`
+**File:** `directives.yml`
 
 Controls automatic cleanup behavior.
 
@@ -157,11 +157,11 @@ cleanup:
   min_interval: 24h  # Minimum time between cleanup runs
 ```
 
-Cleanup runs automatically on `./bin/start-beehive` if enough time has passed since the last run.
+Cleanup runs automatically on `./bin/open-bureau` if enough time has passed since the last run.
 
 ### `trash`
 
-**File:** `queen.yml`
+**File:** `directives.yml`
 
 Controls the soft-delete trash system.
 
@@ -170,11 +170,11 @@ trash:
   grace_period: 30d  # Time before trash is permanently deleted
 ```
 
-Deleted items go to `.wax/trash/` and remain recoverable until the grace period expires.
+Deleted items go to `.archives/trash/` and remain recoverable until the grace period expires.
 
 ### `startup_timeout_for`
 
-**File:** `queen.yml`
+**File:** `directives.yml`
 
 Timeouts for startup operations (in seconds).
 
@@ -188,7 +188,7 @@ Increase these values on slower machines.
 
 ### `port_for`
 
-**File:** `queen.yml`
+**File:** `directives.yml`
 
 Ports for locally-run servers and containers.
 
@@ -205,38 +205,57 @@ Change these if you have port conflicts.
 
 ### `path_to`
 
-**File:** `queen.yml` (user-tunable) and `comb.yml` (package defaults)
+**File:** `directives.yml` (user-tunable) and `charter.yml` (package defaults)
 
-#### User-tunable paths (in `queen.yml`)
+File and directory paths used by Bureau and its tools.
+
+| Setting | Default | Description |
+|:--------|:--------|:------------|
+| `workspace` | `~/code` | Base workspace directory; other paths derive from this |
+| `serena_projects` | (= `workspace`) | Where Serena looks for project memories |
+| `fs_mcp_whitelist` | (= `workspace`) | Directory boundary for Filesystem MCP access |
+| `mcp_clones` | `.mcp-servers/` | Clone location for MCP server source code |
+| `storage_for.claude_mem` | `~/.claude-mem/claude-mem.db` | Claude-mem SQLite database path |
+| `storage_for.memory_mcp` | `~/.memory-mcp/memory.jsonl` | Memory MCP knowledge graph storage |
+| `storage_for.qdrant` | `~/.qdrant/storage` | Qdrant Docker volume mount point |
+
+> [!NOTE]
+> 
+> #### Paths automatically derived from `workspace`
+> 
+> When `workspace` is set, the following paths are automatically derived from it (unless explicitly overridden):
+> 
+> - `serena_projects` → same as `workspace`
+> - `fs_mcp_whitelist` → same as `workspace`
+> 
+> This means you only need to configure `workspace` in `local.yml` to change all workspace-related paths at once.
+
+> [!NOTE]
+>
+> #### MCP server clone location is *shared across worktrees*
+> 
+> `mcp_clones` is **not** derived from `workspace`. It defaults to `.mcp-servers/` in the main repo root and is shared across all git worktrees (so worktrees won't re-clone MCP server code).
+
+#### YML example
 
 ```yaml
 path_to:
-  workspace: ~/code        # Base workspace directory
-```
+  # User-tunable paths
+  workspace: ~/code                           # Base workspace directory
+  serena_projects: ~/code                     # Serena project search location
+  fs_mcp_whitelist: ~/code                    # Filesystem MCP security boundary
+  mcp_clones: .mcp-servers/                   # MCP server clone location (in repo root)
 
-**Path derivation:** When `workspace` is set, the following paths are automatically derived from it (unless explicitly overridden):
-
-- `serena_projects` → same as `workspace`
-- `fs_mcp_whitelist` → same as `workspace`
-- `mcp_clones` → `{workspace}/mcp-servers`
-
-This means you only need to configure `workspace` in `local.yml` to change all workspace-related paths at once.
-
-#### Storage paths (nested under `path_to`)
-
-Storage paths for memory backends are configured under `path_to.storage_for`:
-
-```yaml
-path_to:
+  # Storage paths for memory backends
   storage_for:
-    claude_mem: ~/.claude-mem/claude-mem.db   # Claude-mem database
+    claude_mem: ~/.claude-mem/claude-mem.db   # Claude-mem SQLite database
     memory_mcp: ~/.memory-mcp/memory.jsonl    # Memory MCP JSONL storage
     qdrant: ~/.qdrant/storage                 # Qdrant Docker volume mount
 ```
 
 ### `endpoint_for`
 
-**File:** `comb.yml`
+**File:** `charter.yml`
 
 Cloud-hosted MCP service endpoints.
 
@@ -251,7 +270,7 @@ These rarely need changing unless you're using self-hosted instances.
 
 ### `qdrant`
 
-**File:** `comb.yml`
+**File:** `charter.yml`
 
 Qdrant vector database settings.
 
@@ -267,7 +286,7 @@ Some configuration values can be overridden via environment variables:
 
 | Environment Variable | Overrides | Description |
 |:---------------------|:----------|:------------|
-| `BEEHIVE_WORKSPACE` | `path_to.serena_projects` | Base project directory |
+| `BUREAU_WORKSPACE` | `path_to.serena_projects` | Base project directory |
 | `MEMORY_MCP_STORAGE_PATH` | `path_to.storage_for.memory_mcp` | Memory MCP storage path |
 | `CLAUDE_MEM_STORAGE_PATH` | `path_to.storage_for.claude_mem` | Claude-mem database path |
 | `QDRANT_STORAGE_PATH` | `path_to.storage_for.qdrant` | Qdrant storage directory |
@@ -312,13 +331,13 @@ path_to:
   workspace: ~/Projects  # All other paths derive from this automatically
 ```
 
-Or if you need to override individual derived paths:
+Or if you need to override individual paths:
 
 ```yaml
 # local.yml
 path_to:
   workspace: ~/Projects
-  mcp_clones: ~/CustomMCPLocation  # Override just this one
+  mcp_clones: ~/CustomMCPLocation  # Override the default (.mcp-servers/ in repo root)
 ```
 
 ### Change ports to avoid conflicts
@@ -344,7 +363,7 @@ When you delegate tasks via `clink`, the spawned CLI (Claude, Codex, or Gemini) 
 **This is intentional:** 
 
 - Subagents are spawned programmatically (whether autonomously or via explicit prompting) by a parent agent that already has your trust. 
-- Requiring interactive approval for each subagent action would break the automation flow—the whole point of delegation is autonomous execution.
+- Requiring interactive approval for each subagent action would break the automation flow: the whole point of delegation is autonomous execution.
 
 ### Solutions
 
@@ -356,8 +375,8 @@ Also, don't delegate commands you wouldn't run yourself; the parent agent's judg
 
 | Command | Description |
 |:--------|:------------|
-| `./bin/start-beehive` | Start Beehive (runs cleanup if needed) |
-| `./bin/beehive-prune` | Manually run cleanup |
-| `./bin/beehive-empty-trash` | Permanently delete trash contents |
-| `./bin/beehive-wipe <storage>` | Wipe a storage backend |
+| `./bin/open-bureau` | Start Bureau (runs cleanup if needed) |
+| `./bin/bureau-prune` | Manually run cleanup |
+| `./bin/bureau-empty-trash` | Permanently delete trash contents |
+| `./bin/bureau-wipe <storage>` | Wipe a storage backend |
 | `./bin/check-prereqs` | Verify prerequisites are installed |
