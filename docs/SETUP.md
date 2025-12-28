@@ -11,7 +11,7 @@ Bureau's bootstrap script handles all setup automatically, providing sensible de
 > 1. **Ensure deps:** Node.js 20+, Python 3.12+ with [`uv`](https://docs.astral.sh/uv/), Docker daemon *(Rancher or Docker Desktop)*
 > 2. In your shell profile (`.zshrc`/`.bashrc`): 
 >     
->     - **Set API keys:** `TAVILY_API_KEY`, `BRAVE_API_KEY`, `CONTEXT7_API_KEY` **(all offer free tiers)**
+>     - **Set API keys:** [`TAVILY_API_KEY`](https://www.tavily.com/), [`BRAVE_API_KEY`](https://brave.com/search/api/), [`CONTEXT7_API_KEY`](https://console.upstash.com/) **(all offer free tiers)**
 >     - Add the following directories to `$PATH`:
 > 
 >       - [`bureau/bin/`](../bin/)
