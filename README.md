@@ -9,7 +9,7 @@
 >
 > - [**Setup guide *(5 minutes)***](docs/SETUP.md)
 > - [**Usage guide**](docs/USAGE.md)
-> - [**Configuration**](docs/CONFIGURATION.md)
+> - [**Configuration reference**](docs/CONFIGURATION.md)
 
 ## Purpose
 
@@ -94,6 +94,8 @@ All agents automatically read these files at startup:
 
     - Serves as an entrypoint to documentation progressively disclosing each MCP servers' tool capabilities
 
+- Guidance on automatically activating [skills](https://github.com/obra/superpowers/tree/main/skills) highly relevant and useful for key dev workflows/tasks *(provided by the [Superpowers plugin](https://github.com/obra/superpowers), currently **only for Claude Code or Codex**)*
+
 Injected via these files (created in setup steps)
 
 - `~/.claude/CLAUDE.md` (Claude Code)
@@ -108,6 +110,22 @@ with each of the 3 files above generated from templates (for portability regardl
 >
 > - Configure which CLIs to set up by overriding the `agents` list (in `directives.yml`) in your `local.yml`
 > - See [docs/CONFIGURATION.md](docs/CONFIGURATION.md#agents) for details
+
+### Spec-driven development *(maintainer favourite)* 
+
+> *This is provided by the [GitHub's open-source `spec-kit` CLI](https://github.com/github/spec-kit), which Bureau's setup scripting automatically installs*\
+> *(via `uv tool install` for global availability).*
+
+**Significantly reduces agents' mistakes, bugs and unintended implementation omissions** by providing an intuitive, painless workflow *driven by intra-CLI commands* where agents: 
+    
+- write a comprehensive spec for intended changes, interactively asking questions as necessary,
+- turn their specs into implementation plans, which are then turned into concrete tasklists
+- implement in detail based on the docs above
+- can seamlessly handle on-the-fly updates, accordingly synchronize/adjust specs, plans, tasks, etc. in a cascading fashion
+
+> [!TIP]
+> 
+> To get started fast, **read [Bureau's 5-minute guide to `spec-kit`](docs/USAGE.md#using-github-speckit-cli)**.
 
 ## Usage patterns
 

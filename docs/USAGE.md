@@ -449,7 +449,7 @@ While claude-mem works automatically, you can manually search its database using
 [GitHub SpecKit](https://github.github.io/spec-kit/) is an open-source toolkit for [**Spec-Driven Development (SDD)**](https://github.com/github/spec-kit/blob/main/spec-driven.md), which emphasizes creating extensive, exhaustive specifications that are then treated as executable roadmaps that drive implementation.
 
 > [!NOTE]
-> SpecKit is <ins>not</ins> an MCP tool; it's a simple CLI tool that uses available agentic coding CLIs. It's installed automatically by the [tool setup script](../tools/scripts/set-up-tools.sh); verify installation (and its connection to your various CLIs) by running `specify check`.
+> SpecKit is <ins>not</ins> an MCP; it's a simple CLI tool that integrates into agentic coding CLIs by setting up commands to be used within them. It's installed automatically by the [tool setup script](../tools/scripts/set-up-tools.sh); verify installation (and its connection to your various CLIs) by running `specify check`.
 
 SpecKit creates this structure in your project:
 
@@ -469,20 +469,25 @@ my-project/
     └── requirements.md           # Validation gates
 ```
 
-#### How to use SpecKit: overview
+#### The SpecKit workflow: 5 minute crash course
 
 > [!TIP]
-> Each of the commands below can optionally be followed with a prompt containing extra instructions (and this should be provided in most cases).
+> Each of the commands below can optionally be followed with a prompt containing extra instructions, which supports everything the CLI you use it in .
 
-<ins>Setting up a new project</ins>
+**<ins>Setting up SpecKit in a new project</ins>**
 
-If a project constitution doesn't already exist in the repo at `**Run once per repo** to establish project's engineering foundations/principles to follow:
+1. Run `specify init <path/to/repo>` to initialize SpecKit in your repo
+  
+   - You will be prompted to choose an agent CLI you want to use SpecKit within
 
-```bash
-/speckit.constitution  
-```
+2. Launch your agent CLI of choice *at the same path you used in the previous step*
+3. Set hard coding/design guidelines for agents to follow by running
 
-<ins>Main workflow</ins>
+   ```bash
+   > /speckit.constitution  # only run once per repo
+   ```
+
+**<ins>Main workflow</ins>**
 
 The tool is opinionated, splitting its provided commands to correspond to SDD's 4 phases:
 
