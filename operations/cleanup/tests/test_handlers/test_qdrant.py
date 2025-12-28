@@ -1,9 +1,12 @@
 """Tests for QdrantHandler (REST API cleanup)."""
 import json
-from datetime import datetime, timezone
+import pytest
+from datetime import datetime
 from unittest.mock import patch, MagicMock
 from urllib.error import HTTPError, URLError
 
+
+from operations.cleanup.handlers import CleanupError
 from operations.cleanup.handlers.qdrant import QdrantHandler
 from operations.cleanup.tests import NonJsonHttpResponse, create_mock_http_endpoint
 
@@ -164,7 +167,7 @@ class TestQdrantGetExpiredItems:
         apply_mock_patches: dict,
         cutoff_datetime: datetime,
     ):
-        """HTTP errors are handled gracefully."""
+        """HTTP errors raise CleanupError."""
         def error_urlopen(req, timeout=None):
             url = req.full_url if hasattr(req, 'full_url') else str(req)
             method = req.get_method() if hasattr(req, 'get_method') else 'GET'
@@ -186,10 +189,8 @@ class TestQdrantGetExpiredItems:
 
         with patch("operations.cleanup.handlers.qdrant.urlopen", side_effect=error_urlopen):
             handler = QdrantHandler()
-            items = handler.get_stale_items(cutoff_datetime)
-
-        # returns empty list on error, not crash
-        assert items == []
+            with pytest.raises(CleanupError, match="Qdrant HTTP 500"):
+                handler.get_stale_items(cutoff_datetime)
 
     def test_empty_collection(
         self,
@@ -213,32 +214,28 @@ class TestQdrantGetExpiredItems:
         apply_mock_patches: dict,
         cutoff_datetime: datetime,
     ):
-        """URLError (server unreachable) is handled gracefully."""
+        """URLError (server unreachable) raises CleanupError."""
         def unreachable_urlopen(req, timeout=None):
             raise URLError("Connection refused")
 
         with patch("operations.cleanup.handlers.qdrant.urlopen", side_effect=unreachable_urlopen):
             handler = QdrantHandler()
-            items = handler.get_stale_items(cutoff_datetime)
-
-        # returns empty list when server is unreachable
-        assert items == []
+            with pytest.raises(CleanupError, match="Qdrant unavailable"):
+                handler.get_stale_items(cutoff_datetime)
 
     def test_json_decode_error_handling(
         self,
         apply_mock_patches: dict,
         cutoff_datetime: datetime,
     ):
-        """JSONDecodeError (malformed response) is handled gracefully."""
+        """JSONDecodeError (malformed response) raises CleanupError."""
         with patch("operations.cleanup.handlers.qdrant.urlopen",
                    side_effect=create_mock_http_endpoint({
                        ("GET", "/collections/coding-memory"): NonJsonHttpResponse(b"not valid json {")
                    })):
             handler = QdrantHandler()
-            items = handler.get_stale_items(cutoff_datetime)
-
-        # returns empty list on malformed JSON
-        assert items == []
+            with pytest.raises(CleanupError, match="Invalid JSON response"):
+                handler.get_stale_items(cutoff_datetime)
 
     def test_exact_boundary_not_deleted(
         self,
