@@ -3,50 +3,17 @@
 # Tools setup script for Bureau (for MCP servers, backing Docker containers, etc.)
 #
 # Prerequisites:
-#   Required:
-#       - Node.js/npm (for npx)
-#       - uv/uvx with Python 3.12 (for Python-based MCP servers and Semgrep)
-#       - Docker Desktop or Rancher Desktop (for Qdrant container)
+#   Dependencies:
+#       - Node.js/npm
+#       - uv/uvx with Python 3.12+
+#       - Docker daemon (Docker Desktop or Rancher Desktop)
 #
-#   API keys (for cloud-based MCP servers' free tiers):
+#   API keys (for cloud-based MCP servers, note **all offer free tiers**):
 #       - Tavily API key in $TAVILY_API_KEY
 #       - Brave Search API key in $BRAVE_API_KEY
+#       - Context7 API key in $CONTEXT7_API_KEY
 #
-#   Optional but recommended: Set up PAL clink config
-#       - Roles and per-CLI config at `~/.pal/cli_clients/`
-#       - Subagent prompts at `~/.pal/prompts`
-#
-# Usage:
-#   ./set-up-tools.sh
-#
-# Agent discovery:
-#   Automatically configures any agentic CLI with a config directory
-#     - Claude Code: ~/.claude/
-#     - Gemini CLI:  ~/.gemini/
-#     - Codex:       ~/.codex/
-#
-# Purpose:
-#   1. Sets up the following MCP servers in HTTP mode
-#      (i.e. shared across all agents/repos):
-#       - Qdrant MCP (local server, semantic memory with Docker backend)
-#       - Sourcegraph MCP (local server wrapper for Sourcegraph.com public search)
-#       - Semgrep MCP (local server, static analysis and security scanning)
-#       - Serena MCP (local server, semantic code analysis and editing with LSP)
-#       - Context7 MCP (remote Upstash server, always-fresh API docs)
-#       - Tavily MCP (remote Tavily server, web search/extract/map/crawl)
-#       - Brave MCP (remote Brave server, web/image/video/news search)
-#   2. Sets up the following MCP servers in stdio mode
-#      (i.e. each agent runs its own server)
-#       - PAL MCP (only clink)
-#       - Filesystem MCP (necessary since only supports stdio transport)
-#       - Fetch MCP (necessary since only supports stdio transport)
-#       - Memory MCP (knowledge graph for persistent structured memory)
-#       - Brave Search MCP (privacy-focused web search)
-#   3. Connects coding agent CLI clients if their user-level config dir exists
-#       (see discover_agents):
-#       - Gemini CLI
-#       - Claude Code
-#       - Codex
+# Usage: ./set-up-tools.sh
 
 set -e  # exit on error
 
@@ -568,14 +535,14 @@ setup_pal_stdio_mcp() {
                 ;;
             "$GEMINI")
                 # Gemini CLI: add stdio MCP with timeout in server config
-                # The add_mcp_to_gemini function handles JSON manipulation
+                # add_mcp_to_gemini() handles JSON manipulation
                 if grep -q '"pal": {' "$GEMINI_CONFIG" 2>/dev/null; then
                     log_warning "Already exists"
                     continue
                 fi
 
-                # Add with timeout and env vars (handled by add-mcp-to-gemini.py)
-                # Gemini config format: command array with env vars in separate block
+                # Add with timeout and env vars using Gemini's config format:
+                #   command array with env vars in separate block
                 add_mcp_to_gemini "stdio" "pal" "sh" "-c" "$pal_bootstrap_script" \
                     "--timeout" "300000" \
                     "--env" "PATH=$pal_env_path" \
@@ -590,11 +557,10 @@ setup_pal_stdio_mcp() {
                     continue
                 fi
 
-                # Use official sh -c bootstrap pattern for Codex with TOML literal string 
-                #   (single quotes) around $pal_bootstrap_script var to avoid escaping the 
-                #   double quotes within the var's contents
-                # Note the single quotes don't inhibit bash's expansion of the variable due
-                #   to heredoc (bounded by the EOF delimiters) parsing rules
+                # Use upstream-prescribed `sh -c` PAL bootstrap pattern for Codex with TOML literal string (single quotes)
+                #   around $pal_bootstrap_script var to avoid escaping the double quotes in the var's contents
+                # Note the single quotes don't inhibit bash's expansion of the variable due to the special parsing rules
+                #   used for heredocs (i.e. string below by the EOF delimiters)
                 cat >> "$CODEX_CONFIG" << EOF
 
 [mcp_servers.pal]
@@ -646,7 +612,7 @@ ensure_rancher_running() {
         return 1
     fi
 
-    # Rancher/Docker is not running, attempt to start it
+    # Rancher/Docker is not running; attempt to start it
     log_info "Docker daemon is not running. Starting Rancher Desktop..."
 
     if rdctl start; then
