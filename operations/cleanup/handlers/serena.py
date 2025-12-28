@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .base import CleanupHandler
+from .base import CleanupHandler, CleanupError
 from ..trash import get_trash_dir, move_to_trash, write_manifest
 from ...config_loader import get_path, get_trash_grace_period
 
@@ -57,18 +57,75 @@ class SerenaHandler(CleanupHandler):
         return serena_dirs
 
     def get_stale_items(self, cutoff: datetime) -> list[dict[str, Any]]:
-        """Find memory files older than cutoff based on mtime."""
-        items = []
-        cutoff_timestamp = cutoff.timestamp()
+        """Find memory files older than cutoff based on mtime.
 
-        for memories_dir in self._find_serena_dirs():
-            # grandparent will be the project name since the memories dir 
-            #   will always be at <project>/.serena/memories
-            project_name = memories_dir.parent.parent.name
+        Raises:
+            CleanupError: On file system errors.
+        """
+        try:
+            items = []
+            cutoff_timestamp = cutoff.timestamp()
 
-            for memory_file in memories_dir.glob("*.md"):
-                mtime = memory_file.stat().st_mtime
-                if mtime < cutoff_timestamp:
+            for memories_dir in self._find_serena_dirs():
+                # grandparent will be the project name since the memories dir
+                #   will always be at <project>/.serena/memories
+                project_name = memories_dir.parent.parent.name
+
+                for memory_file in memories_dir.glob("*.md"):
+                    mtime = memory_file.stat().st_mtime
+                    if mtime < cutoff_timestamp:
+                        items.append({
+                            "path": memory_file,
+                            "project": project_name,
+                            "mtime": datetime.fromtimestamp(mtime, tz=timezone.utc),
+                            "size": memory_file.stat().st_size,
+                        })
+
+            return items
+        except OSError as e:
+            raise CleanupError(f"Failed to scan Serena memories: {e}") from e
+
+    def export_items_to_trash(self, items: list[dict[str, Any]], retention: str) -> str:
+        """Move files to trash, preserving project structure.
+
+        Raises:
+            CleanupError: On file system errors.
+        """
+        try:
+            trash_dir = get_trash_dir(self.name)
+            moved_files: list[Path] = []
+
+            for item in items:
+                dest = move_to_trash(item["path"], self.name, project_name=item["project"])
+                moved_files.append(dest)
+
+            write_manifest(trash_dir, self.name, len(items), retention,
+                           get_trash_grace_period(),
+                           files=moved_files)
+
+            return str(trash_dir)
+        except OSError as e:
+            raise CleanupError(f"Failed to move files to trash: {e}") from e
+
+    def delete_items_from_storage(self, items: list[dict[str, Any]]) -> int:
+        """Files already moved by export_items_to_trash, just return count."""
+        # Files are moved (not copied) by export_items_to_trash
+        return len(items)
+
+    def _wipe(self, backup: bool) -> dict[str, Any]:
+        """Completely erase all Serena memory files.
+
+        Raises:
+            CleanupError: On file system errors.
+        """
+        try:
+            items = []
+
+            for memories_dir in self._find_serena_dirs():
+                project_name = memories_dir.parent.parent.name
+
+                for memory_file in memories_dir.glob("*.md"):
+                    mtime = memory_file.stat().st_mtime
                     items.append({
                         "path": memory_file,
                         "project": project_name,
@@ -76,56 +133,20 @@ class SerenaHandler(CleanupHandler):
                         "size": memory_file.stat().st_size,
                     })
 
-        return items
+            if not items:
+                return {"storage": self.name, "wiped": 0, "message": "no memory files found"}
 
-    def export_items_to_trash(self, items: list[dict[str, Any]], retention: str) -> str:
-        """Move files to trash, preserving project structure."""
-        trash_dir = get_trash_dir(self.name)
-        moved_files: list[Path] = []
+            # back up if requested, then delete (files moved via export_items_to_trash)
+            backup_path = None
+            if backup:
+                backup_path = self.export_items_to_trash(items, "wipe")
+            else:
+                for item in items:
+                    Path(str(item["path"])).unlink()
 
-        for item in items:
-            dest = move_to_trash(item["path"], self.name, project_name=item["project"])
-            moved_files.append(dest)
-
-        write_manifest(trash_dir, self.name, len(items), retention,
-                       get_trash_grace_period(),
-                       files=moved_files)
-
-        return str(trash_dir)
-
-    def delete_items_from_storage(self, items: list[dict[str, Any]]) -> int:
-        """Files already moved by export_items_to_trash, just return count."""
-        # Files are moved (not copied) by export_items_to_trash
-        return len(items)
-
-    def wipe(self, backup: bool = True) -> dict[str, Any]:
-        """Completely erase all Serena memory files."""
-        items = []
-
-        for memories_dir in self._find_serena_dirs():
-            project_name = memories_dir.parent.parent.name
-
-            for memory_file in memories_dir.glob("*.md"):
-                mtime = memory_file.stat().st_mtime
-                items.append({
-                    "path": memory_file,
-                    "project": project_name,
-                    "mtime": datetime.fromtimestamp(mtime, tz=timezone.utc),
-                    "size": memory_file.stat().st_size,
-                })
-
-        if not items:
-            return {"storage": self.name, "wiped": 0, "message": "no memory files found"}
-
-        # back up if requested, then delete (files moved via export_items_to_trash)
-        backup_path = None
-        if backup:
-            backup_path = self.export_items_to_trash(items, "wipe")
-        else:
-            for item in items:
-                Path(str(item["path"])).unlink()
-
-        result: dict[str, Any] = {"storage": self.name, "wiped": len(items)}
-        if backup_path:
-            result["backup_path"] = backup_path
-        return result
+            result: dict[str, Any] = {"storage": self.name, "wiped": len(items)}
+            if backup_path:
+                result["backup_path"] = backup_path
+            return result
+        except OSError as e:
+            raise CleanupError(f"Failed to wipe Serena memories: {e}") from e

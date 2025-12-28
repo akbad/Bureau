@@ -5,7 +5,7 @@ from typing import Any
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
-from .base import CleanupHandler
+from .base import CleanupHandler, CleanupError
 from ..trash import get_trash_dir, generate_trash_filename, write_manifest
 from ...config_loader import get_qdrant_url, get_qdrant_collection, get_trash_grace_period
 
@@ -16,32 +16,48 @@ class QdrantHandler(CleanupHandler):
     name = "qdrant"
 
     def _http_request(self, method: str, endpoint: str, data: dict | None = None) -> dict:
-        """Make HTTP request to (locally-running) Qdrant server."""
+        """Make HTTP request to (locally-running) Qdrant server.
+
+        Raises:
+            CleanupError: On HTTP errors, connection failures, or invalid responses.
+        """
         url = f"{get_qdrant_url()}{endpoint}"
         headers = {"Content-Type": "application/json"}
 
         body = json.dumps(data).encode() if data else None
         req = Request(url, data=body, headers=headers, method=method)
 
-        try: 
+        try:
             # send request with 30s timeout
             with urlopen(req, timeout=30) as resp:
                 # read response bytes, decode to string, parse as JSON and return resulting dict
                 return json.loads(resp.read().decode())
-            
+
         except HTTPError as e:  # must catch before URLError since it's a subclass of it
-            return {"error": f"Qdrant HTTP {e.code}: {e.reason}"}
-        
+            raise CleanupError(f"Qdrant HTTP {e.code}: {e.reason}") from e
+
         except URLError as e:
-            return {"error": f"Qdrant unavailable: {e.reason}"}
-        
-        except json.JSONDecodeError:
-            return {"error": "Invalid JSON response from Qdrant"}
+            raise CleanupError(f"Qdrant unavailable: {e.reason}") from e
+
+        except json.JSONDecodeError as e:
+            raise CleanupError(f"Invalid JSON response from Qdrant: {e}") from e
 
     def _collection_exists(self) -> bool:
-        """Check if collection exists."""
-        result = self._http_request("GET", f"/collections/{get_qdrant_collection()}")
-        return result.get("status") == "ok"
+        """Check if collection exists.
+
+        Returns False if collection doesn't exist (404).
+        Raises CleanupError for other failures.
+        """
+        try:
+            result = self._http_request("GET", f"/collections/{get_qdrant_collection()}")
+            return result.get("status") == "ok"
+        except CleanupError as e:
+            if "HTTP 404" in str(e):
+                # collection doesn't exist
+                return False
+            
+            # otherwise re-raise
+            raise
 
     def get_stale_items(self, cutoff: datetime) -> list[dict[str, Any]]:
         """Query points with metadata.created_at older than cutoff."""
@@ -196,7 +212,7 @@ class QdrantHandler(CleanupHandler):
 
         return items
 
-    def wipe(self, backup: bool = True) -> dict[str, Any]:
+    def _wipe(self, backup: bool) -> dict[str, Any]:
         """Completely erase all points from Qdrant collection."""
         items = self._get_all_points()
 

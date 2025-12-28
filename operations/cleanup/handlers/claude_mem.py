@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
-from .base import CleanupHandler
+from .base import CleanupHandler, CleanupError
 from ..trash import get_trash_dir, generate_trash_filename, write_manifest
 from ...config_loader import get_storage, get_trash_grace_period
 
@@ -26,7 +26,11 @@ class ClaudeMemHandler(CleanupHandler):
         return sqlite3.connect(db_path) if db_path.exists() else None
 
     def get_stale_items(self, cutoff: datetime) -> list[dict[str, Any]]:
-        """Retrieve stale sessions and observations (relative to provided cutoff)."""
+        """Retrieve stale sessions and observations (relative to provided cutoff).
+
+        Raises:
+            CleanupError: On database errors (locked, corrupt, etc.).
+        """
         conn = self._get_db_connection()
         if not conn:
             return []
@@ -66,6 +70,8 @@ class ClaudeMemHandler(CleanupHandler):
                         "data": dict(zip(columns, row)),  # creates tuples of (column name, value)
                     })
 
+        except sqlite3.Error as e:
+            raise CleanupError(f"SQLite query failed: {e}") from e
         finally:
             conn.close()
 
@@ -106,7 +112,11 @@ class ClaudeMemHandler(CleanupHandler):
         return str(trash_path)
 
     def delete_items_from_storage(self, items: list[dict[str, Any]]) -> int:
-        """Delete items from SQLite, then vacuum the database (to make the freed space available to the OS)."""
+        """Delete items from SQLite, then vacuum the database (to make the freed space available to the OS).
+
+        Raises:
+            CleanupError: On database errors (locked, corrupt, etc.).
+        """
         conn = self._get_db_connection()
         if not conn:
             return 0
@@ -121,10 +131,10 @@ class ClaudeMemHandler(CleanupHandler):
                 entities_to_delete = [item for item in items if item["type"] == entity_type]
                 if not entities_to_delete:
                     continue
-                
+
                 ids = [entity["data"].get("id") for entity in entities_to_delete if entity["data"].get("id")]
                 if not ids:
-                    continue 
+                    continue
 
                 placeholders = ",".join("?" * len(ids))
                 table_name = self._table_name_for_entity_type(entity_type)
@@ -136,13 +146,19 @@ class ClaudeMemHandler(CleanupHandler):
             # vacuum to immediately hand back freed space to OS
             cursor.execute("VACUUM")
 
+        except sqlite3.Error as e:
+            raise CleanupError(f"SQLite delete failed: {e}") from e
         finally:
             conn.close()
 
         return deleted
 
-    def wipe(self, backup: bool = True) -> dict[str, Any]:
-        """Completely erase all data from claude-mem database."""
+    def _wipe(self, backup: bool) -> dict[str, Any]:
+        """Completely erase all data from claude-mem database.
+
+        Raises:
+            CleanupError: On database errors (locked, corrupt, etc.).
+        """
         conn = self._get_db_connection()
         if not conn:
             return {"storage": self.name, "wiped": 0, "message": "database does not exist"}
@@ -154,7 +170,7 @@ class ClaudeMemHandler(CleanupHandler):
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [row[0] for row in cursor.fetchall()]
 
-            # survey items in database: 
+            # survey items in database:
             #   - determine total count of items
             #   - if backup requested, save them for subsequent re-export to backup location
             total_count = 0
@@ -192,6 +208,8 @@ class ClaudeMemHandler(CleanupHandler):
             # vacuum to immediately hand back freed space to OS
             cursor.execute("VACUUM")
 
+        except sqlite3.Error as e:
+            raise CleanupError(f"SQLite wipe failed: {e}") from e
         finally:
             conn.close()
 

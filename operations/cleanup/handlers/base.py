@@ -1,15 +1,34 @@
 """Abstract base class for storage cleanup handlers."""
+import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from ...config_loader import parse_duration, get_retention
 
+logger = logging.getLogger(__name__)
+
+
+class CleanupError(Exception):
+    """
+    Base exception for cleanup handler errors.
+
+    Handlers should raise this for any recoverable error (e.g. connection failures, permission errors, corrupt data) 
+    rather than letting raw exceptions propagate. 
+    
+    The CleanupHandler base class catches these and returns error dicts.
+    """
+    pass
+
 
 class CleanupHandler(ABC):
     """Abstract base class for storage backend-specific cleanup handlers."""
 
     name: str  # e.g. "qdrant", "claude-mem"
+
+    def _return_error_dict(self, e: CleanupError, action: str) -> dict[str, str]: 
+        logger.error("%s %s failed: %s", self.name, action, e)
+        return {"storage": self.name, "error": str(e)}
 
     @abstractmethod
     def get_stale_items(self, cutoff: datetime) -> list[dict[str, Any]]:
@@ -27,16 +46,35 @@ class CleanupHandler(ABC):
         pass
 
     @abstractmethod
-    def wipe(self, backup: bool = True) -> dict[str, Any]:
-        """Completely erase all data from storage.
+    def _wipe(self, backup: bool) -> dict[str, Any]:
+        """
+        Internal, handler-specific wipe implementation to be provided by subclasses.
 
         Args:
             backup: If True, export all data to trash before wiping.
 
         Returns:
             Dict with 'storage', 'wiped' count, and optionally 'backup_path'.
+
+        Raises:
+            CleanupError: On any recoverable error.
         """
         pass
+
+    def wipe(self, backup: bool = True) -> dict[str, Any]:
+        """Completely erase all data from storage, with error handling.
+
+        Args:
+            backup: If True, export all data to trash before wiping.
+
+        Returns:
+            Dict with 'storage', 'wiped' count, and optionally 'backup_path'.
+            On error, returns dict with 'storage' and 'error'.
+        """
+        try:
+            return self._wipe(backup)
+        except CleanupError as e:
+            return self._return_error_dict(e, "wipe")
 
     def get_cutoff(self, retention: str) -> datetime:
         """Calculate cutoff datetime from retention period."""
@@ -48,45 +86,53 @@ class CleanupHandler(ABC):
         return datetime.now(timezone.utc) - delta
 
     def cleanup(self, retention: str | None = None, dry_run: bool = False) -> dict[str, Any]:
-        """Runs cleanup for the given storage backend and returns stats."""
-        if retention is None:
-            # retrieve retention period for the given storage backend
-            retention = get_retention(self.name)
+        """Runs cleanup for the given storage backend and returns stats.
 
-        if retention.lower() == "always":
-            # memories are set to always be kept for the given storage backend
+        Returns:
+            Dict with 'storage' and cleanup results.
+            On error, returns dict with 'storage' and 'error'.
+        """
+        try:
+            if retention is None:
+                # retrieve retention period for the given storage backend
+                retention = get_retention(self.name)
+
+            if retention.lower() == "always":
+                # memories are set to always be kept for the given storage backend
+                return {
+                    "storage": self.name,
+                    "skipped": True,
+                    "reason": "retention set to 'always'"
+                }
+
+            cutoff = self.get_cutoff(retention)
+            items = self.get_stale_items(cutoff)
+
+            if not items:
+                return {
+                    "storage": self.name,
+                    "deleted": 0,
+                    "message": "no expired items"
+                }
+
+            if dry_run:
+                return {
+                    "storage": self.name,
+                    "would_delete": len(items),
+                    "dry_run": True,
+                    "items": items[:10],  # show first 10 items that *would have been* deleted
+                }
+
+            # write *new* files for the deleted items to the trash
+            # (to be kept for the specified grace period)
+            trash_path = self.export_items_to_trash(items, retention)
+
+            count = self.delete_items_from_storage(items)
+
             return {
                 "storage": self.name,
-                "skipped": True,
-                "reason": "retention set to 'always'"
+                "deleted": count,
+                "trash_path": trash_path,
             }
-
-        cutoff = self.get_cutoff(retention)
-        items = self.get_stale_items(cutoff)
-
-        if not items:
-            return {
-                "storage": self.name, 
-                "deleted": 0, 
-                "message": "no expired items"
-            }
-
-        if dry_run:
-            return {
-                "storage": self.name,
-                "would_delete": len(items),
-                "dry_run": True,
-                "items": items[:10],  # show first 10 items that *would have been* deleted
-            }
-
-        # write *new* files for the deleted items to the trash 
-        # (to be kept for the specified grace period)
-        trash_path = self.export_items_to_trash(items, retention)
-
-        count = self.delete_items_from_storage(items)
-
-        return {
-            "storage": self.name,
-            "deleted": count,
-            "trash_path": trash_path,
-        }
+        except CleanupError as e:
+            return self._return_error_dict(e, "cleanup")

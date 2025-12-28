@@ -1,5 +1,5 @@
 """Cleanup handlers specific to each memory backend."""
-from .base import CleanupHandler
+from .base import CleanupHandler, CleanupError
 from .qdrant import QdrantHandler
 from .claude_mem import ClaudeMemHandler
 from .serena import SerenaHandler
@@ -17,6 +17,7 @@ HANDLERS = (
 
 __all__ = [
     "CleanupHandler",
+    "CleanupError",
     "QdrantHandler",
     "ClaudeMemHandler",
     "SerenaHandler",

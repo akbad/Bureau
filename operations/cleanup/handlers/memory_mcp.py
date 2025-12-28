@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .base import CleanupHandler
+from .base import CleanupHandler, CleanupError
 from ..trash import get_trash_dir, generate_trash_filename, write_manifest
 from ...config_loader import get_storage, get_trash_grace_period
 
@@ -19,34 +19,46 @@ class MemoryMcpHandler(CleanupHandler):
         return get_storage("memory_mcp")
 
     def _read_entities(self) -> list[dict[str, Any]]:
-        """Read all entities from JSONL file."""
+        """Read all entities from JSONL file.
+
+        Raises:
+            CleanupError: On file I/O errors.
+        """
         file_path = self._get_file_path()
         if not file_path.exists():
             return []
 
-        entities = []
-        with open(file_path) as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    try:
-                        entities.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        continue
-        return entities
+        try:
+            entities = []
+            with open(file_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            entities.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue  # skip malformed lines
+            return entities
+        except OSError as e:
+            raise CleanupError(f"Failed to read JSONL file: {e}") from e
 
     def _write_entities(self, entities: list[dict[str, Any]]) -> None:
-        """
-        Write entities back to JSONL file, rewriting it from scratch.
-        Used after deleting/modifying existing entries.
+        """Write entities back to JSONL file, rewriting it from scratch.
+
+        Raises:
+            CleanupError: On file I/O errors.
         """
         file_path = self._get_file_path()
-        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # open file in write mode; existing file will be erased
-        with open(file_path, "w") as f:
-            for entity in entities:
-                f.write(json.dumps(entity) + "\n")
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # open file in write mode; existing file will be erased
+            with open(file_path, "w") as f:
+                for entity in entities:
+                    f.write(json.dumps(entity) + "\n")
+        except OSError as e:
+            raise CleanupError(f"Failed to write JSONL file: {e}") from e
 
     def get_stale_items(self, cutoff: datetime) -> list[dict[str, Any]]:
         """Find entities with created_at older than cutoff."""
@@ -137,7 +149,7 @@ class MemoryMcpHandler(CleanupHandler):
 
         return deleted_count
 
-    def wipe(self, backup: bool = True) -> dict[str, Any]:
+    def _wipe(self, backup: bool) -> dict[str, Any]:
         """Completely erase all entities from Memory MCP."""
         entities = self._read_entities()
 

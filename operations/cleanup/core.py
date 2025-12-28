@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run
 """Cleanup CLI entrypoint"""
 import argparse
+import logging
 import sys
 
 from ..config_loader import (
@@ -190,6 +191,14 @@ def wipe_memory_backends(
 
 # Entrypoint for cleanup CLI: called via `uv run sweep [args]`
 def main():
+    # Configure logging to stderr 
+    # (so --quiet suppresses stdout but not errors)
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
+
     STORAGE_MAP = {
         "q": "qdrant",
         "c": "claude-mem",
