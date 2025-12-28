@@ -172,5 +172,5 @@ bureau/
 │
 │   GITIGNORED:
 ├── .archives/      # Operational state (trash, cleanup timestamps)
-└── .mcp-servers/   # Cloned MCP server repos (shared across worktrees)
+└── .mcp-servers/   # Cloned MCP server repos (shared across Bureau worktrees)
 ```
