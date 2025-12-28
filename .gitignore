@@ -1,5 +1,4 @@
 close-bureau
-.python-version
 .worktrees/
 *.pyc
 .serena/
