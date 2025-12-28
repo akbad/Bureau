@@ -73,7 +73,7 @@ def build_roles_path_map(
         base_setting:     Baseline roles ("all", "none", or list of role names)
         extra_setting:    CLI-specific extra roles ("all", "none", or list of role names)
         all_role_names:   Complete list of available roles (from auto-discovery)
-        pal_prompts_dir:  Prefix for prompt_path (e.g., "systemprompts/bees")
+        pal_prompts_dir:  Prefix for prompt_path (e.g., "systemprompts/bureau-agents")
 
     Returns:
         Roles configuration dictionary mapping role name -> {"prompt_path": ...}
