@@ -27,7 +27,7 @@ import yaml
 from pathlib import Path
 from typing import Any
 
-from lib.pollen.config_loader import get_config
+from operations.config_loader import get_config
 
 
 def get_bureau_root() -> Path:

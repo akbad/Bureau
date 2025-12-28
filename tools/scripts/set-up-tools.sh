@@ -1073,7 +1073,7 @@ if agent_enabled "OpenCode"; then
         mkdir -p "$(dirname "$TARGET_OC")"
 
         if [[ -n "$GENERATED_OC" && -f "$GENERATED_OC" ]]; then
-            if UV_PYTHONPATH="$REPO_ROOT/lib" uv run "$SCRIPT_DIR/configure-opencode.py" --target "$TARGET_OC" --generated "$GENERATED_OC"; then
+            if uv run "$SCRIPT_DIR/configure-opencode.py" --target "$TARGET_OC" --generated "$GENERATED_OC"; then
                 log_success "OpenCode config merged into $TARGET_OC (preserved user overrides)"
             else
                 log_warning "OpenCode merge failed; leaving $TARGET_OC unchanged"

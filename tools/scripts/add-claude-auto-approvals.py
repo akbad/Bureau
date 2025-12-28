@@ -14,7 +14,7 @@ This script:
 
 import sys
 
-from lib.pollen.json_config_utils import load_json_config, save_json_config
+from operations.json_config_utils import load_json_config, save_json_config
 
 
 # Built-in Claude Code tools to auto-approve (non-destructive tools only)

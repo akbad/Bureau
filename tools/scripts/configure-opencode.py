@@ -8,7 +8,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from lib.pollen import json_config_utils as cu
+from operations import json_config_utils as cu
 
 
 def merge_missing(base: dict, add: dict) -> dict:
