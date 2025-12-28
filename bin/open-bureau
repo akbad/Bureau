@@ -2,10 +2,9 @@
 # 
 # Bureau one-shot bootstrap/startup script
 # > Run once: ./open-bureau
-# > Idempotent (safe to re-run; won't duplicate resources)
+# > Idempotent (safe to re-run; won't duplicate or kill running resources)
 #
-# Configuration: Edit directives.yml (or local.yml for personal overrides)
-#   See docs/CONFIGURATION.md for all options
+# For configuration details, see docs/CONFIGURATION.md
 
 set -euo pipefail
 
