@@ -24,14 +24,14 @@
 
 - A **<ins>*near-zero* learning curve</ins>** via:
   
-  1. **automated context injection** that ensures:
+  1. **context injection** that ensures:
 
      - **agents *automatically and judiciously* use all functionality** Bureau configures them to have access to
      - *minimal/no* explicit directions are needed from the user
   
   2. sensible default settings for quick setup, accompanied by **extensive configuration options** for power users
 
-- **<ins>Setup that takes *minutes*</ins>**, including **automatic installation & configuration** of all the functionality above for each supported CLI
+- **<ins>Setup that takes *minutes*</ins>**, including **automated installation & configuration** of all the functionality above for each supported CLI
 
 ### Why?
 
