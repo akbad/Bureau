@@ -55,6 +55,7 @@ cli:
     additional_args:
       - "--json"
       - "--dangerously-bypass-approvals-and-sandbox"
+      - "--skip-git-repo-check"              # Allow running outside trusted git directories (for clink subagents)
       - "--model"
       - "{model}"                            # Set with the value of pal.codex.model
       - "-c"
