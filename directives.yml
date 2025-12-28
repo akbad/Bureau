@@ -53,7 +53,7 @@ path_to:
   #   - fs_mcp_whitelist (Filesystem MCP security boundary)
   workspace: ~/code
 
-  # MCP server clone location (relative paths resolve from main repo root, shared across worktrees)
+  # MCP server clone location (relative paths resolve from main repo root, shared across Bureau worktrees)
   mcp_clones: .mcp-servers
 
 # MCP tool permissions

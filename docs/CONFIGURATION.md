@@ -230,12 +230,6 @@ File and directory paths used by Bureau and its tools.
 > 
 > This means you only need to configure `workspace` in `local.yml` to change all workspace-related paths at once.
 
-> [!NOTE]
->
-> #### MCP server clone location is *shared across worktrees*
-> 
-> `mcp_clones` is **not** derived from `workspace`. It defaults to `.mcp-servers/` in the main repo root and is shared across all git worktrees (so worktrees won't re-clone MCP server code).
-
 #### YML example
 
 ```yaml
