@@ -44,7 +44,7 @@ class CleanupHandler(ABC):
         if delta == timedelta.max:
             # retention period is "forever": return a cutoff date far in the past so that
             #   no stored memories are older than it
-            return datetime.min
+            return datetime.min.replace(tzinfo=timezone.utc)
         return datetime.now(timezone.utc) - delta
 
     def cleanup(self, retention: str | None = None, dry_run: bool = False) -> dict[str, Any]:
