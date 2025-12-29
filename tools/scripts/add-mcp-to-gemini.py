@@ -12,7 +12,10 @@ def build_entry(transport: str, payload: list[str]) -> dict:
 
     Args:
         transport: Either 'http' or 'stdio'
-        payload: Transport-specific configuration arguments
+        payload: Transport-specific configuration arguments.
+            For stdio, supports special flags:
+            - --timeout <ms>: Request timeout in milliseconds
+            - --env KEY=VALUE: Environment variable (can be repeated)
 
     Returns:
         Dictionary containing server configuration
@@ -38,8 +41,35 @@ def build_entry(transport: str, payload: list[str]) -> dict:
     if transport == "stdio":
         if not payload:
             raise SystemExit("stdio transport requires a command argument")
-        command, *args = payload
-        return {"command": command, "args": args}
+
+        # Parse special flags from payload
+        command = payload[0]
+        args: list[str] = []
+        env_vars: dict[str, str] = {}
+        timeout: int | None = None
+
+        i = 1
+        while i < len(payload):
+            arg = payload[i]
+            if arg == "--timeout" and i + 1 < len(payload):
+                timeout = int(payload[i + 1])
+                i += 2
+            elif arg == "--env" and i + 1 < len(payload):
+                env_str = payload[i + 1]
+                if "=" in env_str:
+                    key, value = env_str.split("=", 1)
+                    env_vars[key] = expand_vars(value)
+                i += 2
+            else:
+                args.append(arg)
+                i += 1
+
+        entry: dict[str, Any] = {"command": command, "args": args}
+        if env_vars:
+            entry["env"] = env_vars
+        if timeout is not None:
+            entry["timeout"] = timeout
+        return entry
 
     raise SystemExit(f"Unsupported transport: {transport}")
 
