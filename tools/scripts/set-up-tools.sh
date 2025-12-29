@@ -521,12 +521,14 @@ setup_pal_stdio_mcp() {
                 "${claude_cmd[@]}" && log_success "$agent configured" || log_warning "Failed to configure"
 
                 # Add MCP timeout settings to ~/.claude/settings.json
-                log_info "Configuring Claude MCP timeouts (5 minutes)..."
+                log_info "Configuring Claude MCP timeouts (startup: 5min, tool: 20min)..."
                 if [[ -f "$CLAUDE_CONFIG" ]]; then
-                    # Add/update env block with MCP timeouts (300000ms = 5 minutes)
+                    # Add/update env block with MCP timeouts
+                    # - MCP_TIMEOUT: 300000ms (5 min) for server startup
+                    # - MCP_TOOL_TIMEOUT: 1200000ms (20 min) for tool calls (clink needs this)
                     local tmp_file
                     tmp_file=$(mktemp)
-                    jq '.env = (.env // {}) | .env.MCP_TIMEOUT = "300000" | .env.MCP_TOOL_TIMEOUT = "300000"' "$CLAUDE_CONFIG" > "$tmp_file" && mv "$tmp_file" "$CLAUDE_CONFIG"
+                    jq '.env = (.env // {}) | .env.MCP_TIMEOUT = "300000" | .env.MCP_TOOL_TIMEOUT = "1200000"' "$CLAUDE_CONFIG" > "$tmp_file" && mv "$tmp_file" "$CLAUDE_CONFIG"
                     log_success "Claude MCP timeouts configured"
                 else
                     log_warning "Claude settings.json not found - timeouts not configured"
@@ -534,16 +536,16 @@ setup_pal_stdio_mcp() {
                 ;;
             "$GEMINI")
                 # Gemini CLI: add stdio MCP with timeout in server config
-                # add_mcp_to_gemini() handles JSON manipulation
+                # add_mcp_to_gemini() handles JSON manipulation and properly places
+                # --timeout and --env as top-level fields (not in args array)
                 if grep -q '"pal": {' "$GEMINI_CONFIG" 2>/dev/null; then
                     log_warning "Already exists"
                     continue
                 fi
 
-                # Add with timeout and env vars using Gemini's config format:
-                #   command array with env vars in separate block
+                # Add with 20-minute timeout for clink calls and env vars
                 add_mcp_to_gemini "stdio" "pal" "sh" "-c" "$pal_bootstrap_script" \
-                    "--timeout" "300000" \
+                    "--timeout" "1200000" \
                     "--env" "PATH=$pal_env_path" \
                     "--env" "DISABLED_TOOLS=$PAL_DISABLED_TOOLS" \
                     "--env" "CUSTOM_API_URL=$pal_custom_api_url" \
