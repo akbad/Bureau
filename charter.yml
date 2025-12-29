@@ -28,6 +28,18 @@ path_to:
     # Override by setting $QDRANT_STORAGE_PATH
     qdrant: ~/.qdrant/storage
 
+    # Path to Neo4j Docker volume mount (graph database storage)
+    # Only used when memory.backend: graph
+    # Override by setting $NEO4J_STORAGE_PATH
+    neo4j: ~/.neo4j/
+
+# Neo4j configuration (only used when memory.backend: graph)
+neo4j:
+  auth:
+    username: neo4j
+    password: bureau  # Override by setting $NEO4J_PASSWORD
+  plugins: '["graph-data-science"]'
+
 qdrant:
   # Name of the collection within the backing Qdrant DB in which to store semantic memories
   # Override by setting $QDRANT_COLLECTION_NAME

@@ -3,7 +3,7 @@ from .base import CleanupHandler
 from .qdrant import QdrantHandler
 from .claude_mem import ClaudeMemHandler
 from .serena import SerenaHandler
-from .memory_mcp import MemoryMcpHandler
+from .neo4j_memory import Neo4jMemoryHandler
 
 
 # register memory backends' handler classes
@@ -11,7 +11,7 @@ HANDLERS = (
     ClaudeMemHandler,
     SerenaHandler,
     QdrantHandler,
-    MemoryMcpHandler,
+    Neo4jMemoryHandler,
 )
 
 
@@ -20,6 +20,6 @@ __all__ = [
     "QdrantHandler",
     "ClaudeMemHandler",
     "SerenaHandler",
-    "MemoryMcpHandler",
+    "Neo4jMemoryHandler",
     "HANDLERS",
 ]

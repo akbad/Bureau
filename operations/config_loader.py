@@ -1,12 +1,13 @@
 """Bureau configuration loader providing type-safe access to all Bureau settings.
 
 1. Merges configuration from YAML files with the following precedence hierarchy
-   (later sources override earlier ones):  
+   (later sources override earlier ones):
 
    a. charter.yml:  Fixed system config (cloud endpoints, disabled tools)
    b. directives.yml: Team defaults (agents, retention, paths)
-   c. local.yml: Local overrides (gitignored)
-   d. env vars:  Highest-priority overrides
+   c. stacks/{name}.yml: Stack-specific overrides (when BUREAU_STACK is set)
+   d. local.yml: Local overrides (gitignored)
+   e. env vars:  Highest-priority overrides
 
 2. Loads configuration
 
@@ -14,11 +15,31 @@
 import os
 import re
 from datetime import timedelta
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
 import yaml
+
+
+# All HOME subdirectories that Bureau tools use (source of truth for stack isolation)
+BUREAU_HOME_PATHS = [
+    ".claude",
+    ".claude.json",      # Claude CLI state file
+    ".codex",
+    ".gemini",
+    ".pal",
+    ".config/opencode",
+    ".qdrant",
+    ".memory-mcp",
+    ".claude-mem",
+    ".neo4j",
+    ".local/bin",        # Role launchers
+]
+
+
+class StackValidationError(Exception):
+    """Raised when stack configuration is invalid."""
+    pass
 
 
 # TypedDict schemas corresponding to nested YAML config sections
@@ -48,12 +69,15 @@ class PortForConfig(TypedDict):
     sourcegraph_mcp: int
     semgrep_mcp: int
     serena_mcp: int
+    neo4j_db: int
+    neo4j_http: int
 
 
 class StorageForConfig(TypedDict, total=False):
     qdrant: str
     memory_mcp: str
     claude_mem: str
+    neo4j: str
 
 
 class PathToConfig(TypedDict, total=False):
@@ -69,10 +93,29 @@ class QdrantConfig(TypedDict, total=False):
     embedding_provider: str
 
 
+class Neo4jAuthConfig(TypedDict):
+    username: str
+    password: str
+
+
+class Neo4jConfig(TypedDict, total=False):
+    auth: Neo4jAuthConfig
+    plugins: str
+
+
 class EndpointForConfig(TypedDict):
     sourcegraph: str
     context7: str
     tavily: str
+
+
+class StackConfig(TypedDict, total=False):
+    """Stack configuration for parallel Bureau environments."""
+    name: str
+    port_offset: int
+    container_prefix: str
+    home_override: str
+    overrides: dict[str, Any]
 
 
 class Config(TypedDict, total=False):
@@ -84,7 +127,21 @@ class Config(TypedDict, total=False):
     port_for: PortForConfig
     path_to: PathToConfig
     qdrant: QdrantConfig
+    neo4j: Neo4jConfig
     endpoint_for: EndpointForConfig
+    _stack: StackConfig  # Stack metadata when BUREAU_STACK is set
+
+
+# Environment-aware config cache (replaces @lru_cache to respect BUREAU_STACK changes)
+_config_cache: dict[tuple[str, ...], Config] = {}
+
+
+def _get_cache_key() -> tuple[str, ...]:
+    """Get cache key that includes stack environment.
+
+    This ensures cache invalidates when BUREAU_STACK changes.
+    """
+    return (os.environ.get("BUREAU_STACK", ""),)
 
 
 def find_repo_root(start_path: Path | None = None) -> Path:
@@ -193,40 +250,89 @@ def _load_yaml_file(path: Path) -> dict[str, Any]:
     return {}
 
 
-@lru_cache(maxsize=1)  # cache most recent returned config (clear using clear_config_cache())
-def get_config() -> Config:
-    """Load and merge configs, following this resolution order:
-
-    1. charter.yml (base defaults, required)
-    2. directives.yml (team config, if exists)
-    3. local.yml (local overrides, if exists)
-    4. Environment variables (highest priority)
-    
-    For testing: 
-    1. monkeypatch find_repo_root() to return the temp testing directory path
-    2. call clear_config_cache() to clear cache
-    3. call get_config() to do a fresh config read, retrieving the test-oriented config
-
-        monkeypatch.setattr("operations.config_loader.find_repo_root", lambda: tmp_path)
-        clear_config_cache()
-        config = get_config()
-
-    Settings specified at paths LATER in the list OVERRIDE IDENTICAL SETTINGS at paths EARLIER in the list.
-    > e.g. `mcp.auto_approve: yes` in local.yml overrides `mcp.auto_approve: no` in directives.yml
+def get_base_ports() -> dict[str, int]:
+    """Get base port configuration (without stack offsets).
 
     Returns:
-        Merged configuration dictionary.
+        Dict mapping port names to their base values.
+    """
+    return {
+        "qdrant_db": 6780,
+        "qdrant_mcp": 8780,
+        "sourcegraph_mcp": 3090,
+        "semgrep_mcp": 4151,
+        "serena_mcp": 5100,
+        "neo4j_db": 7687,
+        "neo4j_http": 7474,
+    }
+
+
+def validate_stack(stack_name: str, stack_config: dict[str, Any]) -> None:
+    """Validate stack configuration.
+
+    Args:
+        stack_name: Name of the stack.
+        stack_config: Stack configuration dict.
 
     Raises:
-        FileNotFoundError: If repo root cannot be found.
+        StackValidationError: If configuration is invalid.
     """
+    # Port range check
+    base_ports = get_base_ports()
+    offset = stack_config.get("port_offset", 0)
+
+    for port_name, base_port in base_ports.items():
+        effective = base_port + offset
+        if effective > 65535:
+            raise StackValidationError(
+                f"Port overflow for stack '{stack_name}': "
+                f"{port_name} = {base_port} + {offset} = {effective} (max 65535)"
+            )
+        if effective < 1:
+            raise StackValidationError(
+                f"Invalid port for stack '{stack_name}': "
+                f"{port_name} = {base_port} + {offset} = {effective} (min 1)"
+            )
+
+    # Container prefix length (Docker limit: 128 chars, leave room for service name)
+    prefix = stack_config.get("container_prefix", f"{stack_name}-")
+    if len(prefix) > 100:
+        raise StackValidationError(
+            f"Container prefix too long for stack '{stack_name}': "
+            f"{len(prefix)} chars (max 100)"
+        )
+
+
+def _load_config() -> Config:
+    """Internal config loader (called by get_config with caching)."""
     repo_root = find_repo_root()
 
     config: dict[str, Any] = {}
 
-    # Load configs in precedence order (later overrides earlier)
-    for filename in ["charter.yml", "directives.yml", "local.yml"]:
+    # Load base configs in precedence order (later overrides earlier)
+    for filename in ["charter.yml", "directives.yml"]:
         config = deep_merge(config, _load_yaml_file(repo_root / filename))
+
+    # Load stack config if BUREAU_STACK is set
+    stack_name = os.environ.get("BUREAU_STACK")
+    if stack_name:
+        stack_file = repo_root / "stacks" / f"{stack_name}.yml"
+        if stack_file.exists():
+            stack_data = _load_yaml_file(stack_file)
+            stack_config = stack_data.get("stack", {})
+
+            # Validate stack config
+            validate_stack(stack_name, stack_config)
+
+            # Merge stack overrides into config
+            if overrides := stack_config.get("overrides"):
+                config = deep_merge(config, overrides)
+
+            # Store stack metadata (accessible via config["_stack"])
+            config["_stack"] = stack_config
+
+    # Load local.yml (after stack, so local can override stack settings)
+    config = deep_merge(config, _load_yaml_file(repo_root / "local.yml"))
 
     # Apply environment variable overrides for path_to
     path_to = config.get("path_to", {})
@@ -244,6 +350,7 @@ def get_config() -> Config:
         "memory_mcp": "MEMORY_MCP_STORAGE_PATH",
         "claude_mem": "CLAUDE_MEM_STORAGE_PATH",
         "qdrant": "QDRANT_STORAGE_PATH",
+        "neo4j": "NEO4J_STORAGE_PATH",
     }
 
     for storage_key, env_var in storage_env_overrides.items():
@@ -283,9 +390,45 @@ def get_config() -> Config:
     return config  # type: ignore[return-value]
 
 
+def get_config() -> Config:
+    """Load and merge configs, following this resolution order:
+
+    1. charter.yml (base defaults, required)
+    2. directives.yml (team config, if exists)
+    3. stacks/{BUREAU_STACK}.yml (if BUREAU_STACK env var is set)
+    4. local.yml (local overrides, if exists)
+    5. Environment variables (highest priority)
+
+    For testing:
+    1. monkeypatch find_repo_root() to return the temp testing directory path
+    2. call clear_config_cache() to clear cache
+    3. call get_config() to do a fresh config read, retrieving the test-oriented config
+
+        monkeypatch.setattr("operations.config_loader.find_repo_root", lambda: tmp_path)
+        clear_config_cache()
+        config = get_config()
+
+    Settings specified at paths LATER in the list OVERRIDE IDENTICAL SETTINGS at paths EARLIER in the list.
+    > e.g. `mcp.auto_approve: yes` in local.yml overrides `mcp.auto_approve: no` in directives.yml
+
+    Cache is environment-aware: changes to BUREAU_STACK env var automatically invalidate the cache.
+
+    Returns:
+        Merged configuration dictionary.
+
+    Raises:
+        FileNotFoundError: If repo root cannot be found.
+        StackValidationError: If stack config is invalid.
+    """
+    cache_key = _get_cache_key()
+    if cache_key not in _config_cache:
+        _config_cache[cache_key] = _load_config()
+    return _config_cache[cache_key]
+
+
 def clear_config_cache() -> None:
-    """Clear the cached config (for testing)."""
-    get_config.cache_clear()
+    """Clear the cached config (for testing or after stack changes)."""
+    _config_cache.clear()
 
 
 # Convenience accessors
@@ -436,3 +579,88 @@ def parse_duration(duration_str: str) -> timedelta:
         return timedelta(days=value * 365)  # Approximate year
 
     raise ValueError(f"Unknown duration unit: {unit}")
+
+
+# =============================================================================
+# Stack-aware accessors (for parallel Bureau environments)
+# =============================================================================
+
+
+def get_stack_info() -> StackConfig | None:
+    """Get current stack configuration if BUREAU_STACK is set.
+
+    Returns:
+        Stack configuration dict, or None if no stack is active.
+    """
+    config = get_config()
+    return config.get("_stack")
+
+
+def get_effective_port(port_key: str) -> int:
+    """Get effective port value with stack offset applied.
+
+    Args:
+        port_key: Port name (e.g., "qdrant_db", "neo4j_db").
+
+    Returns:
+        Base port + stack offset (if stack is active).
+    """
+    base_ports = get_base_ports()
+    base = base_ports.get(port_key)
+
+    if base is None:
+        # Fall back to config value
+        config = get_config()
+        base = config.get("port_for", {}).get(port_key, 0)
+
+    stack = get_stack_info()
+    offset = stack.get("port_offset", 0) if stack else 0
+
+    return base + offset
+
+
+def get_container_name(base_name: str) -> str:
+    """Get container name with stack prefix applied.
+
+    Args:
+        base_name: Base container name (e.g., "qdrant", "neo4j").
+
+    Returns:
+        Prefixed container name (e.g., "test-qdrant" if stack prefix is "test-").
+    """
+    stack = get_stack_info()
+    if stack:
+        prefix = stack.get("container_prefix", "")
+        # Default prefix is "{stack_name}-" if not specified
+        if not prefix:
+            prefix = f"{stack.get('name', '')}-"
+        return f"{prefix}{base_name}"
+    return base_name
+
+
+def get_effective_home() -> Path:
+    """Get effective HOME directory for Bureau tools.
+
+    Returns:
+        Stack home override if set, otherwise user's HOME.
+    """
+    # First check BUREAU_STACK_HOME env var (set by activation script)
+    if stack_home := os.environ.get("BUREAU_STACK_HOME"):
+        return Path(stack_home)
+
+    # Then check stack config
+    stack = get_stack_info()
+    if stack and (home_override := stack.get("home_override")):
+        return expand_path(home_override)
+
+    # Default to user's HOME
+    return Path.home()
+
+
+def get_home_paths() -> list[str]:
+    """Get list of HOME subdirectories used by Bureau.
+
+    Returns:
+        List of relative paths (e.g., [".claude", ".gemini", ...]).
+    """
+    return BUREAU_HOME_PATHS.copy()

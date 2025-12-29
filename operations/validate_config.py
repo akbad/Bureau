@@ -40,6 +40,14 @@ REQUIRED_SCHEMA: dict[str, Any] = {
         "sourcegraph_mcp": int,
         "semgrep_mcp": int,
         "serena_mcp": int,
+        "neo4j_db": int,
+        "neo4j_http": int,
+    },
+    "neo4j": {
+        "auth": {
+            "username": str,
+            "password": str,
+        },
     },
 }
 
@@ -206,7 +214,7 @@ def full_validate(config: Mapping[str, Any]) -> list[str]:
     """
     errors = validate_config(config)
 
-    # Only check duration formats if structure is valid
+    # Only check format validations if structure is valid
     if not errors:
         errors.extend(validate_durations(config))
 

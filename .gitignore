@@ -19,3 +19,9 @@ local.yml
 
 # MCP server clones (shared across worktrees)
 .mcp-servers/
+
+# Stack state files (generated, machine-specific)
+.test-env-state
+
+# Personal stacks (prefix with underscore to exclude)
+stacks/_local-*.yml

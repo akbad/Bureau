@@ -18,6 +18,9 @@ CLAUDE_AGENTS_DIRNAME="claude-subagents"
 CLINK_AGENTS_DIRNAME="role-prompts"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 
+# Effective HOME - uses BUREAU_STACK_HOME if set (for config isolation), otherwise $HOME
+EFFECTIVE_HOME="${BUREAU_STACK_HOME:-$HOME}"
+
 # Source agent selection library
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
 
@@ -60,17 +63,17 @@ fi
 if [[ ${#AGENTS[@]} -gt 0 ]]; then
     print_step "Setting up clink subagents for PAL MCP"
 
-    # Create directory structure
-    mkdir -p ~/.pal/cli_clients/systemprompts
-    print_success "Ensured/created ~/.pal/cli_clients/systemprompts"
+    # Create directory structure (uses EFFECTIVE_HOME for stack isolation)
+    mkdir -p "$EFFECTIVE_HOME/.pal/cli_clients/systemprompts"
+    print_success "Ensured/created $EFFECTIVE_HOME/.pal/cli_clients/systemprompts"
 
     # Symlink role prompts folder
-    if [[ -L ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR ]]; then
-        rm ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR
-        print_success "Removed existing Bureau symlink at ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR (to ensure consistency after any reconfiguration)"
+    if [[ -L "$EFFECTIVE_HOME/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR" ]]; then
+        rm "$EFFECTIVE_HOME/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR"
+        print_success "Removed existing Bureau symlink at $EFFECTIVE_HOME/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR (to ensure consistency after any reconfiguration)"
     fi
-    ln -s "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR
-    print_success "Symlinked role prompts (for use with clink) to ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR"
+    ln -s "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" "$EFFECTIVE_HOME/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR"
+    print_success "Symlinked role prompts (for use with clink) to $EFFECTIVE_HOME/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR"
 
     echo ""
 fi
@@ -81,17 +84,17 @@ fi
 if agent_enabled "Claude Code"; then
     print_step "Setting up Claude Code subagents"
 
-    # Symlink Claude subagents folder
-    if [[ -L ~/.claude/agents/$AGENTS_SUBDIR ]]; then
-        rm ~/.claude/agents/$AGENTS_SUBDIR
-        print_success "Removed existing Bureau symlink at ~/.claude/agents/$AGENTS_SUBDIR (to ensure consistency after any reconfiguration)"
+    # Symlink Claude subagents folder (uses EFFECTIVE_HOME for stack isolation)
+    if [[ -L "$EFFECTIVE_HOME/.claude/agents/$AGENTS_SUBDIR" ]]; then
+        rm "$EFFECTIVE_HOME/.claude/agents/$AGENTS_SUBDIR"
+        print_success "Removed existing Bureau symlink at $EFFECTIVE_HOME/.claude/agents/$AGENTS_SUBDIR (to ensure consistency after any reconfiguration)"
     fi
-    mkdir -p ~/.claude/agents
-    print_success "Ensured/created ~/.claude/agents directory"
+    mkdir -p "$EFFECTIVE_HOME/.claude/agents"
+    print_success "Ensured/created $EFFECTIVE_HOME/.claude/agents directory"
 
     # Symlink all Claude subagent files
-    ln -s "$AGENTS_DIR/$CLAUDE_AGENTS_DIRNAME" ~/.claude/agents/$AGENTS_SUBDIR
-    print_success "Symlinked Claude subagent templates/role prompts to ~/.claude/agents/$AGENTS_SUBDIR"
+    ln -s "$AGENTS_DIR/$CLAUDE_AGENTS_DIRNAME" "$EFFECTIVE_HOME/.claude/agents/$AGENTS_SUBDIR"
+    print_success "Symlinked Claude subagent templates/role prompts to $EFFECTIVE_HOME/.claude/agents/$AGENTS_SUBDIR"
 
     echo ""
 else
@@ -127,15 +130,16 @@ fi
 # OpenCode agents (register Bureau prompts as subagents)
 if agent_enabled "OpenCode"; then
     print_step "Registering Bureau agents for OpenCode"
-    TARGET_OC="$HOME/.config/opencode/opencode.json"
+    # Uses EFFECTIVE_HOME for stack isolation
+    TARGET_OC="$EFFECTIVE_HOME/.config/opencode/opencode.json"
     mkdir -p "$(dirname "$TARGET_OC")"
     # Ensure file exists
     if [[ ! -f "$TARGET_OC" ]]; then
         echo '{}' > "$TARGET_OC"
     fi
     # Symlink role prompts into OpenCode config directory for stable paths
-    OPEN_AGENT_DIR="$HOME/.config/opencode/agent/$AGENTS_SUBDIR"
-    mkdir -p "$HOME/.config/opencode/agent"
+    OPEN_AGENT_DIR="$EFFECTIVE_HOME/.config/opencode/agent/$AGENTS_SUBDIR"
+    mkdir -p "$EFFECTIVE_HOME/.config/opencode/agent"
     if [[ -L "$OPEN_AGENT_DIR" ]]; then
         rm "$OPEN_AGENT_DIR"
         print_success "Removed old symlink at $OPEN_AGENT_DIR"

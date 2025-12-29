@@ -43,6 +43,8 @@ port_for:
   sourcegraph_mcp: 8783
   semgrep_mcp: 8784
   serena_mcp: 8785
+  neo4j_db: 7687        # Neo4j Bolt protocol
+  neo4j_http: 7474      # Neo4j Browser/HTTP API
 
 # File paths for config files, connection settings, etc.
 # Note: environment variables take precedence over these values

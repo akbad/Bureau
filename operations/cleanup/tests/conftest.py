@@ -72,7 +72,7 @@ def mock_config() -> dict[str, Any]:
             "claude_mem": "30d",
             "serena": "90d",
             "qdrant": "180d",
-            "memory_mcp": "365d",
+            "neo4j_memory": "365d",
         },
         "cleanup": {
             "min_interval": "24h",
@@ -167,70 +167,6 @@ def with_sqlite_data(
 
 
 # =============================================================================
-# JSONL FIXTURES (memory_mcp handler)
-# =============================================================================
-
-@pytest.fixture
-def jsonl_file(tmp_path: Path) -> Path:
-    """Create empty JSONL file."""
-    file_path = tmp_path / "memory.jsonl"
-    file_path.touch()
-    return file_path
-
-
-def _to_iso_z(dt: datetime) -> str:
-    """Convert datetime to ISO format with Z suffix (UTC)."""
-    # Ensure UTC, format without offset, append Z
-    return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-
-
-@pytest.fixture
-def with_jsonl_data(
-    tmp_path: Path,
-    stale_datetime: datetime,
-    valid_datetime: datetime,
-) -> Path:
-    """JSONL file pre-populated with test entities for collision testing.
-
-    Uses 8 entities to test ID/name collision prevention:
-    - stale_id_and_name: same value as name (stale) and id (stale)
-    - valid_id_and_name: same value as name (valid) and id (valid)
-    - stale_id_but_valid_name: same value as name (valid) and id (stale)
-    - valid_id_but_stale_name: same value as name (stale) and id (valid)
-
-    Plus one entity without timestamp for skip testing.
-    """
-    file_path = tmp_path / "memory.jsonl"
-
-    entities = [
-        # Both stale with same value: both should be deleted
-        {"name": "stale_id_and_name", "created_at": _to_iso_z(stale_datetime)},
-        {"id": "stale_id_and_name", "created_at": _to_iso_z(stale_datetime)},
-
-        # Both valid with same value: both should be kept
-        {"name": "valid_id_and_name", "created_at": _to_iso_z(valid_datetime)},
-        {"id": "valid_id_and_name", "created_at": _to_iso_z(valid_datetime)},
-
-        # Name valid, ID stale with same value: name kept, ID deleted
-        {"name": "stale_id_but_valid_name", "created_at": _to_iso_z(valid_datetime)},
-        {"id": "stale_id_but_valid_name", "created_at": _to_iso_z(stale_datetime)},
-
-        # Name stale, ID valid with same value: name deleted, ID kept
-        {"name": "valid_id_but_stale_name", "created_at": _to_iso_z(stale_datetime)},
-        {"id": "valid_id_but_stale_name", "created_at": _to_iso_z(valid_datetime)},
-
-        # Entity without timestamp (should be skipped)
-        {"name": "no_timestamp_entity"},
-    ]
-
-    with open(file_path, "w") as f:
-        for entity in entities:
-            f.write(json.dumps(entity) + "\n")
-
-    return file_path
-
-
-# =============================================================================
 # SERENA FIXTURES (filesystem)
 # =============================================================================
 
@@ -288,6 +224,22 @@ def qdrant_collection() -> str:
 
 
 # =============================================================================
+# NEO4J FIXTURES (graph memory)
+# =============================================================================
+
+@pytest.fixture
+def neo4j_uri() -> str:
+    """Neo4j connection URI."""
+    return "bolt://127.0.0.1:7687"
+
+
+@pytest.fixture
+def neo4j_auth() -> tuple[str, str]:
+    """Neo4j authentication credentials."""
+    return ("neo4j", "bureau")
+
+
+# =============================================================================
 # TRASH/STATE FIXTURES
 # =============================================================================
 
@@ -321,7 +273,6 @@ def state_file(archives_dir: Path) -> Path:
 def apply_mock_patches(
     tmp_path: Path,
     sqlite_db: Path,
-    jsonl_file: Path,
     serena_projects: Path,
     archives_dir: Path,
     qdrant_base_url: str,
@@ -370,18 +321,13 @@ def apply_mock_patches(
     def mock_get_storage(storage_name: str) -> Path:
         storages = {
             "claude_mem": sqlite_db,
-            "memory_mcp": jsonl_file,
         }
         return storages.get(storage_name, tmp_path / storage_name)
 
-    # patch handlers' function imports 
+    # patch handlers' function imports
     #   (and *not* the source's definitions)
     monkeypatch.setattr(
         "operations.cleanup.handlers.claude_mem.get_storage",
-        mock_get_storage
-    )
-    monkeypatch.setattr(
-        "operations.cleanup.handlers.memory_mcp.get_storage",
         mock_get_storage
     )
     monkeypatch.setattr(

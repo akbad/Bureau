@@ -18,6 +18,9 @@ GENERATED_DIRNAME="generated"
 # Retrieve absolute paths
 CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # protocols dir
 REPO_ROOT="$(cd "$CONFIGS_DIR/.." && pwd)"
+
+# Effective HOME - uses BUREAU_STACK_HOME if set (for config isolation), otherwise $HOME
+EFFECTIVE_HOME="${BUREAU_STACK_HOME:-$HOME}"
 CONTEXT_TEMPLATES="$(cd "$CONFIGS_DIR/$CONTEXT_DIRNAME/$TEMPLATES_DIRNAME/" && pwd)"
 
 # Create generated directory if it doesn't exist
@@ -115,27 +118,48 @@ print_success "Generated $CONTEXT_GENERATED/CLAUDE.md from template"
 echo ""
 
 # ============================================================================
+# Generate tools-guide.md
+# ============================================================================
+print_step "Generating tools-guide.md"
+
+# Copy template directly (memory section is now inlined in the template)
+cp "$CONTEXT_TEMPLATES/tools-guide.template.md" "$CONTEXT_GENERATED/tools-guide.md"
+print_success "Generated tools-guide.md"
+
+# Create symlink in guides/ pointing to generated file
+GUIDES_DIR="$CONFIGS_DIR/$CONTEXT_DIRNAME/guides"
+if [[ -f "$GUIDES_DIR/tools-guide.md" && ! -L "$GUIDES_DIR/tools-guide.md" ]]; then
+    # Backup existing file
+    mv "$GUIDES_DIR/tools-guide.md" "$GUIDES_DIR/tools-guide.md.backup"
+    print_warning "Backed up existing tools-guide.md"
+fi
+ln -sf "$CONTEXT_GENERATED/tools-guide.md" "$GUIDES_DIR/tools-guide.md"
+print_success "Symlinked guides/tools-guide.md → generated/tools-guide.md"
+
+echo ""
+
+# ============================================================================
 # Create symlinks from CLI config locations to repo files
 # ============================================================================
 print_step "Creating symlinks to generated config files"
 
 # Symlink for Gemini CLI
 if agent_enabled "Gemini CLI"; then
-    create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$HOME/.gemini/GEMINI.md"
+    create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$EFFECTIVE_HOME/.gemini/GEMINI.md"
 else
     print_step "Skipping Gemini symlink (user-scoped CLI directory not found)"
 fi
 
 # Symlink for Codex
 if agent_enabled "Codex"; then
-    create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$HOME/.codex/AGENTS.md"
+    create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$EFFECTIVE_HOME/.codex/AGENTS.md"
 else
     print_step "Skipping Codex symlink (user-scoped CLI directory not found)"
 fi
 
 # Symlink for Claude Code
 if agent_enabled "Claude Code"; then
-    create_safe_symlink "$CONTEXT_GENERATED/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    create_safe_symlink "$CONTEXT_GENERATED/CLAUDE.md" "$EFFECTIVE_HOME/.claude/CLAUDE.md"
 else
     print_step "Skipping Claude symlink (user-scoped CLI directory not found)"
 fi
@@ -179,7 +203,7 @@ echo ""
 print_step "Generating PAL per-CLI config files (used when coding CLIs are called via clink)"
 
 PAL_GENERATED_DIR="$REPO_ROOT/protocols/pal/generated"
-PAL_CLI_CLIENTS_DIR="$HOME/.pal/cli_clients"
+PAL_CLI_CLIENTS_DIR="$EFFECTIVE_HOME/.pal/cli_clients"
 
 # Generate PAL CLI configs from settings.yaml (auto-discovers roles from agents/role-prompts/)
 if uv run python "$REPO_ROOT/protocols/scripts/generate-pal-configs.py"; then

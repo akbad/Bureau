@@ -1,0 +1,566 @@
+#!/usr/bin/env bash
+#
+# Bureau Stack Environment Manager
+#
+# Manage parallel Bureau environments (stacks) with isolated containers, ports, and configs.
+#
+# Usage:
+#   bureau-env create <name> [--port-offset N] [--home PATH]
+#   bureau-env list
+#   bureau-env activate <name>    # Output: source <(bureau-env activate <name>)
+#   bureau-env destroy <name> [--purge]
+#   bureau-env status [name]
+#   bureau-env current
+#
+# Examples:
+#   bureau-env create dev --port-offset 100
+#   source <(bureau-env activate dev)
+#   ./bin/open-bureau
+#   ./bin/close-bureau
+#   bureau-env destroy dev --purge
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Get repo root
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STACKS_DIR="$REPO_ROOT/stacks"
+
+# Logging helpers
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+
+# Python config accessor
+_get_config() {
+    (cd "$REPO_ROOT" && uv run get-config "$@" 2>/dev/null) || true
+}
+
+# Get next available port offset (increments of 100)
+_next_port_offset() {
+    local max_offset=0
+
+    for stack_file in "$STACKS_DIR"/*.yml; do
+        [[ -f "$stack_file" ]] || continue
+        [[ "$(basename "$stack_file")" == "_template.yml" ]] && continue
+
+        local offset
+        offset=$(grep -E '^\s*port_offset:' "$stack_file" 2>/dev/null | awk '{print $2}' || echo "0")
+        if [[ "$offset" =~ ^[0-9]+$ ]] && [[ "$offset" -gt "$max_offset" ]]; then
+            max_offset="$offset"
+        fi
+    done
+
+    echo $((max_offset + 100))
+}
+
+# List all stack files
+_list_stacks() {
+    for stack_file in "$STACKS_DIR"/*.yml; do
+        [[ -f "$stack_file" ]] || continue
+        local name
+        name=$(basename "$stack_file" .yml)
+        [[ "$name" == "_template" ]] && continue
+        echo "$name"
+    done
+}
+
+# Check if stack exists
+_stack_exists() {
+    local name="$1"
+    [[ -f "$STACKS_DIR/${name}.yml" ]]
+}
+
+# Get stack config value
+_get_stack_value() {
+    local stack_file="$1"
+    local key="$2"
+    grep -E "^\s*${key}:" "$stack_file" 2>/dev/null | awk '{print $2}' | tr -d '"' || true
+}
+
+# ============================================================================
+# Commands
+# ============================================================================
+
+cmd_create() {
+    local name=""
+    local port_offset=""
+    local home_override=""
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --port-offset)
+                port_offset="$2"
+                shift 2
+                ;;
+            --home)
+                home_override="$2"
+                shift 2
+                ;;
+            -*)
+                log_error "Unknown option: $1"
+                exit 1
+                ;;
+            *)
+                if [[ -z "$name" ]]; then
+                    name="$1"
+                else
+                    log_error "Unexpected argument: $1"
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$name" ]]; then
+        log_error "Stack name required"
+        echo "Usage: bureau-env create <name> [--port-offset N] [--home PATH]"
+        exit 1
+    fi
+
+    # Validate name
+    if [[ ! "$name" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]]; then
+        log_error "Invalid stack name: '$name'. Must start with a letter, contain only letters, numbers, hyphens, and underscores."
+        exit 1
+    fi
+
+    if _stack_exists "$name"; then
+        log_error "Stack '$name' already exists at $STACKS_DIR/${name}.yml"
+        exit 1
+    fi
+
+    # Auto-assign port offset if not specified
+    if [[ -z "$port_offset" ]]; then
+        port_offset=$(_next_port_offset)
+        log_info "Auto-assigned port offset: $port_offset"
+    fi
+
+    # Validate port offset
+    if [[ ! "$port_offset" =~ ^[0-9]+$ ]]; then
+        log_error "Port offset must be a number: $port_offset"
+        exit 1
+    fi
+
+    # Create stack config file
+    local stack_file="$STACKS_DIR/${name}.yml"
+
+    cat > "$stack_file" << EOF
+# Bureau Stack: $name
+# Created: $(date +%Y-%m-%d)
+#
+# Activate with: source <(bureau-env activate $name)
+# Then run: ./bin/open-bureau
+
+stack:
+  name: $name
+  port_offset: $port_offset
+  container_prefix: "${name}-"
+EOF
+
+    if [[ -n "$home_override" ]]; then
+        echo "  home_override: $home_override" >> "$stack_file"
+    fi
+
+    cat >> "$stack_file" << 'EOF'
+
+  # Optional config overrides (merged after directives.yml, before local.yml)
+  # overrides:
+  #   qdrant:
+  #     collection: custom-memory
+EOF
+
+    log_success "Created stack '$name' at $stack_file"
+    echo ""
+    echo "To use this stack:"
+    echo "  source <(bureau-env activate $name)"
+    echo "  ./bin/open-bureau"
+}
+
+cmd_list() {
+    local stacks
+    stacks=$(_list_stacks)
+
+    if [[ -z "$stacks" ]]; then
+        echo "No stacks configured."
+        echo ""
+        echo "Create a stack with: bureau-env create <name>"
+        return 0
+    fi
+
+    local current_stack="${BUREAU_STACK:-}"
+
+    echo -e "${CYAN}Bureau Stacks:${NC}"
+    echo ""
+    printf "%-15s %-12s %-20s %s\n" "NAME" "PORT_OFFSET" "PREFIX" "STATUS"
+    printf "%-15s %-12s %-20s %s\n" "----" "-----------" "------" "------"
+
+    for name in $stacks; do
+        local stack_file="$STACKS_DIR/${name}.yml"
+        local offset prefix status
+
+        offset=$(_get_stack_value "$stack_file" "port_offset")
+        prefix=$(_get_stack_value "$stack_file" "container_prefix")
+        [[ -z "$prefix" ]] && prefix="${name}-"
+
+        # Check if this is the active stack
+        if [[ "$name" == "$current_stack" ]]; then
+            status="${GREEN}active${NC}"
+        else
+            # Check if containers are running
+            local container_name="${prefix}qdrant"
+            if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${container_name}$"; then
+                status="${YELLOW}running${NC}"
+            else
+                status="inactive"
+            fi
+        fi
+
+        printf "%-15s %-12s %-20s %b\n" "$name" "$offset" "$prefix" "$status"
+    done
+    echo ""
+}
+
+cmd_activate() {
+    local name="$1"
+
+    if [[ -z "$name" ]]; then
+        log_error "Stack name required"
+        echo "Usage: source <(bureau-env activate <name>)"
+        exit 1
+    fi
+
+    if ! _stack_exists "$name"; then
+        log_error "Stack '$name' not found at $STACKS_DIR/${name}.yml"
+        echo ""
+        echo "Available stacks:"
+        _list_stacks | sed 's/^/  /'
+        exit 1
+    fi
+
+    local stack_file="$STACKS_DIR/${name}.yml"
+    local offset prefix home_override
+
+    offset=$(_get_stack_value "$stack_file" "port_offset")
+    prefix=$(_get_stack_value "$stack_file" "container_prefix")
+    home_override=$(_get_stack_value "$stack_file" "home_override")
+
+    [[ -z "$offset" ]] && offset="0"
+    [[ -z "$prefix" ]] && prefix="${name}-"
+    [[ -z "$home_override" ]] && home_override="$HOME"
+
+    # Output sourceable exports
+    cat << EOF
+export BUREAU_STACK='$name'
+export BUREAU_PORT_OFFSET='$offset'
+export BUREAU_CONTAINER_PREFIX='$prefix'
+export BUREAU_STACK_HOME='$home_override'
+# Stack '$name' activated.
+# Run './bin/open-bureau' to start services.
+# Run 'bureau-env current' to verify.
+EOF
+}
+
+cmd_destroy() {
+    local name=""
+    local purge=false
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --purge)
+                purge=true
+                shift
+                ;;
+            -*)
+                log_error "Unknown option: $1"
+                exit 1
+                ;;
+            *)
+                if [[ -z "$name" ]]; then
+                    name="$1"
+                else
+                    log_error "Unexpected argument: $1"
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$name" ]]; then
+        log_error "Stack name required"
+        echo "Usage: bureau-env destroy <name> [--purge]"
+        exit 1
+    fi
+
+    if ! _stack_exists "$name"; then
+        log_error "Stack '$name' not found"
+        exit 1
+    fi
+
+    local stack_file="$STACKS_DIR/${name}.yml"
+    local prefix home_override
+
+    prefix=$(_get_stack_value "$stack_file" "container_prefix")
+    home_override=$(_get_stack_value "$stack_file" "home_override")
+
+    [[ -z "$prefix" ]] && prefix="${name}-"
+
+    # Stop containers
+    log_info "Stopping containers for stack '$name'..."
+
+    for container in "${prefix}qdrant" "${prefix}neo4j" "${prefix}serena" "${prefix}semgrep" "${prefix}sourcegraph"; do
+        if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then
+            docker stop "$container" 2>/dev/null || true
+            log_success "Stopped $container"
+        fi
+    done
+
+    if $purge; then
+        echo ""
+        log_warning "Purge mode: This will permanently delete all data for stack '$name'"
+        echo ""
+        read -rp "Are you sure? (type 'yes' to confirm): " confirm
+
+        if [[ "$confirm" != "yes" ]]; then
+            log_info "Aborted."
+            exit 0
+        fi
+
+        # Remove containers
+        log_info "Removing containers..."
+        for container in "${prefix}qdrant" "${prefix}neo4j" "${prefix}serena" "${prefix}semgrep" "${prefix}sourcegraph"; do
+            if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then
+                docker rm "$container" 2>/dev/null || true
+                log_success "Removed $container"
+            fi
+        done
+
+        # Remove home override directory (only if in /tmp)
+        if [[ -n "$home_override" ]] && [[ "$home_override" == /tmp/* ]]; then
+            log_info "Removing home directory: $home_override"
+            rm -rf "$home_override"
+            log_success "Removed $home_override"
+        elif [[ -n "$home_override" ]] && [[ "$home_override" != "$HOME" ]]; then
+            log_warning "Home directory '$home_override' not removed (not in /tmp). Remove manually if desired."
+        fi
+
+        # Remove stack config file
+        log_info "Removing stack config..."
+        rm -f "$stack_file"
+        log_success "Removed $stack_file"
+
+        echo ""
+        log_success "Stack '$name' completely purged."
+    else
+        echo ""
+        log_success "Containers stopped. Stack config preserved at $stack_file"
+        echo ""
+        echo "To fully remove this stack, run:"
+        echo "  bureau-env destroy $name --purge"
+    fi
+
+    # Check if this was the active stack
+    if [[ "${BUREAU_STACK:-}" == "$name" ]]; then
+        echo ""
+        log_warning "This was your active stack. To deactivate, run:"
+        echo "  unset BUREAU_STACK BUREAU_PORT_OFFSET BUREAU_CONTAINER_PREFIX BUREAU_STACK_HOME"
+    fi
+}
+
+cmd_status() {
+    local name="${1:-${BUREAU_STACK:-}}"
+
+    if [[ -z "$name" ]]; then
+        # Show default/unstacked status
+        echo -e "${CYAN}Bureau Status (default environment)${NC}"
+        echo ""
+        echo "No stack active. Using default ports and container names."
+        echo ""
+        echo "Default containers:"
+
+        local base_ports
+        base_ports=$(cd "$REPO_ROOT" && uv run get-config base_ports 2>/dev/null || echo "")
+
+        for container in qdrant neo4j; do
+            local status
+            if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then
+                status="${GREEN}running${NC}"
+            elif docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${container}$"; then
+                status="${YELLOW}stopped${NC}"
+            else
+                status="not created"
+            fi
+            printf "  %-20s %b\n" "$container" "$status"
+        done
+
+        return 0
+    fi
+
+    if ! _stack_exists "$name"; then
+        log_error "Stack '$name' not found"
+        exit 1
+    fi
+
+    local stack_file="$STACKS_DIR/${name}.yml"
+    local offset prefix home_override
+
+    offset=$(_get_stack_value "$stack_file" "port_offset")
+    prefix=$(_get_stack_value "$stack_file" "container_prefix")
+    home_override=$(_get_stack_value "$stack_file" "home_override")
+
+    [[ -z "$offset" ]] && offset="0"
+    [[ -z "$prefix" ]] && prefix="${name}-"
+    [[ -z "$home_override" ]] && home_override="$HOME"
+
+    local is_active=""
+    [[ "${BUREAU_STACK:-}" == "$name" ]] && is_active=" ${GREEN}(active)${NC}"
+
+    echo -e "${CYAN}Bureau Stack: ${name}${is_active}${NC}"
+    echo ""
+    echo "Configuration:"
+    echo "  Port offset:       $offset"
+    echo "  Container prefix:  $prefix"
+    echo "  Home directory:    $home_override"
+    echo ""
+    echo "Containers:"
+
+    for container in qdrant neo4j; do
+        local full_name="${prefix}${container}"
+        local status port_info=""
+
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${full_name}$"; then
+            status="${GREEN}running${NC}"
+            # Get port info
+            port_info=$(docker port "$full_name" 2>/dev/null | head -1 | awk -F: '{print $NF}' || true)
+            [[ -n "$port_info" ]] && port_info=" (port $port_info)"
+        elif docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${full_name}$"; then
+            status="${YELLOW}stopped${NC}"
+        else
+            status="not created"
+        fi
+
+        printf "  %-25s %b%s\n" "$full_name" "$status" "$port_info"
+    done
+    echo ""
+}
+
+cmd_current() {
+    local current="${BUREAU_STACK:-}"
+
+    if [[ -z "$current" ]]; then
+        echo "No stack active (using default environment)"
+        return 0
+    fi
+
+    echo -e "Active stack: ${GREEN}$current${NC}"
+    echo ""
+    echo "Environment:"
+    echo "  BUREAU_STACK=$current"
+    echo "  BUREAU_PORT_OFFSET=${BUREAU_PORT_OFFSET:-0}"
+    echo "  BUREAU_CONTAINER_PREFIX=${BUREAU_CONTAINER_PREFIX:-}"
+    echo "  BUREAU_STACK_HOME=${BUREAU_STACK_HOME:-$HOME}"
+}
+
+cmd_help() {
+    cat << 'EOF'
+Bureau Stack Environment Manager
+
+Manage parallel Bureau environments with isolated containers, ports, and configs.
+
+USAGE:
+    bureau-env <command> [options]
+
+COMMANDS:
+    create <name> [options]    Create a new stack
+        --port-offset N        Port offset (auto-assigned if not specified)
+        --home PATH            HOME override path for isolated configs
+
+    list                       List all stacks and their status
+
+    activate <name>            Output shell exports (use with source)
+                               Example: source <(bureau-env activate dev)
+
+    destroy <name> [--purge]   Stop stack containers
+        --purge                Also remove containers, data, and config
+
+    status [name]              Show stack status (default: current or no-stack)
+
+    current                    Show currently active stack
+
+EXAMPLES:
+    # Create a development stack
+    bureau-env create dev --port-offset 100
+
+    # Activate and start
+    source <(bureau-env activate dev)
+    ./bin/open-bureau
+
+    # Check status
+    bureau-env status
+
+    # Stop and clean up
+    ./bin/close-bureau
+    bureau-env destroy dev --purge
+
+    # Run two stacks in parallel
+    terminal1$ source <(bureau-env activate stack-a) && ./bin/open-bureau
+    terminal2$ source <(bureau-env activate stack-b) && ./bin/open-bureau
+
+EOF
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+# Ensure stacks directory exists
+mkdir -p "$STACKS_DIR"
+
+if [[ $# -eq 0 ]]; then
+    cmd_help
+    exit 0
+fi
+
+command="$1"
+shift
+
+case "$command" in
+    create)
+        cmd_create "$@"
+        ;;
+    list)
+        cmd_list "$@"
+        ;;
+    activate)
+        cmd_activate "$@"
+        ;;
+    destroy)
+        cmd_destroy "$@"
+        ;;
+    status)
+        cmd_status "$@"
+        ;;
+    current)
+        cmd_current "$@"
+        ;;
+    help|--help|-h)
+        cmd_help
+        ;;
+    *)
+        log_error "Unknown command: $command"
+        echo ""
+        cmd_help
+        exit 1
+        ;;
+esac

@@ -1,0 +1,36 @@
+# Bureau Stack Template
+# Copy this file and customize for your stack:
+#   cp stacks/_template.yml stacks/mystack.yml
+#
+# Or use the CLI:
+#   bureau-env create mystack --port-offset 100
+#
+# Then activate:
+#   source <(bureau-env activate mystack)
+
+stack:
+  # Stack name (required, must match filename without .yml)
+  name: template
+
+  # Port offset added to all base ports (required, unique per stack)
+  # Base ports: qdrant_db=6780, neo4j_db=7687, etc.
+  # Example: offset 1000 means qdrant_db=7780, neo4j_db=8687
+  port_offset: 0
+
+  # Container name prefix (optional, defaults to "{name}-")
+  # Example: "test-" means containers are named "test-qdrant", "test-neo4j"
+  container_prefix: ""
+
+  # HOME directory override (optional)
+  # Isolates all config files (.claude, .gemini, etc.)
+  # Example: /tmp/bureau-mystack
+  # home_override: /tmp/bureau-template
+
+  # Optional config overrides (merged after directives.yml, before local.yml)
+  # Use this to customize tool behavior for this stack
+  # overrides:
+  #   qdrant:
+  #     collection: mystack-memory
+  #   neo4j:
+  #     auth:
+  #       password: testpass123
