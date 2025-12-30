@@ -787,10 +787,6 @@ if check_env_var "WEBSEARCHAPI_KEY" "WebSearchAPI MCP will not work. Get a key a
     WEBSEARCHAPI_AVAILABLE=true
 fi
 
-if check_env_var "WEBSEARCHAPI_KEY" "WebSearchAPI MCP will not work. Get a key at https://websearchapi.ai/"; then
-    WEBSEARCHAPI_AVAILABLE=true
-fi
-
 log_success "API key check complete."
 
 # Check if Sourcegraph MCP repo is available (must be cloned from GitHub)
