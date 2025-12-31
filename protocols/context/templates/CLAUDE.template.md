@@ -6,9 +6,9 @@ You ***must* read these essential files** using the Read tool:
 - before starting any task
 - at the beginning of any conversation
 
-### [MCP tools available: quick reference]({{REPO_ROOT}}/protocols/context/guides/tools-guide.md)
+### [MCP tools available: quick reference]({{REPO_ROOT}}/protocols/context/static/tools-guide.md)
 
-> **Read**: `@{{REPO_ROOT}}/protocols/context/guides/tools-guide.md`
+> **Read**: `@{{REPO_ROOT}}/protocols/context/static/tools-guide.md`
 
 Contains:
 
@@ -16,9 +16,9 @@ Contains:
    - ~330 tokens, always worth reading
    - Covers: code search, web research, API docs, memory, file operations
 
-### [Handoff guidelines]({{REPO_ROOT}}/protocols/context/guides/handoff-guide.md)
+### [Handoff guidelines]({{REPO_ROOT}}/protocols/context/static/handoff-guide.md)
 
-> **Read**: `@{{REPO_ROOT}}/protocols/context/guides/handoff-guide.md`
+> **Read**: `@{{REPO_ROOT}}/protocols/context/static/handoff-guide.md`
 
 Covers:
 
