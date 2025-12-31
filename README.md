@@ -105,8 +105,8 @@ Handling essential tasks like:
 
 All agents automatically read these files at startup:
 
-- [`protocols/context/guides/handoff-guide.md`](protocols/context/guides/handoff-guide.md) → when to delegate to subagents + which model to use
-- [`protocols/context/guides/tools-guide.md`](protocols/context/guides/tools-guide.md) → MCP tool selection guide
+- [`protocols/context/static/handoff-guide.md`](protocols/context/static/handoff-guide.md) → when to delegate to subagents + which model to use
+- [`protocols/context/static/tools-guide.md`](protocols/context/static/tools-guide.md) → MCP tool selection guide
 
     - Serves as an entrypoint to documentation progressively disclosing each MCP servers' tool capabilities
 

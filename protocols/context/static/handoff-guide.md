@@ -14,7 +14,7 @@
 - [Delegation mechanisms (detailed)](#delegation-mechanisms-detailed)
   - [Quick comparison](#quick-comparison)
   - [Using `clink`](#using-clink)
-  - [Using `Task` tool *(Claude Code only)*](#using-task-tool-claude-code-only)
+  - [Using `Task` tool *(Claude Code)* / native subagents *(OpenCode)*](#using-task-tool-claude-code--native-subagents-opencode)
   - [Using `AskUserQuestion`](#using-askuserquestion)
 - [Parallel delegation strategies](#parallel-delegation-strategies)
   - [When to parallelize](#when-to-parallelize)
@@ -284,7 +284,7 @@ Parallel execution only helps if you consolidate the answers rigorously. After e
 - ✅ Summarize findings: "Found 3 similar bugs in `auth/` module, all related to session handling"
 - ✅ Set concrete goals: "Refactor `processPayment()` to extract retry logic into separate function"
 - ✅ State constraints clearly: "Don't modify database schema; only change application code"
-- ✅ Give absolute paths: `/Users/you/bureau/protocols/context/guides/handoff-guide.md`
+- ✅ Give absolute paths (not relative)
 
 ## Choosing *models* when spawning subagents
 

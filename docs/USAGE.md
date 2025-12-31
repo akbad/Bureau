@@ -80,7 +80,7 @@
 > - Prompts for the <ins>same role</ins> have the <ins>same body across both locations</ins> *(the `claude-subagents` files simply have some extra header YAML that makes them smoother to use with Claude Code)*
 
 > [!TIP]
-> Read [`handoff-guide.md`](../protocols/context/guides/handoff-guide.md) to see the guidance that the CLIs will read at startup that will teach them:
+> Read [`handoff-guide.md`](../protocols/context/static/handoff-guide.md) to see the guidance that the CLIs will read at startup that will teach them:
 > - when to delegate tasks to subagents
 > - which CLIs/models to use for specific subagent tasks
 
@@ -228,8 +228,8 @@ Simply explicitly mention the subagent you want to use and it will automatically
 > [!TIP]
 > To learn more about the available MCPs and the specific guidance agents receive on how to use them, read:
 >
-> - [`tools-guide.md`](../protocols/context/guides/tools-guide.md): quick decision guide for selecting the best tool for a given task.
-> - [`deep-dives/`](../protocols/context/guides/deep-dives/): 
+> - [`tools-guide.md`](../protocols/context/static/tools-guide.md): quick decision guide for selecting the best tool for a given task.
+> - [`deep-dives/`](../protocols/context/static/deep-dives/): 
 > 
 >     - Collection of in-depth guides for each MCP, detailing their capabilities and advanced usage patterns. Only read by agents when necessary to preserve context
 
@@ -273,11 +273,11 @@ There are 2 methods for this:
 | :--- | :--- |
 | **GitHub SpecKit** *(optional user-called CLI tool)* | **What** to build and **why** (i.e. top-down planning & specification) |
 | ***Superpowers*-defined** (and other) **skills** | **How** to perform a task *(if defined for that task)*
-| [**Handoff guidelines**](../protocols/context/guides/handoff-guide.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
-| [**Tool guidance**](../protocols/context/guides/tools-guide.md) | **Tools to use** for a task |
+| [**Handoff guidelines**](../protocols/context/static/handoff-guide.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
+| [**Tool guidance**](../protocols/context/static/tools-guide.md) | **Tools to use** for a task |
 
 > [!NOTE]
-> The [handoff guidelines](../protocols/context/guides/handoff-guide.md) and [tool guidance](../protocols/context/guides/tools-guide.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../protocols/)).
+> The [handoff guidelines](../protocols/context/static/handoff-guide.md) and [tool guidance](../protocols/context/static/tools-guide.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../protocols/)).
 
 #### Sample comprehensive workflow
 
@@ -285,8 +285,8 @@ There are 2 methods for this:
 2. Read `specs/<new-feature>/tasks.md` and delegate tasks to specialized agents via `clink`
 3. Within each agent session:
     
-    - [Tool guidance doc](../protocols/context/guides/tools-guide.md) ensures agents know appropriate tools to use for their task
-    - [Handoff guidelines doc](../protocols/context/guides/handoff-guide.md) teaches agents:
+    - [Tool guidance doc](../protocols/context/static/tools-guide.md) ensures agents know appropriate tools to use for their task
+    - [Handoff guidelines doc](../protocols/context/static/handoff-guide.md) teaches agents:
         
         - When to delegate *(i.e. recursively)*
         - The *right* agents to delegate subtasks to
@@ -339,11 +339,11 @@ A skills library that enforces mandatory workflows for common engineering tasks 
 | :--- | :--- |
 | **GitHub SpecKit** *(optional user-called CLI tool)* | **What** to build and **why** (i.e. top-down planning & specification) |
 | ***Superpowers*-defined** (and other) **skills** | **How** to perform a task *(if defined for that task)*
-| [**Handoff guidelines**](../protocols/context/guides/handoff-guide.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
-| [**Tool guidance**](../protocols/context/guides/tools-guide.md) | **Tools to use** for a task |
+| [**Handoff guidelines**](../protocols/context/static/handoff-guide.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
+| [**Tool guidance**](../protocols/context/static/tools-guide.md) | **Tools to use** for a task |
 
 > [!NOTE]
-> The [handoff guidelines](../protocols/context/guides/handoff-guide.md) and [tool guidance](../protocols/context/guides/tools-guide.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../protocols/)).
+> The [handoff guidelines](../protocols/context/static/handoff-guide.md) and [tool guidance](../protocols/context/static/tools-guide.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../protocols/)).
 
 #### How skills activate 
 

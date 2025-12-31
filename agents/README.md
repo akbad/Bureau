@@ -70,12 +70,12 @@
 > ---
 > 
 > You are a senior code reviewer. Before starting, read these files:
-> - `protocols/context/guides/tools-guide.md` – Tier 1 tool quick ref
-> - `protocols/context/guides/style-guide.md` – Project coding standards
-> - `protocols/context/guides/handoff-guide.md` – When to delegate
+> - `protocols/context/static/tools-guide.md` – Tier 1 tool quick ref
+> - `protocols/context/static/style-guide.md` – Project coding standards
+> - `protocols/context/static/handoff-guide.md` – When to delegate
 > 
 > If you need detailed Semgrep usage, read:
-> - `protocols/context/guides/tools/semgrep.md` – Tier 3 deep dive
+> - `protocols/context/static/tools/semgrep.md` – Tier 3 deep dive
 > 
 > [Rest of role prompt body...]
 > ```
@@ -86,11 +86,11 @@
 > You are a research synthesis specialist.
 > 
 > At startup, read:
-> - protocols/context/guides/tools-guide.md (tier 1: tool selection)
-> - protocols/context/guides/handoff-guide.md (delegation rules)
+> - protocols/context/static/tools-guide.md (tier 1: tool selection)
+> - protocols/context/static/handoff-guide.md (delegation rules)
 > 
 > When comparing web research tools, read:
-> - protocols/context/guides/category/web-research.md (tier 2: Tavily vs Brave vs Fetch)
+> - protocols/context/static/category/web-research.md (tier 2: Tavily vs Brave vs Fetch)
 > 
 > [Rest of role prompt body...]
 > ```
@@ -225,7 +225,7 @@ ln -s "$PWD/bureau/agents/role-prompts" \
     - The clink tool schema enumerates available `cli_name` and `role` values: use it to confirm your roles are loaded.
     - The example JSONs include permissive flags (for example, Codex `--dangerously-bypass-approvals-and-sandbox`). Remove or adjust them for stricter guardrails.
 
-Tip: Keep role bodies short and reference Tier‑1/2/3 docs from `protocols/context/guides/` in the prompt text (don’t inline).
+Tip: Keep role bodies short and reference Tier‑1/2/3 docs from `protocols/context/static/` in the prompt text (don’t inline).
 
 ## Using with Claude Code subagents
 
@@ -276,7 +276,7 @@ claude --agents '{
 }'
 ```
 
-Note: Role bodies should reference `protocols/context/guides/tools-guide.md` (Tier 1) and any relevant Tier‑2/3 guides. We'll add `agents/handoff-guide.md` next and reference it as a must‑read for delegation rules.
+Note: Role bodies should reference `protocols/context/static/tools-guide.md` (Tier 1) and any relevant Tier‑2/3 guides. We'll add `agents/handoff-guide.md` next and reference it as a must‑read for delegation rules.
 
 ## Using with OpenCode subagents
 
