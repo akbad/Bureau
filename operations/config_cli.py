@@ -1,37 +1,20 @@
 #!/usr/bin/env -S uv run
 """CLI tool for shell scripts to read Bureau configuration.
 
-1. Merges configs using the order: charter.yml → directives.yml → stacks/{name}.yml → local.yml → env)
+1. Merges configs using the order: charter.yml → directives.yml → local.yml → env)
 2. Reads from merged config
 
 Usage:
     get-config agents                           # Output: claude gemini codex opencode
     get-config retention_period_for.qdrant      # Output: 180d
-    get-config path_to.qdrant_url               # Output: http://127.0.0.1:8780
-    get-config --check agent claude             # Exit 0 if enabled, 1 if not
-    get-config --list agents                    # List all enabled agents
-
-Stack-aware commands (for parallel Bureau environments):
-    get-config --effective-port qdrant_db       # Output: port with stack offset
-    get-config --container-name qdrant          # Output: prefixed container name
-    get-config --stack-home                     # Output: effective HOME path
-    get-config --home-paths                     # Output: all HOME subdirs used by Bureau
-    get-config --stack test <key.path>          # Override BUREAU_STACK for this query
+    get-config path_to.qdrant_url                # Output: http://127.0.0.1:8780
+    get-config --check agent claude    # Exit 0 if enabled, 1 if not
+    get-config --list agents           # List all enabled agents
 """
-import os
 import sys
 from typing import Any, Mapping
 
-from .config_loader import (
-    get_config,
-    is_agent_enabled,
-    get_enabled_agents,
-    get_effective_port,
-    get_container_name,
-    get_effective_home,
-    get_home_paths,
-    clear_config_cache,
-)
+from .config_loader import get_config, is_agent_enabled, get_enabled_agents
 
 
 def get_nested_value(data: Mapping[str, Any], key_path: str) -> Any:
@@ -77,56 +60,10 @@ def main() -> int:
 
     if not args:
         print("Usage: get-config <key.path> | --check agent <name> | --list agents", file=sys.stderr)
-        print("       get-config --effective-port <port_key>", file=sys.stderr)
-        print("       get-config --container-name <base_name>", file=sys.stderr)
-        print("       get-config --stack-home", file=sys.stderr)
-        print("       get-config --home-paths", file=sys.stderr)
-        print("       get-config --stack <name> <command...>", file=sys.stderr)
         return 1
 
-    # Handle --stack override first (applies to subsequent commands)
-    if args[0] == "--stack":
-        if len(args) < 3:
-            print("Usage: get-config --stack <name> <command...>", file=sys.stderr)
-            return 1
-
-        stack_name = args[1]
-        remaining_args = args[2:]
-
-        # Set BUREAU_STACK env var and clear cache for this invocation
-        os.environ["BUREAU_STACK"] = stack_name
-        clear_config_cache()
-
-        # Replace args and continue processing
-        args = remaining_args
-
-    # Stack-aware commands
-    if args[0] == "--effective-port":
-        if len(args) < 2:
-            print("Usage: get-config --effective-port <port_key>", file=sys.stderr)
-            return 1
-        port_key = args[1]
-        print(get_effective_port(port_key))
-        return 0
-
-    if args[0] == "--container-name":
-        if len(args) < 2:
-            print("Usage: get-config --container-name <base_name>", file=sys.stderr)
-            return 1
-        base_name = args[1]
-        print(get_container_name(base_name))
-        return 0
-
-    if args[0] == "--stack-home":
-        print(get_effective_home())
-        return 0
-
-    if args[0] == "--home-paths":
-        print(" ".join(get_home_paths()))
-        return 0
-
     if args[0] == "--check":
-        # check if requested setting is enabled in the config
+        # check if requested setting is enabled in the config 
         # (only supports checking if an agent is enabled for now)
         if len(args) < 3:
             print("Usage: get-config --check agent <name>", file=sys.stderr)

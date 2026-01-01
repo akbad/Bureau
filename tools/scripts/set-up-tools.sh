@@ -55,32 +55,11 @@ set -e  # exit on error
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Helper to read from merged config (merge order: charter.yml → directives.yml → stacks/{name}.yml → local.yml → env)
+# Helper to read from merged config (merge order: charter.yml → directives.yml → local.yml → env)
 cfg() {
     local key="$1"
     (cd "$REPO_ROOT" && uv run get-config "$key" 2>/dev/null) || true
 }
-
-# Helper to get effective port (with stack offset if active)
-cfg_port() {
-    local port_key="$1"
-    (cd "$REPO_ROOT" && uv run get-config --effective-port "$port_key" 2>/dev/null) || true
-}
-
-# Helper to get container name (with stack prefix if active)
-cfg_container() {
-    local base_name="$1"
-    (cd "$REPO_ROOT" && uv run get-config --container-name "$base_name" 2>/dev/null) || true
-}
-
-# Stack detection - BUREAU_STACK set by `source <(bureau-env activate <name>)`
-BUREAU_STACK="${BUREAU_STACK:-}"
-if [[ -n "$BUREAU_STACK" ]]; then
-    echo -e "${BLUE}[STACK]${NC} Running in stack mode: $BUREAU_STACK"
-fi
-
-# Effective HOME - uses BUREAU_STACK_HOME if set (for config isolation), otherwise $HOME
-EFFECTIVE_HOME="${BUREAU_STACK_HOME:-$HOME}"
 
 # Setting MCP source clone paths
 CLONE_DIR="$(cfg path_to.mcp_clones)"
@@ -114,12 +93,12 @@ for cli in claude gemini codex; do
 done
 export CLI_BIN_PATHS
 
-# Ports for local HTTP servers (use cfg_port for stack-aware port offsets)
-export QDRANT_DB_PORT="${QDRANT_DB_PORT:-$(cfg_port qdrant_db)}"
-export QDRANT_MCP_PORT="${QDRANT_MCP_PORT:-$(cfg_port qdrant_mcp)}"
-export SOURCEGRAPH_MCP_PORT="${SOURCEGRAPH_MCP_PORT:-$(cfg_port sourcegraph_mcp)}"
-export SEMGREP_MCP_PORT="${SEMGREP_MCP_PORT:-$(cfg_port semgrep_mcp)}"
-export SERENA_MCP_PORT="${SERENA_MCP_PORT:-$(cfg_port serena_mcp)}"
+# Ports for local HTTP servers
+export QDRANT_DB_PORT="${QDRANT_DB_PORT:-$(cfg port_for.qdrant_db)}"
+export QDRANT_MCP_PORT="${QDRANT_MCP_PORT:-$(cfg port_for.qdrant_mcp)}"
+export SOURCEGRAPH_MCP_PORT="${SOURCEGRAPH_MCP_PORT:-$(cfg port_for.sourcegraph_mcp)}"
+export SEMGREP_MCP_PORT="${SEMGREP_MCP_PORT:-$(cfg port_for.semgrep_mcp)}"
+export SERENA_MCP_PORT="${SERENA_MCP_PORT:-$(cfg port_for.serena_mcp)}"
 
 # Configure Qdrant MCP (handles semantic memory)
 # Derive QDRANT_URL if not provided in env
@@ -130,20 +109,19 @@ export QDRANT_URL
 export QDRANT_COLLECTION_NAME="${QDRANT_COLLECTION_NAME:-$(cfg qdrant.collection)}"
 export QDRANT_EMBEDDING_PROVIDER="${QDRANT_EMBEDDING_PROVIDER:-$(cfg qdrant.embedding_provider)}"
 
-# Expand ~ to EFFECTIVE_HOME for:
+# Expand ~ to $HOME for:
 # - Docker compatibility (QDRANT_STORAGE_PATH, NEO4J_STORAGE_PATH)
 # - mkdir/Node compatibility (MEMORY_MCP_STORAGE_PATH)
-# Note: Uses EFFECTIVE_HOME for stack isolation
 MEMORY_MCP_STORAGE_PATH="${MEMORY_MCP_STORAGE_PATH:-$(cfg path_to.storage_for.memory_mcp)}"
 QDRANT_STORAGE_PATH="${QDRANT_STORAGE_PATH:-$(cfg path_to.storage_for.qdrant)}"
 NEO4J_STORAGE_PATH="${NEO4J_STORAGE_PATH:-$(cfg path_to.storage_for.neo4j)}"
-export QDRANT_STORAGE_PATH="${QDRANT_STORAGE_PATH/#\~/$EFFECTIVE_HOME}"
-export MEMORY_MCP_STORAGE_PATH="${MEMORY_MCP_STORAGE_PATH/#\~/$EFFECTIVE_HOME}"
-export NEO4J_STORAGE_PATH="${NEO4J_STORAGE_PATH/#\~/$EFFECTIVE_HOME}"
+export QDRANT_STORAGE_PATH="${QDRANT_STORAGE_PATH/#\~/$HOME}"
+export MEMORY_MCP_STORAGE_PATH="${MEMORY_MCP_STORAGE_PATH/#\~/$HOME}"
+export NEO4J_STORAGE_PATH="${NEO4J_STORAGE_PATH/#\~/$HOME}"
 
-# Neo4j configuration (graph memory backend) - use cfg_port for stack-aware port offsets
-export NEO4J_DB_PORT="${NEO4J_DB_PORT:-$(cfg_port neo4j_db)}"
-export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-$(cfg_port neo4j_http)}"
+# Neo4j configuration (graph memory backend)
+export NEO4J_DB_PORT="${NEO4J_DB_PORT:-$(cfg port_for.neo4j_db)}"
+export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-$(cfg port_for.neo4j_http)}"
 export NEO4J_USERNAME="${NEO4J_USERNAME:-$(cfg neo4j.auth.username)}"
 export NEO4J_PASSWORD="${NEO4J_PASSWORD:-$(cfg neo4j.auth.password)}"
 export NEO4J_PLUGINS="${NEO4J_PLUGINS:-$(cfg neo4j.plugins)}"
@@ -155,16 +133,16 @@ FS_MCP_WHITELIST="${FS_MCP_WHITELIST:-$(cfg path_to.fs_mcp_whitelist)}"
 # Source agent selection library
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
 
-# Supported agents' printable string names
+# Supported agents' printable string names 
 CLAUDE="Claude Code"
 CODEX="Codex"
 GEMINI="Gemini CLI"
 
-# User-level config locations for supported coding CLIs (uses EFFECTIVE_HOME for stack isolation)
-GEMINI_CONFIG="$EFFECTIVE_HOME/.gemini/settings.json"
-CODEX_CONFIG="$EFFECTIVE_HOME/.codex/config.toml"
-CLAUDE_CONFIG="$EFFECTIVE_HOME/.claude/settings.json"
-CLAUDE_CLI_STATE="$EFFECTIVE_HOME/.claude.json"
+# User-level config locations for supported coding CLIs
+GEMINI_CONFIG="$HOME/.gemini/settings.json"
+CODEX_CONFIG="$HOME/.codex/config.toml"
+CLAUDE_CONFIG="$HOME/.claude/settings.json"
+CLAUDE_CLI_STATE="$HOME/.claude.json"
 
 # Contains the list of agents to be configured by this script to use Bureau and its tools;
 # Populated by discover_agents(); agentic CLIs above are added if their corresponding 
@@ -245,19 +223,17 @@ kill_port() {
 
 # Start Qdrant Docker container idempotently
 start_qdrant_docker() {
-    # Use cfg_container for stack-aware container naming
-    local container_name
-    container_name=$(cfg_container qdrant)
+    local container_name="qdrant"
 
     # Check if container exists and is running
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        log_success "Qdrant container ($container_name) already running"
+        log_success "Qdrant container already running"
         return 0
     fi
 
     # Check if container exists but is stopped
     if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        log_info "Starting existing Qdrant container ($container_name)..."
+        log_info "Starting existing Qdrant container..."
         docker start "$container_name" >/dev/null
         sleep 2
         log_success "Qdrant container started"
@@ -268,7 +244,7 @@ start_qdrant_docker() {
     mkdir -p "$QDRANT_STORAGE_PATH"
 
     # Start new container
-    log_info "Creating and starting Qdrant container ($container_name)..."
+    log_info "Creating and starting Qdrant container..."
 
     # mappings:
     # - uses port $QDRANT_DB_PORT on host machine, 6333 within container
@@ -281,24 +257,22 @@ start_qdrant_docker() {
         qdrant/qdrant >/dev/null
 
     sleep 2
-    log_success "Qdrant container ($container_name) started on port $QDRANT_DB_PORT"
+    log_success "Qdrant container started on port $QDRANT_DB_PORT"
 }
 
 # Start Neo4j Docker container idempotently (only called when memory.backend=graph)
 start_neo4j_docker() {
-    # Use cfg_container for stack-aware container naming
-    local container_name
-    container_name=$(cfg_container neo4j)
+    local container_name="neo4j"
 
     # Check if container exists and is running
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        log_success "Neo4j container ($container_name) already running"
+        log_success "Neo4j container already running"
         return 0
     fi
 
     # Check if container exists but is stopped
     if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        log_info "Starting existing Neo4j container ($container_name)..."
+        log_info "Starting existing Neo4j container..."
         docker start "$container_name" >/dev/null
         sleep 2
         log_success "Neo4j container started"
@@ -311,7 +285,7 @@ start_neo4j_docker() {
     mkdir -p "$NEO4J_STORAGE_PATH"
 
     # Start new container
-    log_info "Creating and starting Neo4j container ($container_name)..."
+    log_info "Creating and starting Neo4j container..."
 
     # mappings:
     # - port $NEO4J_HTTP_PORT on host for HTTP/Browser (7474 within container)
@@ -327,7 +301,7 @@ start_neo4j_docker() {
         neo4j:5 >/dev/null
 
     sleep 2
-    log_success "Neo4j container ($container_name) started on bolt://localhost:$NEO4J_DB_PORT"
+    log_success "Neo4j container started on bolt://localhost:$NEO4J_DB_PORT"
 
     # Wait for Neo4j to be ready
     wait_for_neo4j_ready
@@ -448,7 +422,7 @@ add_mcp_to_gemini() {
     # shift past the args so that the remaining ones can be passed to the script at the end of the function
     shift 2
 
-    mkdir -p "$EFFECTIVE_HOME/.gemini"
+    mkdir -p "$HOME/.gemini"
 
     # Initialize file if it doesn't exist
     if [[ ! -f "$GEMINI_CONFIG" ]]; then
@@ -471,7 +445,7 @@ add_mcp_to_codex() {
     local transport=$2
     shift 2
 
-    mkdir -p "$EFFECTIVE_HOME/.codex"
+    mkdir -p "$HOME/.codex"
     [[ ! -f "$CODEX_CONFIG" ]] && touch "$CODEX_CONFIG"
 
     if grep -q "^\[mcp_servers.$server_name\]" "$CODEX_CONFIG" 2>/dev/null; then
@@ -622,7 +596,7 @@ setup_pal_stdio_mcp() {
     # - CUSTOM_API_URL: dummy endpoint to satisfy PAL's provider validation at startup
     #   (clink has requires_model() -> False, so this URL is never actually used)
 
-    local pal_env_path="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$EFFECTIVE_HOME/.local/bin"
+    local pal_env_path="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin"
     if [[ -n "$CLI_BIN_PATHS" ]]; then
         pal_env_path="${pal_env_path}:${CLI_BIN_PATHS}"
     fi
@@ -1166,9 +1140,11 @@ log_info "    └─ Filtered to read_multiple_files only (30-60% token savings 
 log_info "    └─ Whitelisted directory: $FS_MCP_WHITELIST"
 log_info "  • Fetch MCP (all agents)"
 log_info "    └─ HTML to Markdown conversion"
-log_info "  • Memory MCP (all agents)"
-log_info "    └─ Knowledge graph for persistent structured memory (entities, relations, observations)"
-log_info "    └─ Data file: $MEMORY_MCP_STORAGE_PATH"
+log_info "  • Neo4j Graph Memory MCPs (all agents)"
+log_info "    └─ neo4j-memory: Entity/relation CRUD operations"
+log_info "    └─ neo4j-gds: Graph Data Science algorithms"
+log_info "    └─ bureau-graph-extras: Blast radius and cycle detection"
+log_info "    └─ Data stored in: $NEO4J_STORAGE_PATH"
 log_info "  • Playwright MCP (all agents)"
 log_info "    └─ Browser automation and UI interaction via Playwright"
 
@@ -1185,7 +1161,8 @@ fi
 log_empty_line
 log_info "Logs:"
 log_info "  • Qdrant MCP: /tmp/mcp-Qdrant MCP-server.log"
-log_info "  • Qdrant Docker: docker logs $(cfg_container qdrant)"
+log_info "  • Qdrant Docker: docker logs qdrant"
+log_info "  • Neo4j Docker: docker logs neo4j"
 
 if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
     log_info "  • Sourcegraph MCP: /tmp/mcp-Sourcegraph MCP-server.log"
@@ -1202,7 +1179,7 @@ if agent_enabled "OpenCode"; then
     log_info "Syncing OpenCode MCP config"
     TEMPLATE_OC="$REPO_ROOT/protocols/config/templates/opencode.json"
     GENERATED_OC="$REPO_ROOT/protocols/config/generated/opencode.generated.json"
-    TARGET_OC="$EFFECTIVE_HOME/.config/opencode/opencode.json"
+    TARGET_OC="$HOME/.config/opencode/opencode.json"
 
     if [[ -f "$TEMPLATE_OC" ]]; then
         mkdir -p "$(dirname "$GENERATED_OC")"
@@ -1252,17 +1229,13 @@ pidlist="${pidlist# }"
 KILL_HTTPS_CMD="kill ${pidlist}"
 log_info "  $KILL_HTTPS_CMD"
 
-# Get dynamic container names for stop commands
-QDRANT_CONTAINER=$(cfg_container qdrant)
-NEO4J_CONTAINER=$(cfg_container neo4j)
-
 log_empty_line
-QDRANT_STOP_CMD="docker stop $QDRANT_CONTAINER"
+QDRANT_STOP_CMD="docker stop qdrant"
 log_info "To stop Qdrant Docker container:"
 log_info "  $QDRANT_STOP_CMD"
 
 log_empty_line
-NEO4J_STOP_CMD="docker stop $NEO4J_CONTAINER"
+NEO4J_STOP_CMD="docker stop neo4j"
 log_info "To stop Neo4j Docker container:"
 log_info "  $NEO4J_STOP_CMD"
 
