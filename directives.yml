@@ -112,8 +112,8 @@ pal:
 
 # Coding standards documents read by agents at startup and used by assess mode
 # Override: provide your own files in local.yml to replace these defaults
-code_standards:
-  - protocols/context/static/code-standards.md
+# code_standards:
+#   - protocols/context/static/code-standards.md
 
 # Assess mode skill configuration
 assess_mode:
