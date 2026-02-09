@@ -4,39 +4,311 @@
 #
 # This file stores configuration values that are either:
 #   - an immutable reflection of some upstream value
-#   - very unlikely to be changed by the user
+#   - very unlikely to be changed by users
 
-# Fixed endpoints for cloud-hosted HTTP MCPs
-endpoint_for:
-  sourcegraph: https://sourcegraph.com
-  context7: https://mcp.context7.com/mcp
-  tavily: https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}
+mcp:
+  dependencies:
+    sourcegraph_repo:
+      enabled: true
+      kind: git_repo
+      repo_url: https://github.com/akbad/sourcegraph-mcp.git
+      branch: master
+      path: ${path_to.mcp_clones}/sourcegraph-mcp
+      post_clone:
+        - ["uv", "sync"]
 
-# File paths for config files, connection settings, etc.
-path_to:
-  # Storage paths for memory backends (data directories, database files)
-  storage_for:
-    # Path to SQLite database for claude-mem's session summaries & observations
-    # Override by setting $CLAUDE_MEM_STORAGE_PATH
-    claude_mem: ~/.claude-mem/claude-mem.db
+    claude_mem_storage:
+      enabled: true
+      kind: file_storage
+      path: ~/.claude-mem/claude-mem.db
 
-    # Path to JSONL storage for Memory MCP's entity-relationship knowledge graph
-    # Override by setting $MEMORY_MCP_STORAGE_PATH
-    memory_mcp: ~/.memory-mcp/memory.jsonl
+  runtime_services:
+    qdrant_db:
+      enabled: true
+      kind: docker_container
+      container_name: qdrant
+      image: qdrant/qdrant
+      host_port: 8780
+      container_port: 6333
+      mounts:
+        - host_path: ~/.qdrant/storage
+          container_path: /qdrant/storage
+      healthcheck:
+        tcp: ${mcp.runtime_services.qdrant_db.host_port}
 
-    # Path to Qdrant Docker volume mount (vector database storage)
-    # Override by setting $QDRANT_STORAGE_PATH
-    qdrant: ~/.qdrant/storage
+    qdrant_mcp:
+      enabled: true
+      kind: http_process
+      port: 8782
+      depends_on:
+        services: [qdrant_db]
+      settings:
+        collection: coding-memory
+        embedding_provider: fastembed
+      command:
+        - uvx
+        - --from
+        - mcp-server-qdrant>=0.8.0
+        - mcp-server-qdrant
+        - --transport
+        - streamable-http
+      env:
+        QDRANT_URL: "http://127.0.0.1:${mcp.runtime_services.qdrant_db.host_port}"
+        COLLECTION_NAME: "${mcp.runtime_services.qdrant_mcp.settings.collection}"
+        EMBEDDING_PROVIDER: "${mcp.runtime_services.qdrant_mcp.settings.embedding_provider}"
+        FASTMCP_SERVER_PORT: "${mcp.runtime_services.qdrant_mcp.port}"
+        FASTMCP_SERVER_STATELESS_HTTP: "true"
+      healthcheck:
+        tcp: ${mcp.runtime_services.qdrant_mcp.port}
 
-qdrant:
-  # Name of the collection within the backing Qdrant DB in which to store semantic memories
-  # Override by setting $QDRANT_COLLECTION_NAME
-  collection: coding-memory
+    sourcegraph_mcp:
+      enabled: true
+      kind: http_process
+      port: 8783
+      depends_on:
+        dependencies: [sourcegraph_repo]
+      command:
+        - uv
+        - --directory
+        - ${mcp.dependencies.sourcegraph_repo.path}
+        - run
+        - sourcegraph-mcp
+      env:
+        SRC_ENDPOINT: https://sourcegraph.com
+        MCP_STREAMABLE_HTTP_PORT: "${mcp.runtime_services.sourcegraph_mcp.port}"
+      healthcheck:
+        tcp: ${mcp.runtime_services.sourcegraph_mcp.port}
 
-  # Embedding model provider for generating vectors in Qdrant
-  # Override by setting $QDRANT_EMBEDDING_PROVIDER
-  embedding_provider: fastembed
+    semgrep_mcp:
+      enabled: false
+      kind: http_process
+      port: 8784
+      command:
+        - semgrep
+        - mcp
+        - -t
+        - streamable-http
+        - --port
+        - ${mcp.runtime_services.semgrep_mcp.port}
+      healthcheck:
+        tcp: ${mcp.runtime_services.semgrep_mcp.port}
 
-# Fixed clink tool disable list for PAL MCP
-# (all tools below require API keys, which Bureau assumes the user does not want to use)
-pal_disabled_tools: analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer
+    serena_mcp:
+      enabled: true
+      kind: http_process
+      port: 8785
+      command:
+        - uvx
+        - --from
+        - git+https://github.com/oraios/serena
+        - serena
+        - start-mcp-server
+        - --transport
+        - streamable-http
+        - --port
+        - ${mcp.runtime_services.serena_mcp.port}
+      healthcheck:
+        tcp: ${mcp.runtime_services.serena_mcp.port}
+
+  client_configs:
+    qdrant:
+      enabled: true
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.runtime_services.qdrant_mcp.port}/mcp/"
+
+    sourcegraph:
+      enabled: true
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.runtime_services.sourcegraph_mcp.port}/sourcegraph/mcp/"
+
+    semgrep:
+      enabled: false
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.runtime_services.semgrep_mcp.port}/mcp/"
+
+    serena:
+      enabled: true
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.runtime_services.serena_mcp.port}/mcp/"
+
+    context7:
+      enabled: true
+      requires_env: [CONTEXT7_API_KEY]
+      clients:
+        default:
+          transport: http
+          url: "https://mcp.context7.com/mcp"
+          headers:
+            CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}"
+            Accept: "application/json, text/event-stream"
+        codex:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@upstash/context7-mcp"
+            - --api-key
+            - ${CONTEXT7_API_KEY}
+
+    tavily:
+      enabled: true
+      requires_env: [TAVILY_API_KEY]
+      clients:
+        default:
+          transport: http
+          url: "https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}"
+
+    brave:
+      enabled: true
+      requires_env: [BRAVE_API_KEY]
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@brave/brave-search-mcp-server"
+            - --transport
+            - stdio
+          env:
+            BRAVE_API_KEY: "${BRAVE_API_KEY}"
+
+    pal:
+      enabled: true
+      settings:
+        disabled_tools: "analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer"
+      clients:
+        default:
+          transport: stdio
+          command: &pal_command
+            - sh
+            - -c
+            - "for p in $(which uvx 2>/dev/null) $HOME/.local/bin/uvx /opt/homebrew/bin/uvx /usr/local/bin/uvx uvx; do [ -x \"$p\" ] && exec \"$p\" --from git+https://github.com/BeehiveInnovations/pal-mcp-server.git pal-mcp-server; done; echo \"uvx not found\" >&2; exit 1"
+          env:
+            PATH: "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin:${CLI_BIN_PATHS}"
+            DISABLED_TOOLS: "${mcp.client_configs.pal.settings.disabled_tools}"
+            CUSTOM_API_URL: "http://localhost:11434"
+        claude:
+          transport: stdio
+          command: *pal_command
+          env:
+            PATH: "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin:${CLI_BIN_PATHS}"
+            DISABLED_TOOLS: "${mcp.client_configs.pal.settings.disabled_tools}"
+            CUSTOM_API_URL: "http://localhost:11434"
+          post_config:
+            claude_settings_env:
+              MCP_TIMEOUT: "300000"
+              MCP_TOOL_TIMEOUT: "1200000"
+        gemini:
+          transport: stdio
+          command: *pal_command
+          env:
+            PATH: "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin:${CLI_BIN_PATHS}"
+            DISABLED_TOOLS: "${mcp.client_configs.pal.settings.disabled_tools}"
+            CUSTOM_API_URL: "http://localhost:11434"
+          timeout_ms: 1200000
+        codex:
+          transport: stdio
+          command: *pal_command
+          env:
+            PATH: "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin:${CLI_BIN_PATHS}"
+            DISABLED_TOOLS: "${mcp.client_configs.pal.settings.disabled_tools}"
+            CUSTOM_API_URL: "http://localhost:11434"
+          startup_timeout_sec: 300
+          tool_timeout_sec: 1200
+
+    filesystem:
+      enabled: true
+      settings:
+        whitelist: "${path_to.workspace}"
+        allowed_methods:
+          - read_multiple_files
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - mcp-filter
+            - -s
+            - "npx -y @modelcontextprotocol/server-filesystem ${mcp.client_configs.filesystem.settings.whitelist}"
+            - -a
+            - read_multiple_files
+
+    fetch:
+      enabled: true
+      clients:
+        default:
+          transport: stdio
+          command:
+            - uvx
+            - mcp-server-fetch
+
+    memory:
+      enabled: true
+      storage_path: ~/.memory-mcp/memory.jsonl
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@modelcontextprotocol/server-memory"
+          env:
+            MEMORY_FILE_PATH: "${mcp.client_configs.memory.storage_path}"
+
+    playwright:
+      enabled: true
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@playwright/mcp@latest"
+
+auto_approved:
+  bash:
+    enabled: false
+    ruleset:
+      allow:
+        - "ls"
+        - "rg"
+        - "git status"
+        - "git diff"
+        - "git log"
+        - "npm run test"
+        - "python"
+        - "sed -i"
+        - "tee"
+        - "cat"
+        - "printf"
+        - "mkdir -p"
+      deny:
+        - "rm"
+        - "git add"
+        - "git commit"
+        - "git reset"
+        - "git checkout"
+        - "git merge"
+        - "git rebase"
+        - "git push"
+        - "git pull"
+        - "git clean"
+        - "pip install"
+        - "npm install"
+        - "pnpm install"
+        - "yarn add"
+        - "sudo"
+        - "dd"
+        - "mkfs"
+
+auto_clean_managed_mcps: false
