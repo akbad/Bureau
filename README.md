@@ -150,7 +150,7 @@ with each of the 3 files above generated from [templates](protocols/context/temp
 
 | Skill | What it does |
 | :--- | :--- |
-| **[Assess mode](protocols/context/static/skills/assess-mode/SKILL.md)** | **Two-phase guided review**: first builds a mental model of changes (with 3 comprehension styles to choose from), then audits every file against [configurable quality standards](docs/CONFIGURATION.md#assess_mode). Interactive tour when used as a main agent; structured report when delegated to a subagent. |
+| **[Assess mode](protocols/context/static/skills/assess-mode/SKILL.md)** | **Two-phase guided review**: first builds a mental model of changes (with 4 comprehension styles to choose from), then audits every file against [configurable quality standards](docs/CONFIGURATION.md#assess_mode). Interactive tour when used as a main agent; structured report when delegated to a subagent. |
 | **[Micro mode](protocols/context/static/skills/micro-mode/SKILL.md)** | **Step-gated editing with DAG-based planning:** offers maximum control over each atomic edit, with pause points after every change. |
 
 #### Additional skills available in the catalog
