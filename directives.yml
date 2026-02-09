@@ -58,7 +58,7 @@ roles:
 
 # Skills configuration (installed via protocols/scripts/set-up-skills.sh)
 skills:
-  enabled: [micro-mode]
+  enabled: [micro-mode, assess-mode]
   disabled: []
   sources:
     - path: protocols/context/static/skills
@@ -109,6 +109,16 @@ pal:
     # Extra role prompts (beyond `base-roles` above) to make available to 
     #   only Gemini when called via clink
     extra-roles: none
+
+# Coding standards documents read by agents at startup and used by assess mode
+# Override: provide your own files in local.yml to replace these defaults
+code_standards:
+  - protocols/context/static/code-standards.md
+
+# Assess mode skill configuration
+assess_mode:
+  default_target: git-diff
+  default_diff: HEAD
 
 # Retention periods (per memory backend), after which memories older than this threshold
 #   will be moved to trash automatically by the cleanup process
