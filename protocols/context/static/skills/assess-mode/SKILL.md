@@ -47,8 +47,9 @@ When the user says anything like:
 - Resolve in this order:
 
     1. User provides paths in their activation prompt → use those
-    2. `assess_mode.standards_sources` in config → use those
-    3. Neither found → the quality audit still runs but only checks internal consistency (DRYness, algorithmic efficiency, codebase pattern consistency); explicitly inform the user that no external standards docs were found and suggest: *"For more targeted reviews, you can configure `assess_mode.standards_sources` in your Bureau configuration to provide files detailing what you want agents in Assess Mode to focus on. See the documentation for details."*
+    2. `code_standards` in config → use those
+    3. `~/.config/bureau/protocols/code-standards.md` exists → use that
+    4. None found → the quality audit still runs but only checks internal consistency (DRYness, algorithmic efficiency, codebase pattern consistency); explicitly inform the user that no external standards docs were found and suggest: *"For more targeted reviews, you can configure `code_standards` in your Bureau configuration or edit `~/.config/bureau/protocols/code-standards.md` to provide files detailing what you want agents in Assess Mode to focus on. See the documentation for details."*
 
 - Read all resolved standards documents before beginning the audit phase
 
