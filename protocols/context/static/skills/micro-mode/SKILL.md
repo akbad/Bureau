@@ -224,7 +224,7 @@ Until the planned implementation/task is complete, execute the steps below, in t
 
 4. Emit the *step header* in the *exact* format below:
 
-    ```
+    ```md
     - Step <id>: <file>::<function>
     - Signature: <exact function signature line as currently in file>
     - Type: <API|IMPL|FIX|TEST|DOC>
@@ -245,7 +245,7 @@ Until the planned implementation/task is complete, execute the steps below, in t
 
 7. Emit the *step footer* in the *exact* format below:
 
-    ```
+    ```md
     - Changed: <file>::<function> (±N lines)
     - Check: <command> → <result>
     - Next candidates: <ready step ids>
