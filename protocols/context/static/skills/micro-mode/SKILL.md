@@ -225,12 +225,13 @@ Until the planned implementation/task is complete, execute the steps below, in t
 4. Emit the *step header* in the *exact* format below:
 
     ```
-    Step <id>: <file>::<function>
-    Signature: <exact function signature line as currently in file>
-    Goal: <one sentence>
-    Type: <API|IMPL|FIX|TEST|DOC>
-    Risk: <low|medium|high>
-    Why now: <deps satisfied>
+    - Step <id>: <file>::<function>
+    - Signature: <exact function signature line as currently in file>
+    - Type: <API|IMPL|FIX|TEST|DOC>
+    - Risk: <low|medium|high>
+    
+    - Goal: <one sentence>
+    - Why now: <deps satisfied>
     ```
 
 5. Perform *stale state detection* before editing by summarizing the target function in **exactly two bullets**:
@@ -245,10 +246,11 @@ Until the planned implementation/task is complete, execute the steps below, in t
 7. Emit the *step footer* in the *exact* format below:
 
     ```
-    Changed: <file>::<function> (±N lines)
-    Check: <command> → <result>
-    Next candidates: <ready step ids>
-    User: ">" or "." to continue
+    - Changed: <file>::<function> (±N lines)
+    - Check: <command> → <result>
+    - Next candidates: <ready step ids>
+    
+    Press ">" or "." to continue
     ```
 
 8. Output `⏸️` and stop.
