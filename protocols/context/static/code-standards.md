@@ -68,7 +68,7 @@
 
     - State whether the value is empirical or formally derived, where it came from, and whether it can be tuned
 
-#### Tier 3: recommended for complex systems code
+#### Tier 3: should use in complex systems code
 
 - **Formal spec / standard references** when implementing a protocol, standard, or well-defined algorithm
 
