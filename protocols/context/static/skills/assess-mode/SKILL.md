@@ -91,7 +91,7 @@ Present the user with this choice:
 
 > [!IMPORTANT]
 >
-> Throughout comprehension — regardless of which style is active — surface brief observations (1-3 sentences) when the code reveals something non-obvious: an interesting design trade-off, an architectural decision worth noting, or a genuinely suboptimal pattern that could be improved.
+> Throughout comprehension, regardless of which style is active, **surface brief observations (1-3 sentences)** when the code reveals something non-obvious: an interesting design trade-off, an architectural decision worth noting, or a genuinely suboptimal pattern that could be improved.
 >
 > - **Read before you speak:** if your observation depends on code outside the current scope (callers, sibling modules, prior art in the codebase), read that context first. Do not speculate about what surrounding code does
 > - **Earn the call-out:** only flag a design as suboptimal if (a) you have ingested enough context to be confident, (b) the improvement is concrete and actionable, and (c) it is not premature abstraction or YAGNI material. A real problem with a real fix — not a hypothetical improvement
