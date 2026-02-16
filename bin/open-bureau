@@ -15,7 +15,7 @@ cd "$REPO_ROOT" || exit 1
 # Check dependencies, install correct Python version packages and set up env
 bin/ensure-prereqs
 
-# Source shared libraries
+# Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/logging.sh"
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
 
