@@ -12,7 +12,7 @@ CLAUDE_AGENTS_DIRNAME="claude-subagents"
 CLINK_AGENTS_DIRNAME="role-prompts"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 
-# Source shared libraries
+# Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
 source "$REPO_ROOT/bin/lib/logging.sh"
 
@@ -104,20 +104,41 @@ if agent_enabled "Gemini CLI"; then
     echo ""
 fi
 
-# OpenCode agents (symlink for auto-discovery)
+# OpenCode agents (filtered symlinks for auto-discovery)
 if agent_enabled "OpenCode"; then
-    print_step "Setting up Bureau agents for OpenCode"
+    log_action "Setting up Bureau agents for OpenCode"
+    OPENCODE_AGENTS_DIR="$HOME/.config/opencode/agent/$AGENTS_SUBDIR"
 
-    # Symlink role prompts - OpenCode auto-discovers agents from this directory
-    OPEN_AGENT_DIR="$HOME/.config/opencode/agent/$AGENTS_SUBDIR"
-    mkdir -p "$HOME/.config/opencode/agent"
+    # Get filtered role list
+    AGENTS_ENABLED_FOR_OPENCODE=$(uv run python -m operations.roles_catalog opencode)
 
-    if [[ -L "$OPEN_AGENT_DIR" ]]; then
-        rm "$OPEN_AGENT_DIR"
-        print_success "Removed old symlink at $OPEN_AGENT_DIR"
+    # Remove old directory (may be symlink or real directory) so config always wins
+    if [[ -e "$OPENCODE_AGENTS_DIR" ]]; then
+        rm -rf "$OPENCODE_AGENTS_DIR"
+        log_success "Removed old agent directory at $OPENCODE_AGENTS_DIR"
     fi
-    ln -s "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" "$OPEN_AGENT_DIR"
-    print_success "Symlinked Bureau role prompts to $OPEN_AGENT_DIR (OpenCode auto-discovers these)"
+
+    if [[ -z "$AGENTS_ENABLED_FOR_OPENCODE" ]]; then
+        log_warning "No agents enabled for OpenCode. Skipping setup and clearing any previously generated OpenCode Bureau agents."
+        log_info "To enable agents, update the roles.enabled list in your local.yml"
+    else
+        # Create directory and populate with symlinks corresponding to the agents
+        #   enabled for OpenCode
+        mkdir -p "$OPENCODE_AGENTS_DIR"
+
+        count=0
+        for agent_name in $AGENTS_ENABLED_FOR_OPENCODE; do
+            source_file="$AGENTS_DIR/$CLINK_AGENTS_DIRNAME/${agent_name}.md"
+            if [[ -f "$source_file" ]]; then
+                ln -s "$source_file" "$OPENCODE_AGENTS_DIR/${agent_name}.md"
+                count=$((count + 1))
+            else
+                log_warning "Agent file not found: $source_file (skipping)"
+            fi
+        done
+
+        log_success "Created $count filtered agent symlinks in $OPENCODE_AGENTS_DIR"
+    fi
     echo ""
 fi
 
