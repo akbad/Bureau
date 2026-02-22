@@ -1,4 +1,5 @@
 """Claude-mem SQLite cleanup handler."""
+import logging
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -7,6 +8,8 @@ from typing import Any
 from .base import CleanupHandler, CleanupError
 from ..trash import get_trash_dir, generate_trash_filename, write_manifest
 from ...config_loader import get_storage, get_trash_grace_period
+
+logger = logging.getLogger(__name__)
 
 
 class ClaudeMemHandler(CleanupHandler):
@@ -23,6 +26,9 @@ class ClaudeMemHandler(CleanupHandler):
     def _get_db_connection(self) -> sqlite3.Connection | None:
         """Get SQLite connection if database exists."""
         db_path = get_storage("claude_mem")
+        if not db_path:
+            logger.warning(f"Storage path not configured for {self.name}; skipping cleanup.")
+            return None
         return sqlite3.connect(db_path) if db_path.exists() else None
 
     def get_stale_items(self, cutoff: datetime) -> list[dict[str, Any]]:
