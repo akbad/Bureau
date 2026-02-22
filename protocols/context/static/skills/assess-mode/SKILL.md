@@ -66,8 +66,14 @@ When the user says anything like:
 2. Read every changed/new file
 3. Build a dependency graph → which files import, call, or reference which
 4. Identify **logical groups** → cluster files by module, directory, or purpose (e.g. "config loading", "MCP setup", "test suite")
-5. For each file, extract: purpose, key functions/classes, invariants, design decisions
-6. Identify cross-cutting concerns: shared utilities, common patterns, config flow
+5. **Produce a canonical file ordering** → topologically sort files using the dependency graph from step 3 (foundational files first, consumers last)
+
+    - Within each connected component, order by depth: files with no in-edges (pure providers) come first, files that only consume come last
+    - For files with no dependency relationship to each other (disconnected components), fall back to logical-group clustering from step 4: place foundational groups (utilities, config, data models) before consumer groups (application logic, scripts, tests)
+    - This ordering is the **single source of truth** for all comprehension styles that present files sequentially (dependency-ordered, hunk-by-hunk)
+
+6. For each file, extract: purpose, key functions/classes, invariants, design decisions
+7. Identify cross-cutting concerns: shared utilities, common patterns, config flow
 
 ### Present style choice *(interactive mode only)*
 
@@ -119,8 +125,8 @@ Present the user with this choice:
 
 #### Dependency-ordered
 
-- Topologically sort the changes (foundational modules first, consumers last)
-- Walk through each file/module in dependency order, explaining what it does and why. Surface observations inline as each module is presented
+- Walk through files in the **canonical topological ordering from prep step 5** (foundational modules first, consumers last)
+- For each file/module, explain what it does and why. Surface observations inline as each module is presented
 - **Pause after each module**; same user controls as layered walkthrough
 
 #### Hunk-by-hunk
@@ -133,7 +139,8 @@ Present the user with this choice:
 - **Parse the diff** into individual hunks via `git diff -U3 <ref>`
 
     - Group adjacent or overlapping hunks within the same file into a single logical unit
-    - Order hunks using the same file ordering chosen during internal prep (logical groups or dependency order)
+    - **Order files using the canonical topological ordering from [internal prep](#internal-prep-do-not-show-to-user)'s step 5** (foundational files first, consumers last) — this is mandatory, not a suggestion; the inline audit's cross-hunk awareness depends on having reviewed provider interfaces before encountering the consumer code that calls them
+    - Within each file, present hunks in **source order** (top-to-bottom, i.e., ascending line number) to preserve the natural reading flow of the file
 
 - **For each hunk (or hunk group)**, emit this block:
 
