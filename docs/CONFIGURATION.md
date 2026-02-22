@@ -85,6 +85,7 @@ agents:
 
 Remove an agent from the list to skip configuring it. Note that the CLI's config directory must also exist (e.g., `~/.claude/` for Claude Code).
 
+
 ### `mcp`
 
 **File:** `directives.yml`
@@ -95,13 +96,28 @@ MCP catalog configuration.
 
 - **Canonical IDs:** map keys serve as *canonical IDs* for both `mcp.runtime_services` and `mcp.client_configs`.
 
-  - Do **not** add `name` fields to avoid duplication and drift.
+  - Do **not** add `name` fields; these cause needless duplication and drift.
 
 - **Placeholder expansion:** all string fields support `${...}` expansion.
 
-  - Expansion order: env first, then config key paths (e.g. `${path_to.workspace}`, `${mcp.runtime_services.qdrant_mcp.port}`).
+  - **Expansion order:** OS environment variables first, then config key paths (e.g. `${path_to.workspace}`, `${mcp.runtime_services.qdrant_mcp.port}`).
   - Unknown placeholders remain untouched.
-  - To pass your own environment variables to an MCP server, add them as `env` entries in the server's client config; Bureau resolves the value at config-load time and forwards it to the CLI.
+  - **Environment variables for MCP servers:** 
+      - To pass environment variables to an MCP server process, add them as `env` entries in the server's client config. 
+      - The **values** in these `env` entries can themselves contain `${...}` placeholders that get resolved from your OS environment at config-load time before being passed to the MCP server.
+      - **Example:**
+
+          ```yaml
+          mcp:
+            client_configs:
+              context7:
+                clients:
+                  default:
+                    transport: http
+                    url: https://api.context7.dev/mcp
+                    env:
+                      CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}"  # ← Expanded from your shell's $CONTEXT7_API_KEY
+          ```
 
 - **Dependency semantics:**
 
@@ -256,6 +272,141 @@ Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Serve
 > [!NOTE]
 > Codex HTTP does not support custom headers; use `clients.codex` with `stdio` for servers requiring headers (e.g. Context7).
 
+### `skills`
+
+**Files:** `directives.yml` (defaults), `local.yml` (personal overrides)
+
+Controls which skills are installed by `protocols/scripts/set-up-skills.sh`.
+
+```yaml
+skills:
+  enabled: all
+  disabled: []
+  sources:
+    - path: protocols/context/static/skills
+      prefix: bureau-
+```
+
+**Fields:**
+- `enabled`: `all` or a list of skill directory names (without prefix) to include.
+- `disabled`: list of skill directory names to exclude.
+- `sources`: list of directories to scan for skills.
+  - `path`: absolute path or repo‑relative path.
+  - `prefix`: prefix applied to installed skill names (e.g. `bureau-`).
+
+> [!CAUTION]
+> - `protocols/scripts/set-up-skills.sh` removes **all** existing skills with the `bureau-` prefix from each CLI's skills directory before reinstalling. 
+> - **Avoid naming your own custom skills `bureau-*`** unless you expect them to be wiped during setup.
+
+
+### `assess_mode`
+
+**Files:** `directives.yml` (defaults), `local.yml` (personal overrides)
+
+Runtime configuration for the [`bureau-assess-mode` skill](../protocols/context/static/skills/assess-mode/SKILL.md). These values are read by the skill at activation time to determine what to review. Standards for audit are configured via the top-level [`code_standards`](#code_standards) setting.
+
+```yaml
+assess_mode:
+  default_target: git-diff
+  default_diff: HEAD
+```
+
+**Fields:**
+- `default_target`: how the skill determines what to review when the user doesn't specify explicit files. Currently only `git-diff` is supported.
+- `default_diff`: the git ref to diff against when `default_target` is `git-diff`. Common values: `HEAD` (unstaged + untracked vs last commit), `main` (full branch diff), or any commit SHA.
+
+### `roles`
+
+**Files:** `directives.yml` (defaults), `local.yml` (personal overrides)
+
+Controls which agent roles are available when launching CLIs **directly** through their native features (slash commands for Claude Code, launcher scripts for Codex/Gemini, auto-discovery for OpenCode). This is **separate from** PAL's `clink` tool cross-CLI delegation, which is configured via [`pal.base-roles`](#palbase-roles).
+
+```yaml
+roles:
+  enabled:
+    - architect
+    - debugger
+    - code-reviewer
+    - optimization
+    - testing
+    - migration-refactoring
+  disabled: []
+  sources:
+    - path: agents/role-prompts        # For Codex, Gemini, OpenCode
+      cli: [codex, gemini, opencode]
+    - path: agents/claude-subagents    # For Claude Code (has frontmatter)
+      cli: [claude]
+```
+
+**Fields:**
+- `enabled`: `all` or a list of agent role names to include. Agent names correspond to role file stems (e.g., `architect` for `architect.md`).
+- `disabled`: List of agent role names to exclude (takes precedence over `enabled`).
+- `sources`: List of directories to scan for agent role prompts, with per-CLI mappings.
+  - `path`: Relative path from repo root to agent role directory.
+  - `cli`: List of CLIs that should use this source directory.
+
+**How setup scripts use this:**
+
+| CLI | Native Feature | Setup Script | Result |
+|:----|:---------------|:-------------|:-------|
+| Claude Code | Slash commands | `agents/scripts/set-up-claude-slash-commands.sh` | Creates `~/.claude/commands/*.md` files |
+| Codex | Launcher scripts | `agents/scripts/set-up-codex-role-launchers.sh` | Creates `~/.local/bin/codex-*` executables |
+| Gemini CLI | Launcher scripts | `agents/scripts/set-up-gemini-role-launchers.sh` | Creates `~/.local/bin/gemini-*` executables |
+| OpenCode | Auto-discovery | `agents/scripts/set-up-agents.sh` | Creates filtered symlinks in `~/.config/opencode/agent/bureau-agents/` |
+
+**Default enabled agents:**
+
+The default configuration enables 6 core agent roles, excluding all others:
+- `architect` - Principal software architect for system design
+- `debugger` - Deep debugging and root-cause analysis
+- `code-reviewer` - Code quality and security audits
+- `optimization` - Performance optimization specialist
+- `testing` - Test infrastructure and quality engineering
+- `migration-refactoring` - Large-scale refactoring strategist
+
+**Distinction from PAL configuration:**
+
+| Setting | Scope | Purpose |
+|:--------|:------|:--------|
+| `roles` | **Native CLI usage** | Controls slash commands, launchers, auto-discovery |
+| `pal.base-roles` | **PAL's `clink` tool** | Controls cross-CLI subagent delegation |
+
+These are independent: you can have all agents available for PAL's `clink` while restricting native CLI usage to a smaller set, or vice versa.
+
+**Example: Enable all agents for native usage**
+
+```yaml
+# local.yml
+roles:
+  enabled: all
+```
+
+**Example: Enable specific agents with exclusions**
+
+```yaml
+# local.yml
+roles:
+  enabled: all
+  disabled:
+    - chaos-engineer
+    - incident-commander  # Exclude specific roles from "all"
+```
+
+**Example: Custom agent set**
+
+```yaml
+# local.yml
+roles:
+  enabled:
+    - architect
+    - frontend
+    - security-compliance
+    - distributed-systems
+  disabled: []
+```
+
+> [!NOTE]
+> After modifying `roles` configuration, run `./bin/open-bureau` to regenerate slash commands, launchers, and symlinks. For Claude Code, the changes take effect immediately (run `/help` to see updated list). For Codex/Gemini launchers, you may need to restart your shell or run `hash -r` to refresh the command cache.
 
 ### `pal`
 

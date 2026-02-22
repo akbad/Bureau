@@ -6,26 +6,7 @@ You ***must* read these essential files** using the Read tool:
 - before starting any task
 - at the beginning of any conversation
 
-### [MCP tools available: quick reference]({{REPO_ROOT}}/protocols/context/static/tools-guide.md)
-
-> **Read**: `@{{REPO_ROOT}}/protocols/context/static/tools-guide.md`
-
-Contains:
-
-   - Fast tool selection guide (Tier 1)
-   - ~330 tokens, always worth reading
-   - Covers: code search, web research, API docs, memory, file operations
-
-### [Handoff guidelines]({{REPO_ROOT}}/protocols/context/static/handoff-guide.md)
-
-> **Read**: `@{{REPO_ROOT}}/protocols/context/static/handoff-guide.md`
-
-Covers:
-
-   - When to delegate work to subagents (using either PAL's `clink` or the Claude subagent *Task* tool)
-   - How to select the model/CLI to use with the subagent that you spawn (Codex/Gemini/Claude)
-   - When to ask user vs handle directly
-   - What requires explicit approval
+{{MUST_READ_SECTION}}
 
 > [!IMPORTANT]
 > You must read these files *every time* (even when spawned as a specialized agent) since they provide:
