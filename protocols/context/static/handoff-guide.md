@@ -1,10 +1,10 @@
 # *Handoff guidelines:* how and when to delegate to subagents
 
-> **Purpose**: a concise guide for when to delegate work vs. when to ask the user for guidance.
+> **Purpose**: a concise guide for when and how to delegate work vs. when to ask the user for guidance.
 
 ## Delegation decision flow
 
-Apply these gates in order. Stop at the first gate that determines the next action.
+Apply these gates in order. Stop at the *first* gate that determines the next action.
 
 ### Gate 1: Ask the user first
 
