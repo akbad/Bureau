@@ -55,7 +55,7 @@ Configuration is loaded and merged in this order (later sources override earlier
 #### `directives.yml` 
 
 - *Read* to see examples of how to set config values (to then override in your `local.yml`).
-- *Edit* to change team-wide defaults like retention periods, enabled agents, ports, or paths. 
+- *Edit* to change team-wide defaults like retention periods, enabled agents, MCP catalog entries, or paths. 
 
     - Changes here affect everyone using *that* particular Bureau installation.
 
@@ -89,18 +89,173 @@ Remove an agent from the list to skip configuring it. Note that the CLI's config
 
 **File:** `directives.yml`
 
-MCP tool permissions.
+MCP catalog configuration.
 
+**Cross-cutting conventions:**
+
+- **Canonical IDs:** map keys serve as *canonical IDs* for both `mcp.runtime_services` and `mcp.client_configs`.
+
+  - Do **not** add `name` fields to avoid duplication and drift.
+
+- **Placeholder expansion:** all string fields support `${...}` expansion.
+
+  - Expansion order: env first, then config key paths (e.g. `${path_to.workspace}`, `${mcp.runtime_services.qdrant_mcp.port}`).
+  - Unknown placeholders remain untouched.
+  - To pass your own environment variables to an MCP server, add them as `env` entries in the server's client config; Bureau resolves the value at config-load time and forwards it to the CLI.
+
+- **Dependency semantics:**
+
+  - `depends_on.services` is a list of service IDs.
+  - A service is considered ready only after its `healthcheck` succeeds (if present).
+  - Startup order is topological: servers with `depends_on.services` are skipped if any dependency is disabled or missing.
+
+- **Unknown keys:** unknown keys are preserved during resolution to allow future/custom extensions.
+- **Enabled by default:** dependencies, runtime services, and client configs are all **enabled by default** when `enabled` is omitted.
+
+  - **Adding an entry to any MCP bucket is sufficient to activate it on the next `open-bureau` run.**
+  - You *must* set `enabled: false` explicitly to define an entry without activating it.
+
+**Top-level structure:**
+
+- `auto_approved` (object):
+  - `mcp_tools` (bool, default: `false`): Whether MCP tools should be auto‑approved by setup scripts.
+  - `bash` (object):
+    - `enabled` (bool, default: `false`): Whether Bash allow/deny rules should be applied.
+    - `ruleset` (object):
+      - `allow` (list\<string\>): Literal command prefixes to allow.
+      - `deny` (list\<string\>): Literal command prefixes to deny.
+- `prune_disabled_mcps` (bool, default: `false`): When `true`, Bureau prunes previously managed MCPs that are no longer desired, using per‑CLI registry fingerprints to avoid removing user‑modified entries.
+- `mcp` (object):
+  - `dependencies` (map\<string, Dependency\>): Non-daemon prerequisites (git repos, file storage) prepared before services.
+  - `runtime_services` (map\<string, RuntimeService\>): Managed runtime services (containers, processes) that may depend on dependencies.
+  - `client_configs` (map\<string, ClientConfig\>): MCP servers exposed to CLIs.
+
+#### <ins>`mcp.dependencies`</ins>
+
+**Files:** `charter.yml` (defaults), `directives.yml` (shared overrides), `local.yml` (personal overrides)
+
+Defines non-daemon prerequisites (git repos, file storage) that are prepared before services. Dependencies cannot depend on other dependencies — they are prepared in sorted order first, then services (which may depend on them) are started.
+
+**Config schema** for each entry in `mcp.dependencies.<dependency_id>`:
+
+- `enabled` (bool, default: `true`): Skip dependency if `false`.
+- `kind` (string, required): One of `git_repo`, `file`.
+- All kind-specific fields (see below).
+
+**Dependency kinds:**
+
+- `git_repo`:
+  - `repo_url` (string, required)
+  - `branch` (string, optional)
+  - `path` (string, required): Clone destination.
+  - `post_clone` (`list<list<string>>`, optional): Commands run in `path` after clone/update.
+- `file`:
+  - `path` (string, required): File path used by cleanup and other tools.
+
+**Example:**
 ```yaml
 mcp:
-  auto_approve: no  # yes/true or no/false
+  dependencies:
+    sourcegraph_repo:
+      kind: git_repo
+      repo_url: https://github.com/user/repo.git
+      branch: main
+      path: ${path_to.mcp_clones}/repo
+      post_clone:
+        - ["uv", "sync"]
+
+    claude_mem_storage:
+      kind: file
+      path: ~/.claude-mem/claude-mem.db
 ```
 
-When set to `yes` or `true`, agents won't prompt for permission before using MCP tools and other common functionality (e.g. trivial bash commands). This is convenient for trusted setups but bypasses the safety confirmation dialogs.
+#### <ins>`mcp.runtime_services`</ins>
 
-**Accepted values:**
-- `yes` or `true` - Enable auto-approval
-- `no` or `false` - Require manual approval (default)
+**Files:** `charter.yml` (defaults), `directives.yml` (shared overrides), `local.yml` (personal overrides)
+
+Defines managed runtime services that Bureau starts (containers, local HTTP processes). Services can depend on dependencies via `depends_on.dependencies`.
+
+**Schema** — config values for each entry in `mcp.runtime_services.<service_id>`:
+
+- `enabled` (bool, default: `true`): Skip service if `false`.
+- `kind` (string, required): One of `docker_container`, `http_process`; see kind-specific fields below.
+- `depends_on` (object, optional):
+  - `services` (list\<string\>): Service IDs that must be started and pass `healthcheck` first.
+  - `dependencies` (list\<string\>): Dependency IDs that must be prepared first.
+- `healthcheck` (object, optional):
+  - `tcp` (int): Port to probe for readiness.
+- `env` (map\<string,string\>, optional): Environment vars for process services.
+- `command` (list\<string\>, optional): Command array (executable + args) for process services.
+- `settings` (map\<string, any\>, optional): Service-specific data used for templating.
+
+**Kind-specific fields:**
+
+- `docker_container`:
+  - `container_name` (string, optional): Docker container name.
+  - `image` (string, required): Docker image ref.
+  - `host_port` (int, required): Host port bound to container.
+  - `container_port` (int, required): Container port to expose.
+  - `mounts` (`list<object>`, optional):
+    - `host_path` (string, required)
+    - `container_path` (string, required)
+- `http_process`:
+  - `port` (int, required): Port the process should listen on.
+  - `command` (`list<string>`, required): Command array to launch server.
+  - `env` (`map<string,string>`, optional)
+
+**Example:**
+```yaml
+mcp:
+  runtime_services:
+    sourcegraph_mcp:
+      kind: http_process
+      port: 8783
+      depends_on:
+        dependencies: [sourcegraph_repo]
+      command:
+        - uv
+        - --directory
+        - ${mcp.dependencies.sourcegraph_repo.path}
+        - run
+        - sourcegraph-mcp
+```
+
+#### <ins>`mcp.client_configs`</ins>
+
+**Files:** `charter.yml` (defaults), `directives.yml` (shared overrides), `local.yml` (personal overrides)
+
+Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Servers can depend on runtime services and dependencies via `depends_on`.
+
+**Schema** — config values for each entry in `mcp.client_configs.<server_id>`:
+
+- `enabled` (bool, default: `true`): Skip server if `false`.
+- `requires_env` (`list<string>`, optional): If any env var is missing/empty, the server is skipped.
+- `depends_on` (object, optional):
+  - `services` (list\<string\>): Service IDs that must be enabled/resolved for the server to be included.
+  - `dependencies` (list\<string\>): Dependency IDs that must be enabled/resolved for the server to be included.
+- `clients` (`map<string, Client>`, required): Per‑CLI client configs.
+  - `clients.default` (Client, optional but strongly recommended): Used by all CLIs unless a CLI override exists.
+  - `clients.<cli>` (Client, optional): Overrides for `claude`, `gemini`, `codex`, `opencode`.
+  - `clients.disabled_for` (`list<string>`, optional): Agent names to exclude from this server. Values should match entries in the top-level `agents` list. When listed, the agent does not receive this server, even if a `clients.<cli>` override exists.
+- `settings` (`map<string, any>`, optional): Server-level settings (e.g. PAL disabled tools). Pass‑through; the renderer should not drop unknown keys.
+- `storage_path` (string, optional): Server‑specific storage (used by cleanup, e.g. Memory MCP).
+
+**Client** — each entry in `mcp.client_configs.<server_id>.clients.<client_id>`:
+
+- `transport` (string, required): `http` or `stdio`.
+- `url` (string, required for `http`): MCP HTTP endpoint.
+- `headers` (`map<string,string>`, optional): HTTP headers (expanded).
+- `command` (`list<string>`, required for `stdio`): Command array to launch MCP server.
+- `env` (`map<string,string>`, optional): Environment vars for stdio servers.
+- `timeout_ms` (int, optional): Per‑server tool timeout (Gemini).
+- `startup_timeout_sec` (int, optional): Startup timeout (Codex).
+- `tool_timeout_sec` (int, optional): Tool timeout (Codex).
+- `post_config` (object, optional): CLI‑specific side effects, e.g.:
+  - `claude_settings_env` (`map<string,string>`): Adds keys to `~/.claude/settings.json` under `.env`.
+
+> [!NOTE]
+> Codex HTTP does not support custom headers; use `clients.codex` with `stdio` for servers requiring headers (e.g. Context7).
+
 
 ### `pal`
 
@@ -250,20 +405,15 @@ File and directory paths used by Bureau and its tools.
 |:--------|:--------|:------------|
 | `workspace` | `~/code` | Base workspace directory; other paths derive from this |
 | `serena_memories_root` | (= `workspace`) | Root directory for scanning Serena memory files *(used for **Bureau-run cleanup only**)* |
-| `fs_mcp_whitelist` | (= `workspace`) | Directory boundary for Filesystem MCP access |
 | `mcp_clones` | `.mcp-servers/` | Clone location for MCP server source code |
-| `storage_for.claude_mem` | `~/.claude-mem/claude-mem.db` | Claude-mem SQLite database path |
-| `storage_for.memory_mcp` | `~/.memory-mcp/memory.jsonl` | Memory MCP knowledge graph storage |
-| `storage_for.qdrant` | `~/.qdrant/storage` | Qdrant Docker volume mount point |
 
 > [!NOTE]
 > 
 > #### Paths automatically derived from `workspace`
 > 
-> When `workspace` is set, the following paths are automatically derived from it (unless explicitly overridden):
+> When `workspace` is set, the following path is automatically derived from it (unless explicitly overridden):
 >
 > - `serena_memories_root` → same as `workspace`
-> - `fs_mcp_whitelist` → same as `workspace`
 > 
 > This means you only need to configure `workspace` in `local.yml` to change all workspace-related paths at once.
 
@@ -272,43 +422,9 @@ File and directory paths used by Bureau and its tools.
 ```yaml
 path_to:
   # User-tunable paths
-  workspace: ~/code                           # Base workspace directory
-  serena_memories_root: ~/code                # Root for scanning Serena memory files (used by Bureau-run cleanup only)
-  fs_mcp_whitelist: ~/code                    # Filesystem MCP security boundary
-  mcp_clones: .mcp-servers/                   # MCP server clone location (in repo root)
-
-  # Storage paths for memory backends
-  storage_for:
-    claude_mem: ~/.claude-mem/claude-mem.db   # Claude-mem SQLite database
-    memory_mcp: ~/.memory-mcp/memory.jsonl    # Memory MCP JSONL storage
-    qdrant: ~/.qdrant/storage                 # Qdrant Docker volume mount
-```
-
-### `endpoint_for`
-
-**File:** `charter.yml`
-
-Cloud-hosted MCP service endpoints.
-
-```yaml
-endpoint_for:
-  sourcegraph: https://sourcegraph.com
-  context7: https://mcp.context7.com/mcp
-  tavily: https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}
-```
-
-These rarely need changing unless you're using self-hosted instances.
-
-### `qdrant`
-
-**File:** `charter.yml`
-
-Qdrant vector database settings.
-
-```yaml
-qdrant:
-  collection: coding-memory    # Collection name
-  embedding_provider: fastembed  # Embedding model provider
+  workspace: ~/code                 # Base workspace directory
+  serena_memories_root: ~/code      # Root for scanning Serena memory files (used by Bureau-run cleanup only)
+  mcp_clones: .mcp-servers/         # MCP server clone location (in repo root)
 ```
 
 ## Environment variable overrides
@@ -318,11 +434,14 @@ Some configuration values can be overridden via environment variables:
 | Environment Variable | Overrides | Description |
 |:---------------------|:----------|:------------|
 | `BUREAU_WORKSPACE` | `path_to.serena_memories_root` | Root for scanning Serena memory files |
-| `MEMORY_MCP_STORAGE_PATH` | `path_to.storage_for.memory_mcp` | Memory MCP storage path |
-| `CLAUDE_MEM_STORAGE_PATH` | `path_to.storage_for.claude_mem` | Claude-mem database path |
-| `QDRANT_STORAGE_PATH` | `path_to.storage_for.qdrant` | Qdrant storage directory |
-| `QDRANT_COLLECTION_NAME` | `qdrant.collection` | Qdrant collection name |
-| `QDRANT_EMBEDDING_PROVIDER` | `qdrant.embedding_provider` | Embedding provider |
+
+> [!NOTE]
+> 
+> Some remote MCPs require API keys (even for their free versions). Set these env vars accordingly to enable them:
+> 
+> - `TAVILY_API_KEY`
+> - `BRAVE_API_KEY`
+> - `CONTEXT7_API_KEY`
 
 ## Examples
 
