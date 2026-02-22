@@ -18,7 +18,7 @@ CONTEXT_TEMPLATES="$(cd "$CONFIGS_DIR/$CONTEXT_DIRNAME/$TEMPLATES_DIRNAME/" && p
 mkdir -p "$CONFIGS_DIR/$CONTEXT_DIRNAME/$GENERATED_DIRNAME"
 CONTEXT_GENERATED="$(cd "$CONFIGS_DIR/$CONTEXT_DIRNAME/$GENERATED_DIRNAME/" && pwd)"
 
-# Source shared libraries
+# Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
 source "$REPO_ROOT/bin/lib/logging.sh"
 
@@ -138,13 +138,14 @@ if agent_enabled "Codex"; then
 fi
 
 echo "Configured CLIs now have access to:"
-echo "  - Handoff guidelines (delegation rules)"
-echo "  - Compact MCP list (tool selection guide)"
+echo "  - All .md files from $BUREAU_PROTOCOLS_DIR"
+echo "  (default: tools-guide, handoff-guide, code-standards)"
 echo ""
 echo "Context files are symlinked from $CONTEXT_GENERATED/"
-echo "To update these:"
-echo "  1. Edit the templates in $CONTEXT_TEMPLATES"
-echo "  2. Re-run this script"
+echo "To customize agent context:"
+echo "  1. Edit/add/remove .md files in $BUREAU_PROTOCOLS_DIR"
+echo "  2. Re-run this script (or bin/open-bureau)"
+echo "  To restore defaults: bin/reset-protocols"
 echo ""
 
 # ============================================================================
