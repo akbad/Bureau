@@ -1,0 +1,498 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Bureau defaults — the single source of all git-tracked configuration
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# This file ships with Bureau and defines every configurable setting with its
+# default value. It is the base layer of a four-tier precedence hierarchy:
+#
+#   defaults.yml  →  .bureau.yml  →  local.yml  →  env vars
+#     (package)       (project)       (personal)    (runtime)
+#
+# - .bureau.yml: optional project-level overrides, discovered by CWD walk-up
+#                (like ESLint/Prettier/Ruff configs); shareable via git
+# - local.yml: personal overrides (gitignored)
+# - env vars: highest-priority runtime overrides
+#
+# See docs/CONFIGURATION.md for full details.
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MCP catalog: dependencies, runtime services, and client configurations
+# ─────────────────────────────────────────────────────────────────────────────
+
+mcp:
+  dependencies:
+    sourcegraph_repo:
+      enabled: true
+      kind: git_repo
+      repo_url: https://github.com/akbad/sourcegraph-mcp.git
+      branch: master
+      path: ${path_to.mcp_clones}/sourcegraph-mcp
+      post_clone:
+        - ["uv", "sync"]
+
+    claude_mem_storage:
+      enabled: true
+      kind: file
+      path: ~/.claude-mem/claude-mem.db
+
+  runtime_services:
+    qdrant_db:
+      enabled: true
+      kind: docker_container
+      container_name: qdrant
+      image: qdrant/qdrant
+      host_port: 8780
+      container_port: 6333
+      mounts:
+        - host_path: ~/.qdrant/storage
+          container_path: /qdrant/storage
+      healthcheck:
+        tcp: ${mcp.runtime_services.qdrant_db.host_port}
+
+    qdrant_mcp:
+      enabled: true
+      kind: http_process
+      port: 8782
+      depends_on:
+        services: [qdrant_db]
+      settings:
+        collection: coding-memory
+        embedding_provider: fastembed
+      command:
+        - uvx
+        - --from
+        - mcp-server-qdrant>=0.8.0
+        - mcp-server-qdrant
+        - --transport
+        - streamable-http
+      env:
+        QDRANT_URL: "http://127.0.0.1:${mcp.runtime_services.qdrant_db.host_port}"
+        COLLECTION_NAME: "${mcp.runtime_services.qdrant_mcp.settings.collection}"
+        EMBEDDING_PROVIDER: "${mcp.runtime_services.qdrant_mcp.settings.embedding_provider}"
+        FASTMCP_SERVER_PORT: "${mcp.runtime_services.qdrant_mcp.port}"
+        FASTMCP_SERVER_STATELESS_HTTP: "true"
+      healthcheck:
+        tcp: ${mcp.runtime_services.qdrant_mcp.port}
+
+    sourcegraph_mcp:
+      enabled: true
+      kind: http_process
+      port: 8783
+      depends_on:
+        dependencies: [sourcegraph_repo]
+      command:
+        - uv
+        - --directory
+        - ${mcp.dependencies.sourcegraph_repo.path}
+        - run
+        - sourcegraph-mcp
+      env:
+        SRC_ENDPOINT: https://sourcegraph.com
+        MCP_STREAMABLE_HTTP_PORT: "${mcp.runtime_services.sourcegraph_mcp.port}"
+      healthcheck:
+        tcp: ${mcp.runtime_services.sourcegraph_mcp.port}
+
+    semgrep_mcp:
+      enabled: false
+      kind: http_process
+      port: 8784
+      command:
+        - semgrep
+        - mcp
+        - -t
+        - streamable-http
+        - --port
+        - ${mcp.runtime_services.semgrep_mcp.port}
+      healthcheck:
+        tcp: ${mcp.runtime_services.semgrep_mcp.port}
+
+    serena_mcp:
+      enabled: true
+      kind: http_process
+      port: 8785
+      command:
+        - uvx
+        - --from
+        - git+https://github.com/oraios/serena
+        - serena
+        - start-mcp-server
+        - --transport
+        - streamable-http
+        - --port
+        - ${mcp.runtime_services.serena_mcp.port}
+      healthcheck:
+        tcp: ${mcp.runtime_services.serena_mcp.port}
+
+  client_configs:
+    qdrant:
+      enabled: true
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.runtime_services.qdrant_mcp.port}/mcp/"
+
+    sourcegraph:
+      enabled: true
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.runtime_services.sourcegraph_mcp.port}/sourcegraph/mcp/"
+
+    semgrep:
+      enabled: false
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.runtime_services.semgrep_mcp.port}/mcp/"
+
+    serena:
+      enabled: true
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.runtime_services.serena_mcp.port}/mcp/"
+
+    context7:
+      enabled: true
+      requires_env: [CONTEXT7_API_KEY]
+      clients:
+        default:
+          transport: http
+          url: "https://mcp.context7.com/mcp"
+          headers:
+            CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}"
+            Accept: "application/json, text/event-stream"
+        codex:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@upstash/context7-mcp"
+            - --api-key
+            - ${CONTEXT7_API_KEY}
+
+    tavily:
+      enabled: true
+      requires_env: [TAVILY_API_KEY]
+      clients:
+        default:
+          transport: http
+          url: "https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}"
+
+    brave:
+      enabled: true
+      requires_env: [BRAVE_API_KEY]
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@brave/brave-search-mcp-server"
+            - --transport
+            - stdio
+          env:
+            BRAVE_API_KEY: "${BRAVE_API_KEY}"
+
+    pal:
+      enabled: true
+      settings:
+        disabled_tools: "analyze,apilookup,challenge,chat,codereview,consensus,debug,docgen,planner,precommit,refactor,secaudit,testgen,thinkdeep,tracer"
+      clients:
+        default:
+          transport: stdio
+          command: &pal_command
+            - sh
+            - -c
+            - "for p in $(which uvx 2>/dev/null) $HOME/.local/bin/uvx /opt/homebrew/bin/uvx /usr/local/bin/uvx uvx; do [ -x \"$p\" ] && exec \"$p\" --from git+https://github.com/BeehiveInnovations/pal-mcp-server.git pal-mcp-server; done; echo \"uvx not found\" >&2; exit 1"
+          env:
+            PATH: "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin:${CLI_BIN_PATHS}"
+            DISABLED_TOOLS: "${mcp.client_configs.pal.settings.disabled_tools}"
+            CUSTOM_API_URL: "http://localhost:11434"
+        claude:
+          transport: stdio
+          command: *pal_command
+          env:
+            PATH: "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin:${CLI_BIN_PATHS}"
+            DISABLED_TOOLS: "${mcp.client_configs.pal.settings.disabled_tools}"
+            CUSTOM_API_URL: "http://localhost:11434"
+          post_config:
+            claude_settings_env:
+              MCP_TIMEOUT: "300000"
+              MCP_TOOL_TIMEOUT: "1200000"
+        gemini:
+          transport: stdio
+          command: *pal_command
+          env:
+            PATH: "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin:${CLI_BIN_PATHS}"
+            DISABLED_TOOLS: "${mcp.client_configs.pal.settings.disabled_tools}"
+            CUSTOM_API_URL: "http://localhost:11434"
+          timeout_ms: 1200000
+        codex:
+          transport: stdio
+          command: *pal_command
+          env:
+            PATH: "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin:${CLI_BIN_PATHS}"
+            DISABLED_TOOLS: "${mcp.client_configs.pal.settings.disabled_tools}"
+            CUSTOM_API_URL: "http://localhost:11434"
+          startup_timeout_sec: 300
+          tool_timeout_sec: 1200
+
+    filesystem:
+      enabled: true
+      settings:
+        whitelist: "${path_to.workspace}"
+        allowed_methods:
+          - read_multiple_files
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - mcp-filter
+            - -s
+            - "npx -y @modelcontextprotocol/server-filesystem ${mcp.client_configs.filesystem.settings.whitelist}"
+            - -a
+            - read_multiple_files
+
+    fetch:
+      enabled: true
+      clients:
+        default:
+          transport: stdio
+          command:
+            - uvx
+            - mcp-server-fetch
+
+    memory:
+      enabled: true
+      storage_path: ~/.memory-mcp/memory.jsonl
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@modelcontextprotocol/server-memory"
+          env:
+            MEMORY_FILE_PATH: "${mcp.client_configs.memory.storage_path}"
+
+    playwright:
+      enabled: true
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@playwright/mcp@latest"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Agent configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# Coding agent CLIs that Bureau should configure
+# Available: claude, gemini, codex, opencode
+
+agents:
+  - claude
+  - gemini
+  - codex
+  - opencode
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Roles and skills
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Role prompt availability: choose which agents are available when launching
+# CLIs directly (separate from PAL's clink cross-CLI delegation, configured
+# via pal.base-roles)
+# Options: "all", explicit list, or empty list []
+roles:
+  enabled:
+    - architect
+    - debugger
+    - code-reviewer
+    - optimization
+    - testing
+    - migration-refactoring
+
+  # roles to explicitly exclude (takes precedence over enabled)
+  disabled: []
+
+  # source directories for role discovery
+  sources:
+    - path: agents/role-prompts        # For Codex, Gemini, OpenCode
+      cli: [codex, gemini, opencode]
+    - path: agents/claude-subagents    # For Claude Code (has frontmatter)
+      cli: [claude]
+
+# Skills configuration (installed via protocols/scripts/set-up-skills.sh)
+skills:
+  enabled: [micro-mode, assess-mode]
+  disabled: []
+  sources:
+    - path: protocols/context/static/skills
+      prefix: bureau-
+
+# PAL clink configuration: controls which models and system prompts are
+# available when using PAL MCP's clink tool to spawn subagents across CLIs
+pal:
+  # Baseline roles made available to ALL coding CLIs
+  #
+  # - Roles are auto-discovered based on the set in agents/role-prompts
+  # - Options (also for per-CLI `extra-roles` settings below):
+  #   - "all" => include all role prompts (note that when this is set,
+  #     the per-CLI `extra-roles` settings below will have no effect)
+  #   - "none" => include no roles
+  #   - an explicitly-specified list of role prompts, referenced by their
+  #     file's basename, e.g. `architect` for `agents/role-prompts/architect.md`
+  base-roles: all
+
+  # PAL CLI-specific setting options
+  # IMPORTANT: After changing any of the settings below:
+  #   1. Re-run protocols/scripts/set-up-protocols.sh (or bin/open-bureau wrapper)
+  #   2. Restart coding CLIs (or if possible, use their MCP-related commands
+  #      without restarting) to reconnect to PAL
+  claude:
+    # Takes any valid option for Claude's `model` config setting
+    #   (see https://code.claude.com/docs/en/model-config)
+    model: sonnet
+
+    # Extra role prompts (beyond `base-roles` above) to make available to
+    #   only Claude when called via clink
+    extra-roles: none
+
+  codex:
+    # Takes any valid option for Codex's `model` config setting
+    #   (see https://developers.openai.com/codex/local-config#configuration-options)
+    model: gpt-5.2-codex
+
+    # Takes any valid option for Codex's `model_reasoning_effort` config setting
+    #   (see https://developers.openai.com/codex/local-config#configuration-options)
+    effort: medium
+
+    # Extra role prompts (beyond `base-roles` above) to make available to
+    #   only Codex when called via clink
+    extra-roles: none
+
+  gemini:
+    # Extra role prompts (beyond `base-roles` above) to make available to
+    #   only Gemini when called via clink
+    extra-roles: none
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────────────────────────────────────────
+
+# File paths for config files, connection settings, etc.
+# Note: environment variables take precedence over these values
+path_to:
+  # Base workspace for user projects (override using: $BUREAU_WORKSPACE)
+  # When set, the following paths are automatically derived from it
+  # (unless explicitly overridden):
+  #   - serena_memories_root (root for recursive scanning of Serena memory
+  #     files during Bureau-run cleanup)
+  workspace: ~/code
+
+  # MCP server clone location (relative paths resolve from main repo root,
+  # shared across Bureau worktrees)
+  mcp_clones: .mcp-servers
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auto-approval rules
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Auto-approval settings
+# When true, agents won't prompt for permission before using MCP tools
+auto_approved:
+  mcp_tools: false
+  bash:
+    enabled: false
+    ruleset:
+      allow:
+        - "ls"
+        - "rg"
+        - "git status"
+        - "git diff"
+        - "git log"
+        - "npm run test"
+        - "python"
+        - "sed -i"
+        - "tee"
+        - "cat"
+        - "printf"
+        - "mkdir -p"
+      # deny:
+      #   - "rm"
+      #   - "git add"
+      #   - "git commit"
+      #   - "git reset"
+      #   - "git checkout"
+      #   - "git merge"
+      #   - "git rebase"
+      #   - "git push"
+      #   - "git pull"
+      #   - "git clean"
+      #   - "pip install"
+      #   - "npm install"
+      #   - "pnpm install"
+      #   - "yarn add"
+      #   - "sudo"
+      #   - "dd"
+      #   - "mkfs"
+
+prune_disabled_mcps: true
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Coding standards
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Coding standards documents read by agents at startup and used by assess mode
+# Override: provide your own files in local.yml to replace these defaults
+# code_standards:
+#   - protocols/context/static/code-standards.md
+
+# Assess mode skill configuration
+assess_mode:
+  default_target: git-diff
+  default_diff: HEAD
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Retention & cleanup
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Retention periods (per memory backend), after which memories older than
+# this threshold will be moved to trash automatically by the cleanup process
+# Formats: never, 24h (hours), 30d (days), 2w (weeks), 3m (months), 1y (years)
+retention_period_for:
+  claude_mem: 30d    # Claude-mem SQLite database (Claude Code only)
+  serena: 90d        # Serena project memories (.serena/memories/)
+  qdrant: 180d       # Qdrant vector database (used by all enabled CLIs)
+  memory_mcp: 365d   # Memory MCP JSONL file (used by all enabled CLIs)
+
+# Cleanup interval (for stale memories)
+cleanup:
+  min_interval: 24h
+
+# Grace period after stale items are moved to trash before permanent deletion
+trash:
+  grace_period: 30d
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Startup timeouts
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Timeouts (in seconds) when starting up
+# (increase for slower machines)
+startup_timeout_for:
+  mcp_servers: 200       # HTTP MCP servers
+  docker_daemon: 120     # Docker containers
