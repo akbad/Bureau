@@ -260,8 +260,11 @@ Until the planned implementation/task is complete, execute the steps below, in t
     - Type: <API|IMPL|FIX|TEST|DOC>
     - Risk: <low|medium|high>
     
+    <diff of changes>
+
     - Goal: <one sentence>
     - Why now: <deps satisfied>
+    - Summary: <summary of the changes, 6 bullet points maximum>
     ```
 
 5. Apply the *micro edit* based on the node's diff
