@@ -72,7 +72,7 @@ uv run sweep --wipe claude-mem
 
 ## Configuration
 
-Retention periods and cleanup behavior are configured in `directives.yml` (or `local.yml` for personal overrides):
+Retention periods and cleanup behavior are configured in `defaults.yml` (or `.bureau.yml` / `local.yml` for overrides):
 
 ```yaml
 retention_period_for:

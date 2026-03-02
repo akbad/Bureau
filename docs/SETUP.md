@@ -17,7 +17,7 @@ Bureau's bootstrap script handles all setup automatically, providing sensible de
 >       - [`bureau/bin/`](../bin/)
 >       - `~/.local/bin` *(only if using **Gemini CLI** and/or **Codex**)*
 > 
-> 3. **Create `local.yml` in the repo root (recommended)** or edit [`directives.yml`](../directives.yml) to set `path_to.workspace` to where you keep the repos/projects you want to work on, e.g.:
+> 3. **Create `local.yml` in the repo root (recommended)** or edit [`defaults.yml`](../defaults.yml) to set `path_to.workspace` to where you keep the repos/projects you want to work on, e.g.:
 >       
 >       ```yml
 >       # local.yml

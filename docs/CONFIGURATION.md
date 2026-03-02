@@ -40,30 +40,30 @@ Configuration is loaded and merged in this order (later sources override earlier
 
 | Priority | File | Purpose | Tracked by git? |
 |:---------|:-----|:--------|:------------------|
-| 1 (lowest) | **`charter.yml`** | Fixed system defaults | Yes |
-| 2 | **`directives.yml`** | Streamlined collection of team-/user-oriented settings that are often tweaked | Yes |
-| 3 | **`local.yml`** | Personal overrides | No |
-| 4 (highest) | **Environment variables** | Runtime overrides *(should be used rarely; for more persistent personal overrides, use `local.yml`)* | N/A |
+| 1 **(lowest)** | [`defaults.yml`](/defaults.yml) | All git-tracked package defaults (ships with Bureau) | Yes |
+| 2 | `.bureau.yml` | Optional project-level config (discovered by walk-up from working directory) | Yes (in *your* project) |
+| 3 | `local.yml` | Personal overrides | No |
+| 4 **(highest)** | Environment variables | Runtime overrides *(should be used rarely; for more persistent personal overrides, use `local.yml`)* | N/A |
 
 ### When to use each file
 
-#### `charter.yml`
+#### `defaults.yml`
 
-- Don't edit unless you're changing upstream service endpoints or package conventions. 
-- These are values that rarely (if ever) need changing.
+- This is the **single source of all git-tracked defaults that ship with Bureau.**
+- It contains examples of how to set config values (to use as exemplars to follow when overriding them in `.bureau.yml` or `local.yml`).
 
-#### `directives.yml` 
+#### `.bureau.yml`
 
-- *Read* to see examples of how to set config values (to then override in your `local.yml`).
-- *Edit* to change team-wide defaults like retention periods, enabled agents, MCP catalog entries, or paths. 
+- Optional project-level config file discovered by walking up from the current working directory (like ESLint, Prettier, or Ruff configs).
+- Can override any setting from `defaults.yml`.
+- Shareable via git: commit it to your project repo so all team members using Bureau get the same project-specific settings.
+- Typical uses: project-specific workspace paths, retention periods, enabled agents, MCP catalog entries, or custom tool settings.
 
-    - Changes here affect everyone using *that* particular Bureau installation.
+#### `local.yml`
 
-#### `local.yml` 
+Create and write to this file for personal overrides that shouldn't be shared, e.g.:
 
-Create and write to this file for personal overrides that shouldn't be shared, e.g.: 
-
-- custom workspace paths 
+- custom workspace paths
 - custom retention periods for memories (configured per-MCP)
 - disabling Bureau configuration for agent CLIs you don't use
 
@@ -87,8 +87,6 @@ Remove an agent from the list to skip configuring it. Note that the CLI's config
 
 
 ### `mcp`
-
-**File:** `directives.yml`
 
 MCP catalog configuration.
 
@@ -148,8 +146,6 @@ MCP catalog configuration.
 
 #### <ins>`mcp.dependencies`</ins>
 
-**Files:** `charter.yml` (defaults), `directives.yml` (shared overrides), `local.yml` (personal overrides)
-
 Defines non-daemon prerequisites (git repos, file storage) that are prepared before services. Dependencies cannot depend on other dependencies — they are prepared in sorted order first, then services (which may depend on them) are started.
 
 **Config schema** for each entry in `mcp.dependencies.<dependency_id>`:
@@ -187,11 +183,9 @@ mcp:
 
 #### <ins>`mcp.runtime_services`</ins>
 
-**Files:** `charter.yml` (defaults), `directives.yml` (shared overrides), `local.yml` (personal overrides)
-
 Defines managed runtime services that Bureau starts (containers, local HTTP processes). Services can depend on dependencies via `depends_on.dependencies`.
 
-**Schema** — config values for each entry in `mcp.runtime_services.<service_id>`:
+**Config schema** for each entry in `mcp.runtime_services.<service_id>`:
 
 - `enabled` (bool, default: `true`): Skip service if `false`.
 - `kind` (string, required): One of `docker_container`, `http_process`; see kind-specific fields below.
@@ -238,11 +232,9 @@ mcp:
 
 #### <ins>`mcp.client_configs`</ins>
 
-**Files:** `charter.yml` (defaults), `directives.yml` (shared overrides), `local.yml` (personal overrides)
-
 Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Servers can depend on runtime services and dependencies via `depends_on`.
 
-**Schema** — config values for each entry in `mcp.client_configs.<server_id>`:
+**Config schema** for each entry in `mcp.client_configs.<server_id>`:
 
 - `enabled` (bool, default: `true`): Skip server if `false`.
 - `requires_env` (`list<string>`, optional): If any env var is missing/empty, the server is skipped.
@@ -274,7 +266,6 @@ Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Serve
 
 ### `skills`
 
-**Files:** `directives.yml` (defaults), `local.yml` (personal overrides)
 
 Controls which skills are installed by `protocols/scripts/set-up-skills.sh`.
 
@@ -647,9 +638,12 @@ For example, if port `8780` (the default Qdrant DB listening port) is already in
 
 ```yaml
 # local.yml
-port_for:
-  qdrant_db: 9780
-```
+## Agent context files
+
+**Location:** `~/.config/bureau/protocols/`
+
+> [!WARNING]
+> If you customize Bureau's MCP catalog (add, remove, or reconfigure tools), the default `tools-guide.md` may no longer accurately reflect your setup. **You are responsible for updating or replacing protocols files in `~/.config/bureau/protocols/` to match your configuration.** Run `bin/reset-protocols` to restore defaults at any time.
 
 ## Security note for subagents spawned via PAL MCP's `clink`
 
