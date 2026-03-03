@@ -2,7 +2,8 @@ close-bureau
 .worktrees/
 *.pyc
 .serena/
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .npm-cache/
 bureau.egg-info/
 .coverage
