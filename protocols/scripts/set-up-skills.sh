@@ -17,9 +17,13 @@ set -e
 # Constants for functionality
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"  # we are in protocols/scripts/, so move up 2 parents
 
-# Source shared libraries
+# Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/logging.sh"
 
+DRY_RUN=false
+UNINSTALL=false
+SKILLS_CONFIG_PATH="$REPO_ROOT/protocols/context/generated/skills-config.generated.json"
+SKILLS_CONFIG_GENERATOR="$REPO_ROOT/protocols/scripts/generate-skills-config.py"
 
 # Skill directory locations for each CLI
 CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
@@ -131,9 +135,20 @@ remove_bureau_skill_dirs() {
     done
 }
 
-# Ensure Bureau skills directory exists
-if [[ ! -d "$BUREAU_SKILLS_DIR" ]]; then
-    log_error "Bureau skills directory not found: $BUREAU_SKILLS_DIR"
+# Ensure jq is available
+if ! command -v jq >/dev/null 2>&1; then
+    log_error "jq is required to parse $SKILLS_CONFIG_PATH"
+    exit 1
+fi
+
+# Generate skills config
+if ! uv run python "$SKILLS_CONFIG_GENERATOR"; then
+    log_error "Failed to generate skills config: $SKILLS_CONFIG_GENERATOR"
+    exit 1
+fi
+
+if [[ ! -f "$SKILLS_CONFIG_PATH" ]]; then
+    log_error "Skills config not found: $SKILLS_CONFIG_PATH"
     exit 1
 fi
 

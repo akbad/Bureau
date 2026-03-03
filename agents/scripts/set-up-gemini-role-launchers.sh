@@ -14,7 +14,7 @@ AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 CLINK_ROLES_DIR="$AGENTS_DIR/role-prompts"
 
-# Source shared libraries
+# Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
 source "$REPO_ROOT/bin/lib/logging.sh"
 source "$REPO_ROOT/bin/lib/roles-setup.sh"
@@ -92,8 +92,13 @@ EOF_OUTER
     return 0
 }
 
+# Cleanup: remove all existing Gemini launchers before re-creating enabled ones
+cleanup_gemini_launchers() {
+    remove_roles_by_pattern "$1" "gemini-*"
+}
+
 # Run setup using common workflow
-setup_roles_for_cli "Gemini CLI" "gemini" "$HOME/.local/bin" process_gemini_launcher
+setup_roles_for_cli "Gemini CLI" "gemini" "$HOME/.local/bin" process_gemini_launcher cleanup_gemini_launchers
 
 
 # Print usage instructions

@@ -1,10 +1,12 @@
 """Config validator for Bureau cleanup module.
 
 Validates that all required configuration fields are present before
-cleanup operations run. This prevents silent failures from missing keys.
+cleanup operations run. This prevents silent failures due to missing keys
+or unsupported values.
 """
 import sys
-from typing import Any, Mapping
+from dataclasses import dataclass, field
+from typing import Any, Literal, Mapping, overload
 
 from .config_templating import _PLACEHOLDER_REGEX
 
@@ -12,6 +14,13 @@ from .config_templating import _PLACEHOLDER_REGEX
 class ConfigurationError(Exception):
     """Raised when configuration is invalid."""
     pass
+
+
+@dataclass
+class ValidationResult:
+    """Validation output with errors (hard failures) and warnings (soft)."""
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 # Required schema for cleanup operations
@@ -36,12 +45,9 @@ REQUIRED_SCHEMA: dict[str, Any] = {
         "mcp_servers": int,    # Seconds to wait for MCP servers
         "docker_daemon": int,  # Seconds to wait for Docker daemon
     },
-    "port_for": {
-        "qdrant_db": int,
-        "qdrant_mcp": int,
-        "sourcegraph_mcp": int,
-        "semgrep_mcp": int,
-        "serena_mcp": int,
+    "mcp": {
+        "runtime_services": {},
+        "client_configs": {},
     },
 }
 
@@ -101,7 +107,7 @@ def _validate_node(config: Mapping[str, Any], schema: dict, path: str = "") -> l
     return errors
 
 
-def validate_config(config: Mapping[str, Any]) -> list[str]:
+def validate_config_schema(config: Mapping[str, Any]) -> list[str]:
     """Validate config dict against required schema.
 
     Args:
@@ -125,7 +131,7 @@ def validate_and_raise(config: Mapping[str, Any]) -> None:
     Raises:
         ConfigurationError: If configuration is invalid.
     """
-    errors = validate_config(config)
+    errors = validate_config_schema(config)
     if errors:
         error_msg = "Configuration validation failed:\n  - " + "\n  - ".join(errors)
         raise ConfigurationError(error_msg)
@@ -251,7 +257,7 @@ def validate_placeholder_cycles(config: Mapping[str, Any]) -> list[str]:
     Validate that placeholder references in the YML configs' setting strings don't form cycles, which
     would cause infinite expansion
 
-    Cycles cause infinite expansion (e.g., val="...${val}..." would cause `val` to keep getting expanded 
+    Cycles cause infinite expansion (e.g., val="...${val}..." would cause `val` to keep getting expanded
     forever).
     """
     graph: dict[str, set[str]] = {}
@@ -259,8 +265,36 @@ def validate_placeholder_cycles(config: Mapping[str, Any]) -> list[str]:
     return [f"Circular placeholder reference: {c}" for c in _find_graph_cycles(graph)]
 
 
-def full_validate(config: Mapping[str, Any]) -> list[str]:
+
+
+def validate_mcp_rules(config: Mapping[str, Any]) -> ValidationResult:
+    """Validate MCP entry schemas: kinds, required fields, unknown keys, types, cross-references.
+
+    Orchestrates the bucket-specific validators plus cross-reference checks
+    and merges their results.
+    """
+    result = ValidationResult()
+    for validator in (
+        _validate_mcp_dependencies,
+        _validate_mcp_runtime_services,
+        _validate_mcp_client_configs,
+        _validate_cross_references,
+    ):
+        r = validator(config)
+        result.errors.extend(r.errors)
+        result.warnings.extend(r.warnings)
+    return result
+
+
+@overload
+def validate_config(config: Mapping[str, Any], add_warnings: Literal[True]) -> ValidationResult: ...
+@overload
+def validate_config(config: Mapping[str, Any], add_warnings: Literal[False] = ...) -> list[str]: ...
+def validate_config(config: Mapping[str, Any], add_warnings: bool = False) -> ValidationResult | list[str]:
     """Perform full validation including structure and format checks.
+
+    Backward-compatible: returns errors only (warnings discarded).
+    Use full_validate_with_warnings() to also get warnings.
 
     Args:
         config: Configuration dictionary.
@@ -268,14 +302,21 @@ def full_validate(config: Mapping[str, Any]) -> list[str]:
     Returns:
         List of all error messages.
     """
-    errors = validate_config(config)
+    errors = validate_config_schema(config)
 
-    # Only check duration formats and placeholder cycles if structure is valid
-    if not errors:
-        errors.extend(validate_durations(config))
-        errors.extend(validate_placeholder_cycles(config))
+    # only run deeper checks if structure is valid
+    if errors:
+        return errors
+    
+    errors.extend(validate_durations(config))
+    errors.extend(validate_placeholder_cycles(config))
+    errors.extend(validate_service_dependency_cycles(config))
 
-    return errors
+    # may contain both warnings *and* errors
+    validation_result = validate_mcp_rules(config)
+    errors.extend(validation_result.errors)
+
+    return ValidationResult(errors=errors, warnings=validation_result.warnings) if add_warnings else errors
 
 
 def main() -> int:
@@ -292,11 +333,15 @@ def main() -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    errors = full_validate(config)
+    result = validate_config(config, add_warnings=True)
 
-    if errors:
+    if result.warnings:
+        for w in result.warnings:
+            print(f"  \u26a0 {w}", file=sys.stderr)
+
+    if result.errors:
         print("Configuration validation failed:", file=sys.stderr)
-        for error in errors:
+        for error in result.errors:
             print(f"  - {error}", file=sys.stderr)
         return 1
 
