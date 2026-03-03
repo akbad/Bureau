@@ -89,7 +89,7 @@
 Bureau configures CLIs based on the `agents` config setting:
 
 ```yaml
-# directives.yml (or local.yml for personal overrides)
+# defaults.yml (or .bureau.yml / local.yml for overrides)
 agents:
   - claude    # Claude Code
   - gemini    # Gemini CLI

@@ -228,12 +228,12 @@ Use the built-in [primary agents mechanism](https://opencode.ai/docs/agents/#pri
 
 | File | Purpose | Tracked? |
 | :--- | :--- | :--- |
-| `charter.yml` | Fixed, rarely-changed system defaults | Yes |
-| `directives.yml` | Streamlined collection of user-oriented, often-tweaked settings | Yes |
+| `defaults.yml` | All git-tracked package defaults (ships with Bureau) | Yes |
+| `.bureau.yml` | Optional project-level config (discovered by CWD walk-up) | Yes (in *your* project) |
 | **`local.yml`** | **Personal customizations/overrides** (gitignored) | **No** (gitignored) |
 
 Configuration loads based on the following hierarchy *(later config sources override earlier ones)*: \
-**`charter.yml` → `directives.yml` → `local.yml` → environment variables**
+**`defaults.yml` → `.bureau.yml` → `local.yml` → environment variables**
 
 See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for full reference.
 

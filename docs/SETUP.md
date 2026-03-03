@@ -101,7 +101,7 @@ In your shell profile (`~/.zshrc`, `~/.bashrc`, etc.), add the following paths t
 
 ### Set Bureau workspace path (`path_to.workspace`)
 
-**Create `local.yml` in the repo root (recommended)** or edit [`directives.yml`](../directives.yml) to set `path_to.workspace` to where you keep the repos/projects you want to work on, e.g.:
+**Create `local.yml` in the repo root (recommended)** or edit [`defaults.yml`](../defaults.yml) to set `path_to.workspace` to where you keep the repos/projects you want to work on, e.g.:
        
 ```yml
 # local.yml
@@ -131,7 +131,7 @@ $ open-bureau  # in this repo's bin/
 
 > [!IMPORTANT]
 >
-> **`open-bureau` <ins>must</ins> be re-run after editing any config values** in the Bureau `.yml` files, i.e. [`charter.yml`](../charter.yml), [`directives.yml`](../directives.yml) (and `local.yml` if you've created one).
+> **`open-bureau` <ins>must</ins> be re-run after editing any config values** in the Bureau `.yml` files, i.e. [`defaults.yml`](../defaults.yml), `.bureau.yml` (if you've created one), and `local.yml` (if you've created one).
 
 #### What `open-bureau` does *(optional extra info)*
 
@@ -258,7 +258,7 @@ $ close-bureau  # in this repo's bin/
 
 ### How to tweak settings
 
-1. Create a file called `local.yml` in the Bureau repo root **(recommended over changing `directives.yml`)**
+1. Create a file called `local.yml` in the Bureau repo root **(recommended over changing `defaults.yml`)**
 2. Place your overrides there *(see the [simple power user `local.yml` config below](#simple-power-user-configuration-example) for inspiration)*.
 3. Re-run `open-bureau`. 
 
@@ -274,7 +274,7 @@ The new `local.yml` will be:
 | Enabled CLI agents | All 4 [supported CLIs](#supported-cli-coding-agents) | Set `agents` list in `local.yml` |
 | Bureau workspace path | `~/code` | Set `path_to.workspace` in `local.yml` |
 | Memory retention | 30d–365d, depending on the backend | Set `retention_period_for.*` in `local.yml` |
-| [Role prompts](../agents/role-prompts/) and models for PAL `clink` to use with coding CLIs | All role prompts; Sonnet for Claude Code; gpt-5.2-codex with medium reasoning effort for Codex | Set `pal.*` settings in `local.yml` *(see [`directives.yml`](../directives.yml) for quick examples)* | 
+| [Role prompts](../agents/role-prompts/) and models for PAL `clink` to use with coding CLIs | All role prompts; Sonnet for Claude Code; gpt-5.2-codex with medium reasoning effort for Codex | Set `pal.*` settings in `local.yml` *(see [`defaults.yml`](../defaults.yml) for quick examples)* | 
 
 ### Simple power user configuration example
 

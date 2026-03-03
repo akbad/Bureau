@@ -3,7 +3,7 @@
 <!--
   Bureau's default coding standards file.
   Agents read this at startup and assess mode audits against it.
-  Override: configure `code_standards` in directives.yml or local.yml with your own files.
+  Override: configure `code_standards` in defaults.yml or local.yml with your own files.
 -->
 
 ***Contents:***

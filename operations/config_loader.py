@@ -1,24 +1,30 @@
 """Bureau configuration loader providing type-safe access to all Bureau settings.
 
 1. Merges configuration from YAML files with the following precedence hierarchy
-   (later sources override earlier ones):  
+   (later sources override earlier ones):
 
-   a. charter.yml:  Fixed system config (cloud endpoints, disabled tools)
-   b. directives.yml: Team defaults (agents, retention, paths)
-   c. local.yml: Local overrides (gitignored)
-   d. env vars:  Highest-priority overrides
+   a. defaults.yml:  Package defaults (all git-tracked settings)
+   b. .bureau.yml:   Project config (optional, discovered by CWD walk-up)
+   c. local.yml:     Personal overrides (gitignored)
+   d. env vars:      Highest-priority runtime overrides
 
 2. Loads configuration
 
 """
+
 import os
 import re
 from datetime import timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import Any, TypeAlias, TypedDict, cast
 
 import yaml
+
+
+# runtime invariants are documented in docs/CONFIGURATION.md and are not fully
+# enforceable via TypedDict alone; several schemas below are discriminator-based
+# (for example, kind/transport) and rely on runtime validation conventions
 
 
 # TypedDict schemas corresponding to nested YAML config sections
@@ -42,53 +48,131 @@ class StartupTimeoutForConfig(TypedDict):
     docker_daemon: int
 
 
-class PortForConfig(TypedDict):
-    qdrant_db: int
-    qdrant_mcp: int
-    sourcegraph_mcp: int
-    semgrep_mcp: int
-    serena_mcp: int
-
-
-class StorageForConfig(TypedDict, total=False):
-    qdrant: str
-    memory_mcp: str
-    claude_mem: str
-
-
 class PathToConfig(TypedDict, total=False):
     workspace: str
     serena_memories_root: str
-    fs_mcp_whitelist: str
     mcp_clones: str
-    storage_for: StorageForConfig
 
 
-class QdrantConfig(TypedDict, total=False):
-    collection: str
-    embedding_provider: str
+class AgentSourceConfig(TypedDict):
+    path: str
+    cli: list[str]
 
 
-class EndpointForConfig(TypedDict):
-    sourcegraph: str
-    context7: str
-    tavily: str
+class NativeAgentsConfig(TypedDict, total=False):
+    enabled: list[str] | str  # List of agent names or "all"
+    disabled: list[str]
+    sources: list[AgentSourceConfig]
 
 
+class MCPDependencyConfig(TypedDict, total=False):
+    """Config for an entry in mcp.dependencies."""
+
+    enabled: bool
+    kind: str
+    repo_url: str
+    branch: str
+    path: str
+    post_clone: list[list[str]]
+
+
+class MCPDependsOnConfig(TypedDict, total=False):
+    """Shared depends_on schema for services and client configs."""
+
+    services: list[str]
+    dependencies: list[str]
+
+
+class MCPHealthcheckConfig(TypedDict, total=False):
+    """Runtime service healthcheck settings."""
+
+    tcp: int | str
+
+
+class MCPMountConfig(TypedDict):
+    """Docker mount entry."""
+
+    host_path: str
+    container_path: str
+
+
+class MCPRuntimeServiceConfig(TypedDict, total=False):
+    """Config for an entry in mcp.runtime_services."""
+
+    enabled: bool
+    kind: str
+    depends_on: MCPDependsOnConfig
+    healthcheck: MCPHealthcheckConfig
+    env: dict[str, str]
+    command: list[str]
+    settings: dict[str, Any]
+    # docker_container fields
+    container_name: str
+    image: str
+    host_port: int | str
+    container_port: int | str
+    mounts: list[MCPMountConfig]
+    # http_process fields
+    port: int | str
+
+
+class MCPPostConfig(TypedDict, total=False):
+    """CLI-specific side effects for a client config."""
+
+    claude_settings_env: dict[str, str]
+
+
+class MCPClientTransportConfig(TypedDict, total=False):
+    """A single clients.<client_id> transport configuration."""
+
+    transport: str
+    url: str
+    headers: dict[str, str]
+    command: list[str]
+    env: dict[str, str]
+    timeout_ms: int
+    startup_timeout_sec: int
+    tool_timeout_sec: int
+    post_config: MCPPostConfig
+
+
+# allows mixed `clients` values: either a "default" client object 
+#   OR the "disabled_for" list
+MCPClientEntry: TypeAlias = MCPClientTransportConfig | list[str]
+
+
+class MCPClientConfig(TypedDict, total=False):
+    """Config for an entry in mcp.client_configs."""
+
+    enabled: bool
+    requires_env: list[str]
+    depends_on: MCPDependsOnConfig
+    clients: dict[str, MCPClientEntry]
+    settings: dict[str, Any]
+    storage_path: str
+
+
+class MCPConfig(TypedDict, total=False):
+    """Top-level mcp configuration."""
+
+    dependencies: dict[str, MCPDependencyConfig]
+    runtime_services: dict[str, MCPRuntimeServiceConfig]
+    client_configs: dict[str, MCPClientConfig]
+
+# root-level config-modeling object
 class Config(TypedDict, total=False):
     agents: list[str]
     retention_period_for: RetentionPeriodForConfig
     trash: TrashConfig
     cleanup: CleanupConfig
     startup_timeout_for: StartupTimeoutForConfig
-    port_for: PortForConfig
     path_to: PathToConfig
-    qdrant: QdrantConfig
-    endpoint_for: EndpointForConfig
+    roles: NativeAgentsConfig
+    mcp: MCPConfig
 
 
 def find_repo_root(start_path: Path | None = None) -> Path:
-    """Find the repository root by looking for directives.yml or .git directory.
+    """Find the repository root by looking for defaults.yml or .git directory.
 
     Args:
         start_path: Starting directory for search. Defaults to cwd.
@@ -104,18 +188,46 @@ def find_repo_root(start_path: Path | None = None) -> Path:
 
     current = start_path.resolve()
 
-    while current != current.parent:
-        if (current / "directives.yml").exists() or (current / ".git").exists():
+    while True:
+        if (current / "defaults.yml").exists() or (current / ".git").exists():
             return current
+        elif current == current.parent:
+            # reached root dir without finding repo root
+            raise FileNotFoundError(
+                f"Could not find repository root (defaults.yml or .git) starting from {start_path}"
+            )
         current = current.parent
 
-    # Check root directory
-    if (current / "directives.yml").exists() or (current / ".git").exists():
-        return current
 
-    raise FileNotFoundError(
-        f"Could not find repository root (directives.yml or .git) starting from {start_path}"
-    )
+def find_project_config() -> Path | None:
+    """
+    Find .bureau.yml by walking up from cwd.
+
+    Searches from the current working directory upward, stopping at
+    filesystem root. Returns None if no .bureau.yml is found.
+    
+    Does NOT search inside the Bureau repo itself 
+    (to avoid confusion if Bureau DOES ever happen to have a .bureau.yml).
+    """
+    try:
+        repo_root = find_repo_root().resolve()
+    except FileNotFoundError:
+        repo_root = None
+
+    current = Path.cwd().resolve()
+
+    while True:
+        candidate = current / ".bureau.yml"
+
+        # skip the Bureau repo root itself to avoid self-referencing
+        if (repo_root and current == repo_root) or (not candidate.exists()):
+            if current == current.parent:
+                # reached root dir without finding a .bureau.yml
+                return None
+            current = current.parent
+            continue
+
+        return candidate
 
 
 def get_main_repo_root() -> Path:
@@ -159,28 +271,33 @@ def get_main_repo_root() -> Path:
 
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Deep merge two dicts, with the `override` dict taking precedence.
+    """
+    Recursively deep-merge two dicts with `override` taking precedence.
+
+    Nested values are merged ONLY when both are dictionaries;
+    otherwise the value from `override` replaces `base`.
 
     Args:
-        base: Base dictionary.
-        override: Dictionary with override values.
+        base:      Base dictionary
+        override:  Dictionary with override values
 
     Returns:
         Merged dictionary.
     """
     result = base.copy()
 
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = deep_merge(result[key], value)
+    for key, override_value in override.items():
+        base_value = result.get(key)
+        if isinstance(base_value, dict) and isinstance(override_value, dict):
+            result[key] = deep_merge(base_value, override_value)
         else:
-            result[key] = value
+            result[key] = override_value
 
     return result
 
 
 def expand_path(path_str: str) -> Path:
-    """Expand ~ and environment variables in path string."""
+    """Expand `~` and environment variables in path string."""
     expanded = os.path.expandvars(os.path.expanduser(path_str))
     return Path(expanded)
 
@@ -197,36 +314,46 @@ def _load_yaml_file(path: Path) -> dict[str, Any]:
 def get_config() -> Config:
     """Load and merge configs, following this resolution order:
 
-    1. charter.yml (base defaults, required)
-    2. directives.yml (team config, if exists)
-    3. local.yml (local overrides, if exists)
+    1. defaults.yml (package defaults, required)
+    2. .bureau.yml (project config, optional — discovered by CWD walk-up)
+    3. local.yml (personal overrides, optional — gitignored)
     4. Environment variables (highest priority)
-    
-    For testing: 
-    1. monkeypatch find_repo_root() to return the temp testing directory path
-    2. call clear_config_cache() to clear cache
-    3. call get_config() to do a fresh config read, retrieving the test-oriented config
 
-        monkeypatch.setattr("operations.config_loader.find_repo_root", lambda: tmp_path)
-        clear_config_cache()
-        config = get_config()
-
-    Settings specified at paths LATER in the list OVERRIDE IDENTICAL SETTINGS at paths EARLIER in the list.
-    > e.g. `mcp.auto_approve: yes` in local.yml overrides `mcp.auto_approve: no` in directives.yml
+    Settings specified at layers LATER in the list OVERRIDE IDENTICAL SETTINGS
+    at layers EARLIER in the list.
+    > e.g. `auto_approved.mcp_tools: true` in local.yml overrides the default in defaults.yml
 
     Returns:
         Merged configuration dictionary.
 
     Raises:
         FileNotFoundError: If repo root cannot be found.
+
+    NOTE: when testing this function:
+    1. monkeypatch find_repo_root() to return the temp testing directory path
+    2. call clear_config_cache() to clear cache
+    3. call get_config() to do a fresh config read, retrieving the test-oriented config
+    
+    Example of this testing approach:
+
+        monkeypatch.setattr("operations.config_loader.find_repo_root", lambda: tmp_path)
+        clear_config_cache()
+        config = get_config()
     """
     repo_root = find_repo_root()
 
     config: dict[str, Any] = {}
 
-    # Load configs in precedence order (later overrides earlier)
-    for filename in ["charter.yml", "directives.yml", "local.yml"]:
-        config = deep_merge(config, _load_yaml_file(repo_root / filename))
+    # 1. Package defaults (required)
+    config = deep_merge(config, _load_yaml_file(repo_root / "defaults.yml"))
+
+    # 2. Project config (optional, discovered by CWD walk-up)
+    project_config_path = find_project_config()
+    if project_config_path:
+        config = deep_merge(config, _load_yaml_file(project_config_path))
+
+    # 3. Personal overrides (optional, gitignored)
+    config = deep_merge(config, _load_yaml_file(repo_root / "local.yml"))
 
     # Apply environment variable overrides for path_to
     path_to = config.get("path_to", {})
@@ -238,47 +365,18 @@ def get_config() -> Config:
         if env_val := os.environ.get(env_var):
             path_to[path_key] = env_val
 
-    # Apply environment variable overrides for path_to.storage_for
-    storage_for = path_to.get("storage_for", {})
-    storage_env_overrides = {
-        "memory_mcp": "MEMORY_MCP_STORAGE_PATH",
-        "claude_mem": "CLAUDE_MEM_STORAGE_PATH",
-        "qdrant": "QDRANT_STORAGE_PATH",
-    }
-
-    for storage_key, env_var in storage_env_overrides.items():
-        if env_val := os.environ.get(env_var):
-            storage_for[storage_key] = env_val
-
     # Derive paths from workspace if not explicitly set
     if workspace := path_to.get("workspace"):
         # Only set these if not already configured
         if "serena_memories_root" not in path_to:
             path_to["serena_memories_root"] = workspace
-        if "fs_mcp_whitelist" not in path_to:
-            path_to["fs_mcp_whitelist"] = workspace
 
     # Resolve mcp_clones: relative paths are resolved from main repo root (shared across worktrees)
     if mcp_clones := path_to.get("mcp_clones"):
         if not mcp_clones.startswith("/") and not mcp_clones.startswith("~"):
             path_to["mcp_clones"] = str(get_main_repo_root() / mcp_clones)
 
-    # Derive qdrant_url if not provided: use port_for.qdrant_db
-    if "qdrant_url" not in path_to:
-        ports_cfg = config.get("port_for", {})
-        port = ports_cfg.get("qdrant_db", 8780)
-        path_to["qdrant_url"] = f"http://127.0.0.1:{port}"
-
-    path_to["storage_for"] = storage_for
     config["path_to"] = path_to
-
-    # Merge Qdrant section defaults if missing
-    qdrant_cfg = config.get("qdrant", {})
-    if "collection" not in qdrant_cfg:
-        qdrant_cfg["collection"] = "coding-memory"
-    if "embedding_provider" not in qdrant_cfg:
-        qdrant_cfg["embedding_provider"] = "fastembed"
-    config["qdrant"] = qdrant_cfg
 
     return config  # type: ignore[return-value]
 
@@ -338,7 +436,7 @@ def get_path(path_name: str) -> Path:
     """Get a configured file path, expanded.
 
     Args:
-        path_name: Path key (serena_memories_root, fs_mcp_whitelist, mcp_clones).
+        path_name: Path key (serena_memories_root, mcp_clones).
 
     Returns:
         Expanded Path object.
@@ -348,18 +446,62 @@ def get_path(path_name: str) -> Path:
     return expand_path(path_str) if path_str else Path()
 
 
-def get_storage(storage_name: str) -> Path:
+def get_mcp_dependency(name: str) -> MCPDependencyConfig | None:
+    """Get MCP dependency config by name."""
+    mcp_config = get_config().get("mcp")
+    if not mcp_config:
+        return None
+    dependencies = mcp_config.get("dependencies")
+    if not dependencies:
+        return None
+    return dependencies.get(name)
+
+
+def get_mcp_service(name: str) -> MCPRuntimeServiceConfig | None:
+    """Get MCP runtime service config by name."""
+    mcp_config = get_config().get("mcp")
+    if not mcp_config:
+        return None
+    runtime_services = mcp_config.get("runtime_services")
+    if not runtime_services:
+        return None
+    return runtime_services.get(name)
+
+
+def get_mcp_server(name: str) -> MCPClientConfig | None:
+    """Get MCP client config by name."""
+    mcp_config = get_config().get("mcp")
+    if not mcp_config:
+        return None
+    client_configs = mcp_config.get("client_configs")
+    if not client_configs:
+        return None
+    return client_configs.get(name)
+
+
+def get_storage(storage_name: str) -> Path | None:
     """Get a configured storage path, expanded.
 
     Args:
-        storage_name: Storage key (qdrant, memory_mcp, claude_mem).
+        storage_name: Storage key (memory_mcp, claude_mem).
 
     Returns:
-        Expanded Path object.
+        Expanded Path object or None if not configured.
     """
-    config = get_config()
-    path_str = cast(str, config.get("path_to", {}).get("storage_for", {}).get(storage_name, ""))
-    return expand_path(path_str) if path_str else Path()
+    path_str = ""
+    if storage_name == "memory_mcp":
+        server = get_mcp_server("memory") or {}
+        path_str = cast(str, server.get("storage_path", ""))
+    elif storage_name == "claude_mem":
+        # Try dependency first, then fall back to service for backwards compatibility
+        dependency = get_mcp_dependency("claude_mem_storage")
+        if dependency:
+            path_str = cast(str, dependency.get("path", ""))
+        else:
+            service = get_mcp_service("claude_mem_storage") or {}
+            path_str = cast(str, service.get("path", ""))
+
+    return expand_path(path_str) if path_str else None
 
 
 # Path constants (computed from config)
@@ -388,14 +530,26 @@ def get_trash_dir() -> Path:
 
 def get_qdrant_url() -> str:
     """Get Qdrant server URL."""
-    config = get_config()
-    return cast(str, config.get("path_to", {}).get("qdrant_url", "http://127.0.0.1:8780"))
+    from .config_templating import expand_placeholders
+
+    service = get_mcp_service("qdrant_mcp") or {}
+    env = service.get("env", {}) if isinstance(service, dict) else {}
+    url = env.get("QDRANT_URL") if isinstance(env, dict) else ""
+    if not url:
+        return ""
+    return expand_placeholders(str(url), get_config(), os.environ)
 
 
 def get_qdrant_collection() -> str:
     """Get Qdrant collection name."""
-    config = get_config()
-    return config.get("qdrant", {}).get("collection", "coding-memory")
+    from .config_templating import expand_placeholders
+
+    service = get_mcp_service("qdrant_mcp") or {}
+    settings = service.get("settings", {}) if isinstance(service, dict) else {}
+    collection = settings.get("collection") if isinstance(settings, dict) else ""
+    if not collection:
+        return ""
+    return expand_placeholders(str(collection), get_config(), os.environ)
 
 
 # Duration parsing (moved from cleanup/config.py)

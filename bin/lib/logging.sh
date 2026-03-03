@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 #
-# Bureau logging library
-#
-# Provides consistent, colorized logging functions for all Bureau scripts.
+# Logging library: consistent, colorized logger functions for all Bureau scripts.
 #
 # Usage:
 #   source "$REPO_ROOT/bin/lib/logging.sh"
@@ -34,7 +32,7 @@ if [[ "${LOG_COLORS:-true}" == "true" && -t 1 ]]; then
     export LOG_RED='\033[0;31m'
     export LOG_GRAY='\033[0;90m'
     export LOG_BOLD='\033[1m'
-    export LOG_NC='\033[0m'  # No Color (reset)
+    export LOG_NC='\033[0m'  # ANSI "no colour" = reset
 else
     # No color support or disabled
     export LOG_GREEN=''
