@@ -139,6 +139,10 @@ class FeatureCandidate:
     metadata: dict | None = None
     lottery_promoted: bool = False
 
+    def __hash__(self) -> int:
+        """Identity-based hash so candidates can be used as dict keys."""
+        return id(self)
+
     def compute_score(self, weights: dict[str, float]) -> float:
         """Compute a weighted score (dot product of *score_inputs* and *weights*).
 
