@@ -1,0 +1,16 @@
+media:
+  max_processing_time_seconds: 30
+  acknowledgment_after_seconds: 3
+  max_reentry_count: 1
+
+session:
+  timeout_minutes: 10
+  message_batch_window_seconds: 15
+
+context_budget:
+  max_tokens: 4000
+
+background:
+  schedule_hours: [6, 14]
+  max_execution_minutes: 5
+  max_llm_calls_per_run: 2

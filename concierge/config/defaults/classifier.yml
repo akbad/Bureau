@@ -1,0 +1,21 @@
+deterministic_checks:
+  media:
+    check: "has_attachment"
+  reply:
+    conditions:
+      - active_feature: true
+        max_length: 5
+      - is_single_emoji: true
+      - exact_match: ["yes", "no", "ok", "y", "n"]
+
+model:
+  path: "concierge/classifier/model.onnx"
+  tokenizer: "distilbert-base-uncased"
+  confidence_threshold: 0.7
+  fallback_on_low_confidence: "CONVERSE"
+  low_confidence_action: "ask_inline"
+
+fuzzy_commands:
+  enabled: true
+  min_score: 80
+  verbs: ["pause", "resume", "stop", "start", "change", "set up", "show", "adjust", "enable", "disable", "be more", "be less"]

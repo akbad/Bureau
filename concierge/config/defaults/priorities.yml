@@ -1,0 +1,45 @@
+scoring_weights:
+  dispatches:
+    relevance: 0.35
+    urgency: 0.25
+    suite_fit: 0.20
+    freshness: -0.10
+    queue_age: 0.05
+    domain_match: 0.05
+    cooldown_hours: 12
+    max_per_week: 3
+  brews:
+    relevance: 0.20
+    urgency: 0.10
+    suite_fit: 0.30
+    freshness: -0.20
+    queue_age: 0.10
+    domain_match: 0.10
+    cooldown_hours: 168
+    max_per_month: 2
+  probes:
+    suite_fit: 0.40
+    queue_age: 0.30
+    freshness: -0.20
+    cooldown_hours: 24
+
+hard_rules:
+  - condition: "suite == 'processing'"
+    block: ["brews", "dispatches"]
+    reason: "Processing Suite: listen, don't suggest"
+  - condition: "active_huddle is not None"
+    block: ["dispatches", "brews", "probes"]
+    reason: "Huddle owns the conversation"
+  - condition: "active_valet is not None"
+    block: ["brews", "probes"]
+    reason: "Valet owns the conversation"
+
+queue:
+  aging_rate: 0.02
+  max_age_hours: 168
+  max_queue_size: 10
+
+lottery:
+  epsilon: 0.12
+  decay: 0.995
+  min_epsilon: 0.05
