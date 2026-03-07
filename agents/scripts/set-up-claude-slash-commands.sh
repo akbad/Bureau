@@ -1,58 +1,55 @@
 #!/usr/bin/env bash
+
+# Exits on any:
+# - error (-e)
+# - undefined variable (-u)
+# - failed pipe (-o pipefail)
 set -euo pipefail
 
 # Setup script for Claude Code slash commands that inject agent role prompts
-# This allows launching agents in the current conversation via /architect, /frontend, etc.
+# This allows launching agents in the current conversation via /architect-bureau, /frontend-bureau, etc.
 
-# Find the repo root
+# Locate repo root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 CLAUDE_SUBAGENTS_DIR="$AGENTS_DIR/claude-subagents"
 
-# Source shared libraries
-source "$REPO_ROOT/bin/lib/agent-selection.sh"
-source "$REPO_ROOT/bin/lib/logging.sh"
-source "$REPO_ROOT/bin/lib/roles-setup.sh"
+# Source internal Bureau libraries
+source "$REPO_ROOT/bin/lib/agent-selection.sh"    # reads configs to determine enabled agents
+source "$REPO_ROOT/bin/lib/logging.sh"            
+source "$REPO_ROOT/bin/lib/roles-setup.sh"        # handles cross-CLI role prompt setup
 
 # Detect installed CLIs (exits if none found, logs detected CLIs)
 discover_agents
-
-log_banner "Agent slash command setup for Claude Code"
 echo "Source: $CLAUDE_SUBAGENTS_DIR"
 echo "Target: $HOME/.claude/commands"
 log_empty_line
 
 # Check if source directory exists
 if [[ ! -d "$CLAUDE_SUBAGENTS_DIR" ]]; then
-    log_error "Cannot find claude-subagents directory at: $CLAUDE_SUBAGENTS_DIR"
+    log_error "Cannot find claude-subagents/ at the expected path: $CLAUDE_SUBAGENTS_DIR"
     exit 1
 fi
 
-# Create commands directory if it doesn't exist
-mkdir -p "$COMMANDS_DIR"
-print_success "Ensured $COMMANDS_DIR exists"
+# Claude-specific processing function
+process_claude_command() {
+    local role_name="$1"
+    local target_dir="$2"
+    local role_file="$CLAUDE_SUBAGENTS_DIR/${role_name}.md"
 
-# Counter for generated commands
-count=0
+    # Skip if file doesn't exist (configuration error)
+    if [[ ! -f "$role_file" ]]; then
+        log_warning "Role file not found: $role_file (skipping)"
+        return 1
+    fi
 
-# Process each agent file
-print_step "Generating slash commands from agent files"
-echo ""
+    # Target command file (suffixed to avoid collisions with user-created commands)
+    local command_file="$target_dir/${role_name}-bureau.md"
 
-for agent_file in "$CLAUDE_SUBAGENTS_DIR"/*.md; do
-    # Get the base name without extension (e.g., "architect" from "architect.md")
-    agent_name=$(basename "$agent_file" .md)
-
-    # Target command file
-    command_file="$COMMANDS_DIR/${agent_name}.md"
-
-    # Extract the content after the frontmatter (everything after the second ---)
-    # The frontmatter is between the first --- and second ---
-    # We want everything after the second ---
-
-    # Using awk to skip frontmatter and get the actual content
-    agent_content=$(awk '
+    # Extract content after frontmatter (everything after the second ---)
+    local role_content
+    role_content=$(awk '
         BEGIN { in_frontmatter=0; past_frontmatter=0 }
         /^---$/ {
             if (!past_frontmatter) {
@@ -62,7 +59,7 @@ for agent_file in "$CLAUDE_SUBAGENTS_DIR"/*.md; do
             }
         }
         past_frontmatter { print }
-    ' "$agent_file")
+    ' "$role_file")
 
     # Create the slash command file with a preamble
     cat > "$command_file" << EOF
