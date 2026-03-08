@@ -332,7 +332,7 @@ roles:
 
 # Skills configuration (installed via protocols/scripts/set-up-skills.sh)
 skills:
-  enabled: [micro-mode, assess-mode]
+  enabled: [micro-mode, assess-mode, fold, unfold]
   disabled: []
   sources:
     - path: protocols/context/static/skills
@@ -464,6 +464,31 @@ assess_mode:
   default_target: git-diff
   default_diff: HEAD
 
+# Dossiers: cross-agent conversation continuity
+# Fold saves a conversation snapshot; unfold resumes it.
+# See docs/plans/2026-03-08-dossiers-design.md for full design.
+conversations:
+  save: fold
+  resume: unfold
+  storage_dir: ~/.config/bureau/dossiers
+  stale_dossier_days: 30
+  concierge:
+    auto_offer_resume: true
+    auto_offer_save: true
+    notify_task_updates: true
+    notify_interval: 30s
+  keywords:
+    save:
+      - "save this"
+      - "fold this"
+      - "brain dump"
+    resume:
+      - "pick up where I left off"
+      - "resume"
+      - "unfold"
+      - "my dossiers"
+      - "saved conversations"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Retention & cleanup
@@ -477,6 +502,7 @@ retention_period_for:
   serena: 90d        # Serena project memories (.serena/memories/)
   qdrant: 180d       # Qdrant vector database (used by all enabled CLIs)
   memory_mcp: 365d   # Memory MCP JSONL file (used by all enabled CLIs)
+  dossiers: 30d      # Conversation dossiers (matches stale_dossier_days)
 
 # Cleanup interval (for stale memories)
 cleanup:
