@@ -1032,6 +1032,51 @@ class TestInfoTier:
         }
 
 
+class TestDependencyRequires:
+    """W11: dependencies can declare requires for ordering."""
+
+    def test_requires_is_allowed_key(self):
+        config = {"mcp": {"dependencies": {
+            "overlay": {"kind": "git_repo", "repo_url": "https://x.git",
+                        "path": "/x", "requires": ["base"]},
+        }}}
+        warnings = _warnings(config)
+        assert not any("requires" in w and "unknown" in w for w in warnings)
+
+    def test_requires_non_list_produces_error(self):
+        config = {"mcp": {"dependencies": {
+            "overlay": {"kind": "git_repo", "repo_url": "https://x.git",
+                        "path": "/x", "requires": "base"},
+        }}}
+        errors = _errors(config)
+        assert any("requires" in e for e in errors)
+
+    def test_requires_non_string_element_produces_error(self):
+        config = {"mcp": {"dependencies": {
+            "overlay": {"kind": "git_repo", "repo_url": "https://x.git",
+                        "path": "/x", "requires": [123]},
+        }}}
+        errors = _errors(config)
+        assert any("requires" in e for e in errors)
+
+    def test_requires_unknown_dep_produces_warning(self):
+        config = {"mcp": {"dependencies": {
+            "overlay": {"kind": "git_repo", "repo_url": "https://x.git",
+                        "path": "/x", "requires": ["nonexistent"]},
+        }}}
+        warnings = _warnings(config)
+        assert any("nonexistent" in w for w in warnings)
+
+    def test_requires_valid_dep_no_warning(self):
+        config = {"mcp": {"dependencies": {
+            "base": {"kind": "git_repo", "repo_url": "https://x.git", "path": "/x"},
+            "overlay": {"kind": "git_repo", "repo_url": "https://y.git",
+                        "path": "/y", "requires": ["base"]},
+        }}}
+        warnings = _warnings(config)
+        assert not any("does not match" in w for w in warnings)
+
+
 class TestMissingDefaultClient:
     """W8: info message when clients.default is absent."""
 

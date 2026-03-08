@@ -305,6 +305,30 @@ def validate_service_dependency_cycles(config: Mapping[str, Any]) -> list[str]:
     ]
 
 
+def _collect_dependency_requires_graph(config: Mapping[str, Any]) -> dict[str, set[str]]:
+    """Build adjacency list from mcp.dependencies.*.requires."""
+    graph: dict[str, set[str]] = {}
+    deps = config.get("mcp", {}).get("dependencies", {})
+    for name, dep in deps.items():
+        if not isinstance(dep, dict):
+            continue
+        requires = dep.get("requires", [])
+        if isinstance(requires, list):
+            graph[name] = {r for r in requires if isinstance(r, str)}
+        else:
+            graph[name] = set()
+    return graph
+
+
+def validate_dependency_requires_cycles(config: Mapping[str, Any]) -> list[str]:
+    """Validate that dependency requires don't form cycles."""
+    graph = _collect_dependency_requires_graph(config)
+    return [
+        f"Circular dependency requires: {c}"
+        for c in _find_graph_cycles(graph)
+    ]
+
+
 def _as_list(value: Any) -> list:
     """Normalize a value to a list (for depends_on entries that might be bare strings)."""
     if isinstance(value, list):
@@ -703,6 +727,20 @@ def _validate_cross_references(config: Mapping[str, Any]) -> ValidationResult:
                     f"'{ref}' does not match any declared dependency"
                 )
 
+    # check requires in dependencies (W11)
+    for name, dep in mcp.get("dependencies", {}).items():
+        if not isinstance(dep, dict):
+            continue
+        requires = dep.get("requires", [])
+        if not isinstance(requires, list):
+            continue
+        for ref in requires:
+            if isinstance(ref, str) and ref not in declared_deps:
+                result.warnings.append(
+                    f"mcp.dependencies.{name}.requires: "
+                    f"'{ref}' does not match any declared dependency"
+                )
+
     # check references in client_configs
     for name, entry in mcp.get("client_configs", {}).items():
         if not isinstance(entry, dict):
@@ -772,6 +810,7 @@ def validate_config(config: Mapping[str, Any], add_warnings: bool = False) -> Va
     errors.extend(validate_durations(config))
     errors.extend(validate_placeholder_cycles(config))
     errors.extend(validate_service_dependency_cycles(config))
+    errors.extend(validate_dependency_requires_cycles(config))
 
     # may contain both warnings *and* errors
     validation_result = validate_mcp_rules(config)

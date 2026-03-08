@@ -44,7 +44,7 @@ CLIENT_TRANSPORT_REQUIRED: dict[str, set[str]] = {
 
 # Recognized keys for mcp.dependencies.* entries
 DEPENDENCY_ALLOWED_KEYS: set[str] = {
-    "enabled", "kind", "repo_url", "branch", "path", "post_clone",
+    "enabled", "kind", "repo_url", "branch", "path", "post_clone", "requires",
 }
 
 # Recognized keys for mcp.services.* entries
@@ -86,6 +86,7 @@ CLIENT_TRANSPORT_KINDS: set[str] = {"http", "sse", "stdio"}
 DEPENDENCY_TYPE_RULES: list[tuple[str, str]] = [
     ("enabled", "bool"),
     ("post_clone", "list[list[str]]"),
+    ("requires", "list[str]"),
 ]
 
 # Type rules for mcp.services.* entries
