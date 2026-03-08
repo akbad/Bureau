@@ -11,7 +11,7 @@ from ..config_loader import (
     get_trash_grace_period,
     parse_duration,
 )
-from ..validate_config import full_validate
+from ..validate_config import validate_config
 from .state import load_state, save_state, did_recently_run, now_as_iso, State
 from .trash import empty_expired_trash, empty_all_trash
 from .handlers import HANDLERS
@@ -30,7 +30,7 @@ def run_cleanup(
 ) -> dict:
     """Run cleanup for all or specific storage."""
     # Validate configuration before running cleanup
-    validation_errors = full_validate(_config)
+    validation_errors = validate_config(_config)
     if validation_errors:
         return {
             "error": "Configuration validation failed",
@@ -138,7 +138,7 @@ def wipe_memory_backends(
     config = get_config()
 
     # Validate configuration before wiping
-    validation_errors = full_validate(config)
+    validation_errors = validate_config(config)
     if validation_errors:
         return {
             "error": "Configuration validation failed",
@@ -270,7 +270,7 @@ def main():
     # if CLI arg set, validate config and exit
     if args.validate:
         config = get_config()
-        errors = full_validate(config)
+        errors = validate_config(config)
         if errors:
             print("Configuration validation failed:", file=sys.stderr)
             for error in errors:

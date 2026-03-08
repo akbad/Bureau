@@ -152,8 +152,18 @@ if [[ ! -f "$SKILLS_CONFIG_PATH" ]]; then
     exit 1
 fi
 
-# Get list of skill directories (source dirs don't have bureau- prefix)
-SKILL_DIRS=($(find "$BUREAU_SKILLS_DIR" -maxdepth 1 -mindepth 1 -type d | sort))
+SKILL_NAMES=()
+SKILL_PREFIXES=()
+SKILL_SOURCE_DIRS=()
+
+while IFS=$'\t' read -r name prefix source_path; do
+    if [[ -z "$name" || -z "$source_path" ]]; then
+        continue
+    fi
+    SKILL_NAMES+=("$name")
+    SKILL_PREFIXES+=("$prefix")
+    SKILL_SOURCE_DIRS+=("$source_path")
+done < <(jq -r '.skills[] | [.name, .prefix, .source_path] | @tsv' "$SKILLS_CONFIG_PATH")
 
 if [[ ${#SKILL_NAMES[@]} -eq 0 ]]; then
     log_error "No skills found in $SKILLS_CONFIG_PATH"
@@ -201,7 +211,7 @@ log_header "OpenCode" "$OPENCODE_SKILLS_DIR"
 set_up_bureau_skill_dirs "$OPENCODE_SKILLS_DIR"
 echo ""
 
-log_header "Codex" "$CODEX_SKILLS_DIR" "Note Codex ignores symlinked directories; copying instead."
+log_header "Codex" "$CODEX_SKILLS_DIR"
 set_up_bureau_skill_dirs "$CODEX_SKILLS_DIR"
 echo ""
 

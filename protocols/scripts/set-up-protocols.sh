@@ -62,6 +62,7 @@ create_safe_symlink() {
     elif [[ -e "$target" ]]; then
         # Exists but not a file or symlink (directory?)
         log_error "Cannot create symlink: $target exists and is not a file or symlink"
+        return 1
     fi
 
     # Create the symlink
@@ -74,6 +75,92 @@ if [[ ! -f "$CONTEXT_TEMPLATES/AGENTS.template.md" ]] || [[ ! -f "$CONTEXT_TEMPL
     log_error "Cannot find config template files. Please run this script from within the repository."
 fi
 # ============================================================================
+# Populate user-scoped protocols directory (~/.config/bureau/protocols/)
+# ============================================================================
+
+BUREAU_PROTOCOLS_DIR="$HOME/.config/bureau/protocols"
+
+# resolve a single path to an absolute path
+# rules: ~ → $HOME, / → absolute, else → relative to $REPO_ROOT
+resolve_path() {
+    local p="$1"
+    case "$p" in
+        "~"/*) echo "${HOME}${p#"~"}" ;;
+        /*)    echo "$p" ;;
+        *)     echo "$REPO_ROOT/$p" ;;
+    esac
+}
+
+# extract a human-readable display name from a filename
+# e.g. "tools-guide.md" → "Tools guide"
+display_name_from_path() {
+    local filename
+    filename="$(basename "$1" .md)"
+    # replace hyphens/underscores with spaces, capitalize first letter
+    filename="${filename//-/ }"
+    filename="${filename//_/ }"
+    echo "$(echo "${filename:0:1}" | tr '[:lower:]' '[:upper:]')${filename:1}"
+}
+
+# Copy default protocols files if directory doesn't exist or is empty
+if [[ ! -d "$BUREAU_PROTOCOLS_DIR" ]] || [[ -z "$(ls -A "$BUREAU_PROTOCOLS_DIR" 2>/dev/null)" ]]; then
+    mkdir -p "$BUREAU_PROTOCOLS_DIR"
+    cp "$REPO_ROOT/protocols/context/static/tools-guide.md" "$BUREAU_PROTOCOLS_DIR/"
+    cp "$REPO_ROOT/protocols/context/static/handoff-guide.md" "$BUREAU_PROTOCOLS_DIR/"
+    cp "$REPO_ROOT/protocols/context/static/code-standards.md" "$BUREAU_PROTOCOLS_DIR/"
+    log_success "Populated $BUREAU_PROTOCOLS_DIR with default protocols files"
+else
+    log_action "Using existing protocols files from $BUREAU_PROTOCOLS_DIR"
+fi
+
+# ============================================================================
+# Build must-read section from protocols dir + code_standards overrides
+# ============================================================================
+
+# Collect all .md files from the user-scoped protocols directory
+MUST_READ_PATHS=()
+for md_file in "$BUREAU_PROTOCOLS_DIR"/*.md; do
+    if [[ -f "$md_file" ]]; then
+        MUST_READ_PATHS+=("$md_file")
+    fi
+done
+
+# Read code_standards from merged config (may point to files outside the protocols dir)
+CODE_STANDARDS_RAW=$(uv run python -m operations.config_cli code_standards 2>/dev/null || echo "")
+
+if [[ -n "$CODE_STANDARDS_RAW" ]]; then
+    read -ra CODE_STANDARDS_PATHS <<< "$CODE_STANDARDS_RAW"
+    for raw_path in "${CODE_STANDARDS_PATHS[@]}"; do
+        resolved="$(resolve_path "$raw_path")"
+        # Add to must-read list only if not already present (i.e. lives outside protocols dir)
+        already_listed=false
+        for existing in "${MUST_READ_PATHS[@]}"; do
+            if [[ "$existing" == "$resolved" ]]; then
+                already_listed=true
+                break
+            fi
+        done
+        if [[ "$already_listed" == false ]]; then
+            MUST_READ_PATHS+=("$resolved")
+        fi
+    done
+fi
+
+# Build the must-read markdown section
+MUST_READ_SECTION=""
+
+if [[ ${#MUST_READ_PATHS[@]} -gt 0 ]]; then
+    for file_path in "${MUST_READ_PATHS[@]}"; do
+        local_name="$(display_name_from_path "$file_path")"
+        MUST_READ_SECTION+="### [$local_name]($file_path)"$'\n\n'
+        MUST_READ_SECTION+="> **Read**: \`@${file_path}\`"$'\n\n'
+    done
+    log_success "Built must-read section (${#MUST_READ_PATHS[@]} file(s) from $BUREAU_PROTOCOLS_DIR)"
+else
+    log_warning "No .md files found in $BUREAU_PROTOCOLS_DIR; must-read section will be empty"
+fi
+
+# ============================================================================
 # Generate config files from templates (in repo)
 # ============================================================================
 log_action "Generating config files from templates"
@@ -85,6 +172,17 @@ log_success "Generated $CONTEXT_GENERATED/AGENTS.md from template"
 # Generate CLAUDE.md in repo (for Claude Code)
 sed "s|{{REPO_ROOT}}|$REPO_ROOT|g" "$CONTEXT_TEMPLATES/CLAUDE.template.md" > "$CONTEXT_GENERATED/CLAUDE.md"
 log_success "Generated $CONTEXT_GENERATED/CLAUDE.md from template"
+
+# Inject must-read section into generated files (replaces {{MUST_READ_SECTION}} placeholder)
+# Uses awk instead of BSD sed's `r` command, which is unreliable under macOS sed -i ''
+for generated_file in "$CONTEXT_GENERATED/AGENTS.md" "$CONTEXT_GENERATED/CLAUDE.md"; do
+    awk -v section="$MUST_READ_SECTION" '
+        /\{\{MUST_READ_SECTION\}\}/ { printf "%s", section; next }
+        { print }
+    ' "$generated_file" > "${generated_file}.tmp" \
+        && mv "${generated_file}.tmp" "$generated_file"
+done
+log_success "Injected must-read section into generated context files"
 
 echo ""
 
@@ -190,7 +288,7 @@ fi
 echo ""
 echo "PAL per-CLI config files are symlinked from $PAL_GENERATED_DIR/"
 echo "To update these:"
-echo "  1. Edit directives.yml (or local.yml for personal overrides) for model/role settings"
+echo "  1. Edit defaults.yml (or local.yml for personal overrides) for model/role settings"
 echo "  2. Re-run this script (or bin/open-bureau, which calls this script)"
 echo "  3. Restart your coding CLIs (or use their internal MCP-related commands if possible) to reconnect to PAL"
 echo ""

@@ -1,6 +1,6 @@
 # Configuration reference
 
-Bureau uses a YAML-based configuration system with a three-tier hierarchy that allows team-wide defaults while supporting personal overrides.
+Bureau uses a YAML-based configuration system with a four-tier hierarchy that allows package defaults, project-level sharing, and personal overrides.
 
 > [!IMPORTANT]
 >
@@ -10,28 +10,39 @@ Bureau uses a YAML-based configuration system with a three-tier hierarchy that a
 
 - [Configuration sources and precedence](#configuration-sources-and-precedence)
   - [When to use each file](#when-to-use-each-file)
-- [Settings](#settings)
+- [Configuration settings](#configuration-settings)
   - [`agents`](#agents)
+  - [`auto_approved`](#auto_approved)
+  - [`prune_disabled_mcps`](#prune_disabled_mcps)
   - [`mcp`](#mcp)
+  - [`skills`](#skills)
+  - [`code_standards`](#code_standards)
+  - [`assess_mode`](#assess_mode)
+  - [`roles`](#roles)
   - [`pal`](#pal)
   - [`retention_period_for`](#retention_period_for)
   - [`cleanup`](#cleanup)
   - [`trash`](#trash)
   - [`startup_timeout_for`](#startup_timeout_for)
-  - [`port_for`](#port_for)
   - [`path_to`](#path_to)
-  - [`endpoint_for`](#endpoint_for)
-  - [`qdrant`](#qdrant)
 - [Environment variable overrides](#environment-variable-overrides)
+  - [Direct config overrides](#direct-config-overrides)
+  - [API keys and placeholder expansion](#api-keys-and-placeholder-expansion)
 - [Examples](#examples)
-  - [Disable specific CLI agents locally](#disable-specific-cli-agents-locally)
+  - [Disable specific CLIs locally](#disable-specific-clis-locally)
+  - [Customize available agent roles](#customize-available-agent-roles)
   - [Enable MCP tool auto-approval](#enable-mcp-tool-auto-approval)
   - [Keep memories longer](#keep-memories-longer)
   - [Use different workspace directory](#use-different-workspace-directory)
-  - [Change ports to avoid conflicts](#change-ports-to-avoid-conflicts)
+  - [Change MCP ports to avoid conflicts](#change-mcp-ports-to-avoid-conflicts)
+  - [Customize installed skills](#customize-installed-skills)
+  - [Provide custom coding standards](#provide-custom-coding-standards)
+  - [Configure the assess mode skill](#configure-the-assess-mode-skill)
+- [Agent context files](#agent-context-files)
 - [Security note for subagents spawned via PAL MCP's `clink`](#security-note-for-subagents-spawned-via-pal-mcps-clink)
   - [Solutions](#solutions)
 - [Related commands](#related-commands)
+
 
 
 ## Configuration sources and precedence
@@ -67,11 +78,11 @@ Create and write to this file for personal overrides that shouldn't be shared, e
 - custom retention periods for memories (configured per-MCP)
 - disabling Bureau configuration for agent CLIs you don't use
 
-## Settings
+## Configuration settings
 
 ### `agents`
 
-**File:** `directives.yml`
+**File:** `defaults.yml`
 
 List of CLI agents that Bureau should configure during setup.
 
@@ -85,6 +96,40 @@ agents:
 
 Remove an agent from the list to skip configuring it. Note that the CLI's config directory must also exist (e.g., `~/.claude/` for Claude Code).
 
+### `auto_approved`
+
+Controls auto‑approvals for MCP tools and Bash command prefixes.
+
+```yaml
+auto_approved:
+  mcps: false
+  bash:
+    enabled: true
+    ruleset:
+      allow:
+        - "git status"
+        - "npm run test"
+      deny:
+        - "rm"
+        - "git commit"
+```
+
+**Notes:**
+- Prefix matching only; no wildcards in the canonical list.
+- If a prefix appears in both lists, the CLI's native precedence applies (i.e., `deny` wins).
+- Multi‑word prefixes are preserved via the setup plan JSON (do not rely on `get-config` output for these).
+- `auto_approved.mcp_tools` and `auto_approved.bash` are independent; you can enable either or both.
+
+### `prune_disabled_mcps`
+
+When `true`, Bureau removes MCP entries that were previously managed by Bureau but are no longer desired
+(disabled or removed). Removals are guarded by per‑CLI registry fingerprints so user‑modified entries
+aren't touched.
+
+- Registry location: `~/.config/bureau/internal/managed-mcps.<cli>.json`
+- Only entries whose current CLI config still matches the recorded fingerprint are removed.
+- Bureau still refreshes the registry after setup even when this is `false`, so future runs can
+  clean safely.
 
 ### `mcp`
 
@@ -92,13 +137,13 @@ MCP catalog configuration.
 
 **Cross-cutting conventions:**
 
-- **Canonical IDs:** map keys serve as *canonical IDs* for both `mcp.runtime_services` and `mcp.client_configs`.
+- **Canonical IDs:** map keys serve as *canonical IDs* for both `mcp.services` and `mcp.client_configs`.
 
   - Do **not** add `name` fields; these cause needless duplication and drift.
 
 - **Placeholder expansion:** all string fields support `${...}` expansion.
 
-  - **Expansion order:** OS environment variables first, then config key paths (e.g. `${path_to.workspace}`, `${mcp.runtime_services.qdrant_mcp.port}`).
+  - **Expansion order:** OS environment variables first, then config key paths (e.g. `${path_to.workspace}`, `${mcp.services.qdrant_mcp.port}`).
   - Unknown placeholders remain untouched.
   - **Environment variables for MCP servers:** 
       - To pass environment variables to an MCP server process, add them as `env` entries in the server's client config. 
@@ -129,6 +174,24 @@ MCP catalog configuration.
   - **Adding an entry to any MCP bucket is sufficient to activate it on the next `open-bureau` run.**
   - You *must* set `enabled: false` explicitly to define an entry without activating it.
 
+#### Runtime invariants (not fully type-enforced)
+
+Bureau uses permissive `TypedDict` schemas in code for config loading, which means some value-dependent rules cannot be expressed purely in the Python type system. These invariants are validated by runtime logic and conventions.
+
+| Where | Condition | Required / expected fields | Notes |
+|:--|:--|:--|:--|
+| `mcp.dependencies.<id>` | `kind: git_repo` | `repo_url`, `path` (optional: `branch`, `post_clone`) | Type checker cannot enforce `kind` → required-field mapping |
+| `mcp.dependencies.<id>` | `kind: file` | `path` | Same discriminator limitation |
+| `mcp.services.<id>` | `kind: docker_container` | `image`, `host_port`, `container_port` (optional: `container_name`, `mounts`) | Docker-only fields are flat in schema |
+| `mcp.services.<id>` | `kind: http_process` | `port`, `command` (optional: `env`) | Process-only fields share same flat schema |
+| `mcp.client_configs.<id>.clients.<client>` | `transport` value | `http/sse` expect `url`; `stdio` expects `command` (optional transport-specific extras) | Transport-specific requirements are runtime-validated |
+| `roles` | `enabled` as string | Only documented sentinel values (for example `all`) are meaningful | Typed as `list[str] \| str` for flexibility |
+| `path_to` | `workspace` present | `serena_memories_root` may be derived if unset | Derived behavior, not schema-required |
+| `path_to` | `mcp_clones` is relative | Resolved against main repo root | Normalization rule, not schema-required |
+| Named lookups in helpers | Service/config IDs must exist (`qdrant_mcp`, `memory`, `claude_mem_storage`) | Expected nested keys depend on helper | Name-based contracts are conventional and documented here |
+
+When adding new discriminator-based config sections, document the `value -> required fields` mapping in this section and enforce it in runtime validators.
+
 **Top-level structure:**
 
 - `auto_approved` (object):
@@ -141,7 +204,7 @@ MCP catalog configuration.
 - `prune_disabled_mcps` (bool, default: `false`): When `true`, Bureau prunes previously managed MCPs that are no longer desired, using per‑CLI registry fingerprints to avoid removing user‑modified entries.
 - `mcp` (object):
   - `dependencies` (map\<string, Dependency\>): Non-daemon prerequisites (git repos, file storage) prepared before services.
-  - `runtime_services` (map\<string, RuntimeService\>): Managed runtime services (containers, processes) that may depend on dependencies.
+  - `services` (map\<string, Service\>): Managed runtime services (containers, processes) that may depend on dependencies.
   - `client_configs` (map\<string, ClientConfig\>): MCP servers exposed to CLIs.
 
 #### <ins>`mcp.dependencies`</ins>
@@ -181,11 +244,11 @@ mcp:
       path: ~/.claude-mem/claude-mem.db
 ```
 
-#### <ins>`mcp.runtime_services`</ins>
+#### <ins>`mcp.services`</ins>
 
 Defines managed runtime services that Bureau starts (containers, local HTTP processes). Services can depend on dependencies via `depends_on.dependencies`.
 
-**Config schema** for each entry in `mcp.runtime_services.<service_id>`:
+**Config schema** for each entry in `mcp.services.<service_id>`:
 
 - `enabled` (bool, default: `true`): Skip service if `false`.
 - `kind` (string, required): One of `docker_container`, `http_process`; see kind-specific fields below.
@@ -216,7 +279,7 @@ Defines managed runtime services that Bureau starts (containers, local HTTP proc
 **Example:**
 ```yaml
 mcp:
-  runtime_services:
+  services:
     sourcegraph_mcp:
       kind: http_process
       port: 8783
@@ -254,7 +317,7 @@ Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Serve
 - `url` (string, required for `http`): MCP HTTP endpoint.
 - `headers` (`map<string,string>`, optional): HTTP headers (expanded).
 - `command` (`list<string>`, required for `stdio`): Command array to launch MCP server.
-- `env` (`map<string,string>`, optional): Environment vars for stdio servers.
+- `env` (`map<string,string>`, optional): Environment variables to pass to the MCP server process. Values support `${...}` placeholder expansion from your OS environment.
 - `timeout_ms` (int, optional): Per‑server tool timeout (Gemini).
 - `startup_timeout_sec` (int, optional): Startup timeout (Codex).
 - `tool_timeout_sec` (int, optional): Tool timeout (Codex).
@@ -289,10 +352,44 @@ skills:
 > - `protocols/scripts/set-up-skills.sh` removes **all** existing skills with the `bureau-` prefix from each CLI's skills directory before reinstalling. 
 > - **Avoid naming your own custom skills `bureau-*`** unless you expect them to be wiped during setup.
 
+### `code_standards`
+
+**Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
+
+List of markdown documents that describe coding standards, style preferences, and design principles. Used by the `bureau-assess-mode` skill during the quality-audit phase to check code against your documented standards.
+
+**Resolution order (for assess mode):**
+1. `code_standards` config key is set → use those files
+2. `~/.config/bureau/protocols/code-standards.md` exists → use that (convention default)
+3. Neither found → quality audit runs with internal consistency checks only
+
+```yaml
+code_standards:
+  - protocols/context/static/code-standards.md
+```
+
+Bureau ships with a default `code-standards.md` that covers commenting depth, naming, structure, error handling, logging, DRY/abstraction, types, correctness, testing, dependencies, and pragmatism. This file is copied to `~/.config/bureau/protocols/` on first run.
+
+**Overriding:** Set `code_standards` in `local.yml` to point to your own files. If your override files live outside `~/.config/bureau/protocols/`, they are automatically added to the agent must-read list alongside files in the protocols directory.
+
+```yaml
+# local.yml — override with custom standards
+code_standards:
+  - ~/my-team/style-guide.md
+  - ~/my-team/design-principles.md
+```
+
+**Path resolution:**
+- Paths starting with `~` → expanded to `$HOME`
+- Absolute paths (starting with `/`) → used as-is
+- Relative paths → resolved from the Bureau repository root
+
+> [!NOTE]
+> If no coding standards are found (no config key, no `code-standards.md` in protocols dir), agents skip the coding standards must-read at startup, and the assess mode skill limits its quality audit to internal consistency checks (DRYness, algorithmic efficiency, codebase pattern adherence).
 
 ### `assess_mode`
 
-**Files:** `directives.yml` (defaults), `local.yml` (personal overrides)
+**Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
 
 Runtime configuration for the [`bureau-assess-mode` skill](../protocols/context/static/skills/assess-mode/SKILL.md). These values are read by the skill at activation time to determine what to review. Standards for audit are configured via the top-level [`code_standards`](#code_standards) setting.
 
@@ -308,7 +405,7 @@ assess_mode:
 
 ### `roles`
 
-**Files:** `directives.yml` (defaults), `local.yml` (personal overrides)
+**Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
 
 Controls which agent roles are available when launching CLIs **directly** through their native features (slash commands for Claude Code, launcher scripts for Codex/Gemini, auto-discovery for OpenCode). This is **separate from** PAL's `clink` tool cross-CLI delegation, which is configured via [`pal.base-roles`](#palbase-roles).
 
@@ -401,7 +498,7 @@ roles:
 
 ### `pal`
 
-**File:** `directives.yml`
+**File:** `defaults.yml`
 
 Configures the PAL MCP server's `clink` tool, which spawns subagents across different coding CLIs (Claude, Codex, Gemini). These settings control which models are used and which role prompts are available.
 
@@ -451,7 +548,7 @@ pal:
 
 ### `retention_period_for`
 
-**File:** `directives.yml`
+**File:** `defaults.yml`
 
 Retention periods for each memory backend. Memories older than these thresholds are automatically moved to trash during cleanup.
 
@@ -482,7 +579,7 @@ retention_period_for:
 
 ### `cleanup`
 
-**File:** `directives.yml`
+**File:** `defaults.yml`
 
 Controls automatic cleanup behavior.
 
@@ -495,7 +592,7 @@ Cleanup runs automatically on `./bin/open-bureau` if enough time has passed sinc
 
 ### `trash`
 
-**File:** `directives.yml`
+**File:** `defaults.yml`
 
 Controls the soft-delete trash system.
 
@@ -508,7 +605,7 @@ Deleted items go to `.archives/trash/` and remain recoverable until the grace pe
 
 ### `startup_timeout_for`
 
-**File:** `directives.yml`
+**File:** `defaults.yml`
 
 Timeouts for startup operations (in seconds).
 
@@ -520,26 +617,9 @@ startup_timeout_for:
 
 Increase these values on slower machines.
 
-### `port_for`
-
-**File:** `directives.yml`
-
-Ports for locally-run servers and containers.
-
-```yaml
-port_for:
-  qdrant_db: 8780        # Qdrant database
-  qdrant_mcp: 8782       # Qdrant MCP server
-  sourcegraph_mcp: 8783  # Sourcegraph MCP server
-  semgrep_mcp: 8784      # Semgrep MCP server
-  serena_mcp: 8785       # Serena MCP server
-```
-
-Change these if you have port conflicts.
-
 ### `path_to`
 
-**File:** `directives.yml` (user-tunable) and `charter.yml` (package defaults)
+**File:** `defaults.yml`
 
 File and directory paths used by Bureau and its tools.
 
@@ -571,38 +651,92 @@ path_to:
 
 ## Environment variable overrides
 
+### Direct config overrides
+
 Some configuration values can be overridden via environment variables:
 
 | Environment Variable | Overrides | Description |
 |:---------------------|:----------|:------------|
 | `BUREAU_WORKSPACE` | `path_to.serena_memories_root` | Root for scanning Serena memory files |
 
-> [!NOTE]
-> 
-> Some remote MCPs require API keys (even for their free versions). Set these env vars accordingly to enable them:
-> 
-> - `TAVILY_API_KEY`
-> - `BRAVE_API_KEY`
-> - `CONTEXT7_API_KEY`
+### API keys and placeholder expansion
+
+Environment variables are also used for placeholder expansion in config strings. Any `${...}` placeholder in your config files first checks your **OS environment** (where you `export` variables in your shell) before falling back to config key paths.
+
+**Common pattern for MCP API keys:**
+
+```yaml
+# In your config YAML
+mcp:
+  client_configs:
+    tavily:
+      clients:
+        default:
+          env:
+            TAVILY_API_KEY: "${TAVILY_API_KEY}"  # Reads from your shell environment
+```
+
+**Required environment variables for remote MCPs:**
+
+Some remote MCPs require API keys (even for their free versions). Set these in your shell environment:
+
+| Env var name | Stores API key for... |
+| --- | --- |
+| `TAVILY_API_KEY` | Tavily web search |
+| `BRAVE_API_KEY` | Brave web search |
+| `CONTEXT7_API_KEY` | Context7 documentation lookup |
+
+**How to set them:**
+
+```bash
+# In your ~/.zshrc, ~/.bashrc, or shell config:
+export TAVILY_API_KEY="your-key-here"
+export BRAVE_API_KEY="your-key-here"
+export CONTEXT7_API_KEY="your-key-here"
+```
 
 ## Examples
 
-### Disable specific CLI agents locally
+### Disable specific CLIs locally
 
-Create `local.yml`:
+If you only want Bureau to configure certain CLIs (and skip others), create `local.yml`:
 ```yaml
 agents:
   - claude
   - gemini
-  # codex and opencode omitted = not configured
+  # codex and opencode omitted = not configured by Bureau
+```
+
+### Customize available agent roles
+
+To enable a custom set of agents for native CLI usage:
+```yaml
+# local.yml
+roles:
+  enabled:
+    - architect
+    - frontend
+    - security-compliance
+    - testing
+  disabled: []
+```
+
+Or to enable all agents except specific ones:
+```yaml
+# local.yml
+roles:
+  enabled: all
+  disabled:
+    - chaos-engineer
+    - incident-commander
 ```
 
 ### Enable MCP tool auto-approval
 
 ```yaml
 # local.yml
-mcp:
-  auto_approve: yes
+auto_approved:
+  mcps: true
 ```
 
 ### Keep memories longer
@@ -632,18 +766,84 @@ path_to:
   mcp_clones: ~/CustomMCPLocation  # Override the default (.mcp-servers/ in repo root)
 ```
 
-### Change ports to avoid conflicts
+### Change MCP ports to avoid conflicts
 
 For example, if port `8780` (the default Qdrant DB listening port) is already in use on your device, you could do:
 
 ```yaml
 # local.yml
+mcp:
+  services:
+    qdrant_db:
+      host_port: 9780
+    qdrant_mcp:
+      port: 9782
+```
+
+### Customize installed skills
+
+```yaml
+# local.yml
+skills:
+  enabled:
+    - micro-mode
+    - debugging
+  disabled:
+    - shadow-mode
+  sources:
+    - path: protocols/context/static/skills
+      prefix: bureau-
+```
+
+### Provide custom coding standards
+
+```yaml
+# local.yml
+code_standards:
+  - ~/my-team/style-guide.md
+  - ~/my-team/design-principles.md
+```
+
+### Configure the assess mode skill
+
+```yaml
+# local.yml
+assess_mode:
+  default_diff: main    # Diff against main instead of HEAD
+```
+
 ## Agent context files
 
 **Location:** `~/.config/bureau/protocols/`
 
+Bureau maintains a user-scoped directory of agent context files that are read at the start of every conversation. On first run, Bureau copies three default files into this directory:
+
+| File | Purpose |
+|:-----|:--------|
+| `tools-guide.md` | Quick reference for MCP tool selection |
+| `handoff-guide.md` | Delegation strategies and model selection |
+| `code-standards.md` | Coding standards for writing and reviewing code |
+
+**How it works:**
+- Setup (`bin/open-bureau`) copies defaults to `~/.config/bureau/protocols/` only if the directory doesn't exist or is empty
+- **All** `.md` files in this directory are included as must-read entries in the generated agent context
+- You can add, edit, or remove files freely — changes take effect on next `bin/open-bureau` run
+
 > [!WARNING]
 > If you customize Bureau's MCP catalog (add, remove, or reconfigure tools), the default `tools-guide.md` may no longer accurately reflect your setup. **You are responsible for updating or replacing protocols files in `~/.config/bureau/protocols/` to match your configuration.** Run `bin/reset-protocols` to restore defaults at any time.
+
+**Adding a custom context file:**
+```bash
+# Add a custom file — agents will read it at startup after next open-bureau run
+cp ~/my-team/onboarding-guide.md ~/.config/bureau/protocols/
+```
+
+**Restoring defaults:**
+```bash
+bin/reset-protocols          # Interactive (prompts before overwriting)
+bin/reset-protocols --force  # Non-interactive (overwrites without prompting)
+```
+
 
 ## Security note for subagents spawned via PAL MCP's `clink`
 
@@ -674,4 +874,5 @@ Also, don't delegate commands you wouldn't run yourself; the parent agent's judg
 | `./bin/bureau-prune` | Manually run cleanup |
 | `./bin/bureau-empty-trash` | Permanently delete trash contents |
 | `./bin/bureau-wipe <storage>` | Wipe a storage backend |
-| `./bin/check-prereqs` | Verify prerequisites are installed |
+| `./bin/ensure-prereqs` | Verify prerequisites are installed |
+| `./bin/reset-protocols` | Restore agent protocols files to defaults |

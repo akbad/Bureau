@@ -4,7 +4,7 @@ Generate PAL per-CLI config files.
 
 This script reads:
   - settings.yaml (paths and CLI launch commands)
-  - directives.yml (user-accessible model/role settings)
+  - defaults.yml (user-accessible model/role settings)
 to generate one JSON config file per CLI supported by both Bureau and PAL's clink 
 (i.e. claude.json, codex.json, gemini.json).
 
@@ -148,7 +148,7 @@ def get_cli_arg_vals(cli_name: str, cli_config: dict[str, Any]) -> dict[str, str
 
     Args:
         cli_name: CLI name (claude, codex, gemini)
-        cli_config: The pal.<cli_name> config from directives.yml
+        cli_config: The pal.<cli_name> config from defaults.yml
 
     Returns:
         Dictionary of placeholder -> value substitutions

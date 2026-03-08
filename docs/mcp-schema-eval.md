@@ -30,7 +30,7 @@
 The schema has **three buckets** under the `mcp` key, forming a dependency graph:
 
 ```
-dependencies → runtime_services → client_configs
+dependencies → services → client_configs
   (repos, files)    (docker, processes)    (what CLIs actually see)
 ```
 
@@ -63,7 +63,7 @@ Unknown keys produce **warnings**, not errors. This means user extension keys (l
 
 ### 5. Placeholder-aware type checking
 
-`_validate_field_types` skips values containing `${...}` since their final type depends on expansion. Without this, every port reference like `${mcp.runtime_services.qdrant_db.host_port}` would fail the `int` check.
+`_validate_field_types` skips values containing `${...}` since their final type depends on expansion. Without this, every port reference like `${mcp.services.qdrant_db.host_port}` would fail the `int` check.
 
 ---
 
@@ -79,7 +79,7 @@ In `_validate_entry_schema`, the `kind_enum` check is:
 if kind_enum is not None and "kind" in entry:
 ```
 
-If `kind` is **missing entirely**, nothing fires — no error about the missing field, no required-field-per-kind check. A `runtime_services` entry without `kind` silently passes schema validation.
+If `kind` is **missing entirely**, nothing fires — no error about the missing field, no required-field-per-kind check. A `services` entry without `kind` silently passes schema validation.
 
 #### W2. `transport` is not validated as required for client entries
 
@@ -87,7 +87,7 @@ Same pattern: `if transport is not None` means a client entry with no `transport
 
 #### W3. `enabled` field type is never validated
 
-Every bucket supports `enabled: true/false`, but no type rule checks that `enabled` is actually a boolean. Setting `enabled: "yes"` or `enabled: 42` would pass validation. None of `DEPENDENCY_TYPE_RULES`, `RUNTIME_SERVICE_TYPE_RULES`, or `CLIENT_CONFIG_TYPE_RULES` include an `enabled` check.
+Every bucket supports `enabled: true/false`, but no type rule checks that `enabled` is actually a boolean. Setting `enabled: "yes"` or `enabled: 42` would pass validation. None of `DEPENDENCY_TYPE_RULES`, `SERVICE_TYPE_RULES`, or `CLIENT_CONFIG_TYPE_RULES` include an `enabled` check.
 
 ---
 
@@ -111,7 +111,7 @@ The docs say `healthcheck.tcp` is an `int` (port number). The type rule says `("
 
 #### W6. `${...}` URL references create undeclared dependencies
 
-Many client configs implicitly reference runtime services via `${mcp.runtime_services.X.port}` in their URLs, but the cross-reference validator only checks `depends_on` blocks. If you disable `qdrant_mcp` but keep the `qdrant` client config enabled (without `depends_on`), validation passes but the URL won't resolve at runtime.
+Many client configs implicitly reference runtime services via `${mcp.services.X.port}` in their URLs, but the cross-reference validator only checks `depends_on` blocks. If you disable `qdrant_mcp` but keep the `qdrant` client config enabled (without `depends_on`), validation passes but the URL won't resolve at runtime.
 
 #### W7. `clients.<cli>` keys are not checked against the `agents` list
 
@@ -161,10 +161,3 @@ But the schema has no mechanism to enforce or express ordering between dependenc
 > **Biggest systemic gap:** `kind` and `transport` are the schema's primary discriminators, yet neither is enforced as *present*. The discriminated union pattern works when configs are correct, but fails silently when they're incomplete.
 >
 > **Potential improvement:** A "strict mode" flag that promotes warnings to errors for CI validation, and enforcing `kind`/`transport` as required fields, would close the largest gaps with minimal changes to the existing declarative structure.
-
----
-
-## TODO
-
-- [ ] **Rename `runtime_services` → `services`** across the entire repo (config keys, validators, docs, setup scripts, `depends_on.services` references). The current name is unnecessarily verbose — `services` is sufficient and consistent with `depends_on.services` already using the shorter form.
-- [ ] **Rename `depends_on` → `requires`** across the entire repo. Eliminates the stutter between the `depends_on.dependencies` sub-key and the top-level `dependencies` bucket — `requires.dependencies` reads more naturally.

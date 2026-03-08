@@ -96,8 +96,8 @@ class MCPMountConfig(TypedDict):
     container_path: str
 
 
-class MCPRuntimeServiceConfig(TypedDict, total=False):
-    """Config for an entry in mcp.runtime_services."""
+class MCPServiceConfig(TypedDict, total=False):
+    """Config for an entry in mcp.services."""
 
     enabled: bool
     kind: str
@@ -156,7 +156,7 @@ class MCPConfig(TypedDict, total=False):
     """Top-level mcp configuration."""
 
     dependencies: dict[str, MCPDependencyConfig]
-    runtime_services: dict[str, MCPRuntimeServiceConfig]
+    services: dict[str, MCPServiceConfig]
     client_configs: dict[str, MCPClientConfig]
 
 
@@ -479,15 +479,15 @@ def get_mcp_dependency(name: str) -> MCPDependencyConfig | None:
     return dependencies.get(name)
 
 
-def get_mcp_service(name: str) -> MCPRuntimeServiceConfig | None:
+def get_mcp_service(name: str) -> MCPServiceConfig | None:
     """Get MCP runtime service config by name."""
     mcp_config = get_config().get("mcp")
     if not mcp_config:
         return None
-    runtime_services = mcp_config.get("runtime_services")
-    if not runtime_services:
+    services = mcp_config.get("services")
+    if not services:
         return None
-    return runtime_services.get(name)
+    return services.get(name)
 
 
 def get_mcp_server(name: str) -> MCPClientConfig | None:

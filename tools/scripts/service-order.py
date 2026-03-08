@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 """
-Parses service plan JSON files to determine startup startup_seq of runtime services:
+Parses service plan JSON files to determine startup startup_seq of services:
 
     1. performs a topological sort based on declared dependencies to ensure
        services are started in a valid sequence
@@ -12,7 +12,7 @@ Usage:
 
 Assumption:
     The input JSON is expected to follow this structure for listing dependencies:
-    runtime_services -> <name> -> depends_on -> services -> [list of service names]
+    services -> <name> -> depends_on -> services -> [list of service names]
 
 Note:
     Arguments are mandatory. If no argument is provided, the script exits
@@ -34,7 +34,7 @@ def main() -> int:
         plan = json.load(handle)
 
     # Extract dependencies into the mapping {service_name: {requirements}}
-    services : dict = plan.get("runtime_services", {})
+    services : dict = plan.get("services", {})
     deps = {
         name: set(entry.get("depends_on", {}).get("services", []))
         for name, entry in services.items()

@@ -172,10 +172,10 @@ Each handler is implemented corresponding to its memory storage backend's underl
 
 - **Storage model:**
 
-    - The backing Qdrant DB runs via `mcp.runtime_services.qdrant_db` on `host_port` (default: `8780`).
-    - The cleanup handler reads the collection name from `mcp.runtime_services.qdrant_mcp.settings.collection` (default: `coding-memory`).
-    - The DB persists data under `mcp.runtime_services.qdrant_db.mounts[*].host_path` (default: `~/.qdrant/storage/`).
-    - The handler connects using `mcp.runtime_services.qdrant_mcp.env.QDRANT_URL` (default: `http://127.0.0.1:${mcp.runtime_services.qdrant_db.host_port}`).
+    - The backing Qdrant DB runs via `mcp.services.qdrant_db` on `host_port` (default: `8780`).
+    - The cleanup handler reads the collection name from `mcp.services.qdrant_mcp.settings.collection` (default: `coding-memory`).
+    - The DB persists data under `mcp.services.qdrant_db.mounts[*].host_path` (default: `~/.qdrant/storage/`).
+    - The handler connects using `mcp.services.qdrant_mcp.env.QDRANT_URL` (default: `http://127.0.0.1:${mcp.services.qdrant_db.host_port}`).
 
 - **Implementation:**
 

@@ -32,19 +32,20 @@ if [[ ! -d "$CLAUDE_SUBAGENTS_DIR" ]]; then
     exit 1
 fi
 
-# Claude-specific processing function
-process_claude_command() {
+# Claude-specific processing function: passed to common role setup orchestration in 
+# setup_roles_for_cli (in roles-setup library)
+create_claude_cmd_from_role() {
     local role_name="$1"
     local target_dir="$2"
     local role_file="$CLAUDE_SUBAGENTS_DIR/${role_name}.md"
 
-    # Skip if file doesn't exist (configuration error)
     if [[ ! -f "$role_file" ]]; then
         log_warning "Role file not found: $role_file (skipping)"
         return 1
     fi
 
-    # Target command file (suffixed to avoid collisions with user-created commands)
+    # Target command file to create (filename is suffixed 
+    # to avoid collisions with user-created commands)
     local command_file="$target_dir/${role_name}-bureau.md"
 
     # Extract content after frontmatter (everything after the second ---)
@@ -67,33 +68,43 @@ Adopt the role and instructions below for this conversation.
 
 ---
 
-$agent_content
+$role_content
 EOF
 
-    print_info "Created /$agent_name -> $command_file"
-    count=$((count + 1))
-done
+    log_info "Created /${role_name}-bureau -> $command_file"
+    return 0
+}
 
-echo ""
-print_success "Generated $count slash commands"
+# Cleanup: remove Bureau commands before re-creating enabled ones
+cleanup_claude_commands() {
+    local target_dir="$1"
+    # Remove current Bureau-suffixed commands
+    remove_roles_by_pattern "$target_dir" "*-bureau.md"
+    # Migration: remove legacy unsuffixed commands that match source catalog
+    local src_basename
+    local legacy_count=0
+    for src in "$CLAUDE_SUBAGENTS_DIR"/*.md; do
+        [[ -f "$src" ]] || continue
+        src_basename="$(basename "$src")"
+        [[ -f "$target_dir/$src_basename" ]] && rm "$target_dir/$src_basename" && legacy_count=$((legacy_count + 1))
+    done
+    if [[ $legacy_count -gt 0 ]]; then
+        log_info "Cleaned up $legacy_count legacy commands"
+    fi
+}
+
+# Run setup using common workflow
+setup_roles_for_cli "Claude Code" "claude" "$HOME/.claude/commands" create_claude_cmd_from_role cleanup_claude_commands
+
 
 # Print usage instructions
 echo ""
 log_success "Setup complete!"
 echo ""
-echo "Usage:"
+echo    "Usage:"
 echo -e "  1. Launch Claude Code: ${BLUE}claude${NC}"
-echo "  2. Use any agent role via slash command:"
+echo -e "  2. Use any agent role via slash command, e.g. ${BLUE}/architect-bureau${NC}"
 echo ""
-echo -e "     ${BLUE}/architect${NC}              - Principal software architect"
-echo -e "     ${BLUE}/frontend${NC}               - Frontend architecture & UX"
-echo -e "     ${BLUE}/observability${NC}          - Monitoring & incident response"
-echo -e "     ${BLUE}/security-compliance${NC}    - Security & privacy architect"
-echo -e "     ${BLUE}/testing${NC}                - Test quality & reliability"
-echo "     ... and more"
-echo ""
-echo -e "  3. List all available commands: ${BLUE}/help${NC}"
-echo ""
-echo "Note: These inject the agent prompt into your current conversation."
-echo "      For isolated subagent tasks, continue using the Task tool."
+echo    "Note: These inject the agent prompt into your current conversation."
+echo -e "      For isolated subagent tasks, use the ${BLUE}Task tool${NC} instead."
 echo ""

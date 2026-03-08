@@ -83,7 +83,7 @@ _agent_display_name() {
     echo ""
 }
 
-# Check if an agent is enabled in directives.yml
+# Check if an agent is enabled in defaults.yml
 # Usage: agent_enabled "Claude Code"
 # Returns: 0 if enabled, 1 if not
 agent_enabled() {
@@ -114,9 +114,9 @@ discover_agents() {
     fi
 
     if [[ -z "$enabled_list" ]]; then
-        log_error "No agents enabled in directives.yml!"
+        log_error "No agents enabled in defaults.yml!"
         echo ""
-        echo "Enable agents by editing directives.yml:"
+        echo "Enable agents by editing defaults.yml:"
         echo ""
         echo "  agents:"
         echo "    - claude"
@@ -138,14 +138,14 @@ discover_agents() {
     done
 
     if [[ ${#AGENTS[@]} -eq 0 ]]; then
-        log_error "No valid agents found in directives.yml configuration"
+        log_error "No valid agents found in defaults.yml configuration"
         exit 1
     fi
 
     # Log detected agents
     local formatted_agents
     formatted_agents=$( (IFS=', '; echo "${AGENTS[*]}") )
-    log_info "Enabled agents (from directives.yml): ${formatted_agents}"
+    log_info "Enabled agents (from defaults.yml): ${formatted_agents}"
 
     return 0
 }

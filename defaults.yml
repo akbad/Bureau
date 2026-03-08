@@ -21,6 +21,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 mcp:
+  # Non-daemon prerequisites (git repos, local files) prepared before services start
   dependencies:
     sourcegraph_repo:
       enabled: true
@@ -36,7 +37,7 @@ mcp:
       kind: file
       path: ~/.claude-mem/claude-mem.db
 
-  runtime_services:
+  services:
     qdrant_db:
       enabled: true
       kind: docker_container
@@ -48,7 +49,7 @@ mcp:
         - host_path: ~/.qdrant/storage
           container_path: /qdrant/storage
       healthcheck:
-        tcp: ${mcp.runtime_services.qdrant_db.host_port}
+        tcp: ${mcp.services.qdrant_db.host_port}
 
     qdrant_mcp:
       enabled: true
@@ -67,13 +68,13 @@ mcp:
         - --transport
         - streamable-http
       env:
-        QDRANT_URL: "http://127.0.0.1:${mcp.runtime_services.qdrant_db.host_port}"
-        COLLECTION_NAME: "${mcp.runtime_services.qdrant_mcp.settings.collection}"
-        EMBEDDING_PROVIDER: "${mcp.runtime_services.qdrant_mcp.settings.embedding_provider}"
-        FASTMCP_SERVER_PORT: "${mcp.runtime_services.qdrant_mcp.port}"
+        QDRANT_URL: "http://127.0.0.1:${mcp.services.qdrant_db.host_port}"
+        COLLECTION_NAME: "${mcp.services.qdrant_mcp.settings.collection}"
+        EMBEDDING_PROVIDER: "${mcp.services.qdrant_mcp.settings.embedding_provider}"
+        FASTMCP_SERVER_PORT: "${mcp.services.qdrant_mcp.port}"
         FASTMCP_SERVER_STATELESS_HTTP: "true"
       healthcheck:
-        tcp: ${mcp.runtime_services.qdrant_mcp.port}
+        tcp: ${mcp.services.qdrant_mcp.port}
 
     sourcegraph_mcp:
       enabled: true
@@ -89,9 +90,9 @@ mcp:
         - sourcegraph-mcp
       env:
         SRC_ENDPOINT: https://sourcegraph.com
-        MCP_STREAMABLE_HTTP_PORT: "${mcp.runtime_services.sourcegraph_mcp.port}"
+        MCP_STREAMABLE_HTTP_PORT: "${mcp.services.sourcegraph_mcp.port}"
       healthcheck:
-        tcp: ${mcp.runtime_services.sourcegraph_mcp.port}
+        tcp: ${mcp.services.sourcegraph_mcp.port}
 
     semgrep_mcp:
       enabled: false
@@ -103,9 +104,9 @@ mcp:
         - -t
         - streamable-http
         - --port
-        - ${mcp.runtime_services.semgrep_mcp.port}
+        - ${mcp.services.semgrep_mcp.port}
       healthcheck:
-        tcp: ${mcp.runtime_services.semgrep_mcp.port}
+        tcp: ${mcp.services.semgrep_mcp.port}
 
     serena_mcp:
       enabled: true
@@ -120,9 +121,9 @@ mcp:
         - --transport
         - streamable-http
         - --port
-        - ${mcp.runtime_services.serena_mcp.port}
+        - ${mcp.services.serena_mcp.port}
       healthcheck:
-        tcp: ${mcp.runtime_services.serena_mcp.port}
+        tcp: ${mcp.services.serena_mcp.port}
 
   client_configs:
     qdrant:
@@ -130,28 +131,28 @@ mcp:
       clients:
         default:
           transport: http
-          url: "http://localhost:${mcp.runtime_services.qdrant_mcp.port}/mcp/"
+          url: "http://localhost:${mcp.services.qdrant_mcp.port}/mcp/"
 
     sourcegraph:
       enabled: true
       clients:
         default:
           transport: http
-          url: "http://localhost:${mcp.runtime_services.sourcegraph_mcp.port}/sourcegraph/mcp/"
+          url: "http://localhost:${mcp.services.sourcegraph_mcp.port}/sourcegraph/mcp/"
 
     semgrep:
       enabled: false
       clients:
         default:
           transport: http
-          url: "http://localhost:${mcp.runtime_services.semgrep_mcp.port}/mcp/"
+          url: "http://localhost:${mcp.services.semgrep_mcp.port}/mcp/"
 
     serena:
       enabled: true
       clients:
         default:
           transport: http
-          url: "http://localhost:${mcp.runtime_services.serena_mcp.port}/mcp/"
+          url: "http://localhost:${mcp.services.serena_mcp.port}/mcp/"
 
     context7:
       enabled: true
