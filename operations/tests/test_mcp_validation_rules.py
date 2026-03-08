@@ -1175,3 +1175,105 @@ class TestAutoDetectedDependencyInfo:
         }}
         info = _info(config)
         assert not any("auto" in i.lower() and "qdrant_mcp" in i for i in info)
+
+
+# ── Integration: W1-W11 ───────────────────────────────────────────
+
+class TestW1W11Integration:
+    """Integration: all W1-W11 fixes work together on a realistic config."""
+
+    def test_realistic_config_with_all_fixes(self):
+        config = {
+            "agents": ["claude", "codex"],
+            "retention_period_for": {"claude_mem": "30d", "serena": "30d", "qdrant": "30d", "memory_mcp": "30d"},
+            "cleanup": {"min_interval": "1h"},
+            "trash": {"grace_period": "7d"},
+            "path_to": {"workspace": "/tmp"},
+            "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
+            "mcp": {
+                "dependencies": {
+                    "base_repo": {"kind": "git_repo", "repo_url": "https://example.com/base.git",
+                                  "path": "/tmp/base", "enabled": True},
+                    "overlay": {"kind": "git_repo", "repo_url": "https://example.com/overlay.git",
+                                "path": "/tmp/overlay", "requires": ["base_repo"]},
+                },
+                "services": {
+                    "qdrant_mcp": {
+                        "kind": "docker_container",
+                        "image": "qdrant/qdrant",
+                        "host_port": 6333,
+                        "container_port": 6333,
+                        "mounts": [{"host_path": "/data/qdrant", "container_path": "/qdrant/storage"}],
+                        "healthcheck": {"tcp": 6333},
+                        "settings": {"collection": "test"},
+                        "enabled": True,
+                    },
+                },
+                "client_configs": {
+                    "qdrant": {
+                        "enabled": True,
+                        "settings": {"collection": "bureau"},
+                        "clients": {
+                            "default": {
+                                "transport": "http",
+                                "url": "http://localhost:${mcp.services.qdrant_mcp.host_port}/",
+                            },
+                        },
+                    },
+                    "sse_server": {
+                        "clients": {
+                            "claude": {
+                                "transport": "sse",
+                                "url": "http://localhost:9000/sse",
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        from operations.validate_config import validate_config
+        result = validate_config(config, add_warnings=True)
+        assert result.errors == [], f"Unexpected errors: {result.errors}"
+
+        # W6: qdrant auto-detected dep on qdrant_mcp
+        assert any("auto-depends" in i and "qdrant_mcp" in i for i in result.info)
+
+        # W8: sse_server has no clients.default
+        assert any("no clients.default" in i and "sse_server" in i for i in result.info)
+
+    def test_all_error_conditions(self):
+        """Config with every error type produces the right errors."""
+        config = {
+            "agents": ["claude"],
+            "retention_period_for": {"claude_mem": "30d", "serena": "30d", "qdrant": "30d", "memory_mcp": "30d"},
+            "cleanup": {"min_interval": "1h"},
+            "trash": {"grace_period": "7d"},
+            "path_to": {"workspace": "/tmp"},
+            "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
+            "mcp": {
+                "dependencies": {
+                    "no_kind": {"path": "/x"},                         # W1: missing kind
+                },
+                "services": {
+                    "bad_svc": {"kind": "http_process", "port": 1,
+                                "command": ["x"], "enabled": "yes"},   # W3: bad enabled type
+                },
+                "client_configs": {
+                    "no_transport": {
+                        "clients": {"default": {"url": "http://x"}},   # W2: missing transport
+                        "settings": [1, 2],                            # W9: bad settings type
+                    },
+                },
+            },
+        }
+        from operations.validate_config import validate_config
+        result = validate_config(config, add_warnings=True)
+        errors = result.errors
+        # W1
+        assert any("missing required field 'kind'" in e for e in errors)
+        # W2
+        assert any("missing required field 'transport'" in e for e in errors)
+        # W3
+        assert any("enabled" in e for e in errors)
+        # W9
+        assert any("settings" in e for e in errors)
