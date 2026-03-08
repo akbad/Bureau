@@ -204,13 +204,14 @@ def main():
         "c": "claude-mem",
         "s": "serena",
         "m": "memory-mcp",
+        "d": "dossiers",
     }
 
     def parse_storage_letters(value: str) -> list[str]:
         letters = list(dict.fromkeys(value.lower()))  # dedupe, preserve order
         invalid = [ch for ch in letters if ch not in STORAGE_MAP]
         if invalid:
-            raise argparse.ArgumentTypeError(f"Invalid storage letter(s): {', '.join(invalid)} (use any of q/c/s/m)")
+            raise argparse.ArgumentTypeError(f"Invalid storage letter(s): {', '.join(invalid)} (use any of q/c/s/m/d)")
         return [STORAGE_MAP[ch] for ch in letters]
 
     parser = argparse.ArgumentParser(
@@ -230,7 +231,7 @@ def main():
         "--storage", "-s",
         type=parse_storage_letters,
         metavar="LETTERS",
-        help="Clean specific storage services by letter: q=Qdrant, c=claude-mem, s=Serena, m=memory-mcp (e.g., -s smq)"
+        help="Clean specific storage services by letter: q=Qdrant, c=claude-mem, s=Serena, m=memory-mcp, d=dossiers (e.g., -s smq)"
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -251,7 +252,7 @@ def main():
         "--wipe",
         nargs="+",
         metavar="STORAGE",
-        help="Completely erase data from storage(s): claude-mem, serena, qdrant, memory-mcp"
+        help="Completely erase data from storage(s): claude-mem, serena, qdrant, memory-mcp, dossiers"
     )
     parser.add_argument(
         "--no-backup",
