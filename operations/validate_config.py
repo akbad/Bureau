@@ -18,9 +18,10 @@ class ConfigurationError(Exception):
 
 @dataclass
 class ValidationResult:
-    """Validation output with errors (hard failures) and warnings (soft)."""
+    """Validation output with errors (hard failures), warnings (soft), and info (advisory)."""
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    info: list[str] = field(default_factory=list)
 
 
 # Required schema for cleanup operations
@@ -46,7 +47,7 @@ REQUIRED_SCHEMA: dict[str, Any] = {
         "docker_daemon": int,  # Seconds to wait for Docker daemon
     },
     "mcp": {
-        "runtime_services": {},
+        "services": {},
         "client_configs": {},
     },
 }
@@ -122,6 +123,19 @@ def validate_config_schema(config: Mapping[str, Any]) -> list[str]:
     return _validate_node(config, REQUIRED_SCHEMA)
 
 
+def validate_legacy_mcp_keys(config: Mapping[str, Any]) -> list[str]:
+    """Reject legacy MCP keys removed by schema migrations."""
+    mcp = config.get("mcp", {})
+    if not isinstance(mcp, dict):
+        return []
+
+    if "runtime_services" in mcp:
+        return [
+            "Unsupported key: 'mcp.runtime_services'."
+        ]
+    return []
+
+
 def validate_and_raise(config: Mapping[str, Any]) -> None:
     """Validate config and raise ConfigurationError if invalid.
 
@@ -132,6 +146,7 @@ def validate_and_raise(config: Mapping[str, Any]) -> None:
         ConfigurationError: If configuration is invalid.
     """
     errors = validate_config_schema(config)
+    errors.extend(validate_legacy_mcp_keys(config))
     if errors:
         error_msg = "Configuration validation failed:\n  - " + "\n  - ".join(errors)
         raise ConfigurationError(error_msg)
@@ -265,6 +280,419 @@ def validate_placeholder_cycles(config: Mapping[str, Any]) -> list[str]:
     return [f"Circular placeholder reference: {c}" for c in _find_graph_cycles(graph)]
 
 
+def _collect_service_dep_graph(config: Mapping[str, Any]) -> dict[str, set[str]]:
+    """Build adjacency list from mcp.services.*.depends_on.services."""
+    graph: dict[str, set[str]] = {}
+    services = config.get("mcp", {}).get("services", {})
+    for name, svc in services.items():
+        if not isinstance(svc, dict):
+            continue
+        depends_on = svc.get("depends_on", {})
+        if not isinstance(depends_on, dict):
+            continue
+        deps = _as_list(depends_on.get("services"))
+        if deps:
+            graph[name] = set(deps)
+    return graph
+
+
+def validate_service_dependency_cycles(config: Mapping[str, Any]) -> list[str]:
+    """Validate that service dependencies don't form cycles."""
+    graph = _collect_service_dep_graph(config)
+    return [
+        f"Circular service dependency: {c}"
+        for c in _find_graph_cycles(graph)
+    ]
+
+
+def _as_list(value: Any) -> list:
+    """Normalize a value to a list (for depends_on entries that might be bare strings)."""
+    if isinstance(value, list):
+        return value
+    if value is None:
+        return []
+    return [value]
+
+
+_OUTER_TYPES: dict[str, type] = {
+    "int": int,
+    "dict": dict,
+    "dict[str,str]": dict,
+    "list[str]": list,
+    "list[dict]": list,
+    "list[list[str]]": list,
+}
+
+
+def _check_type(value: Any, type_tag: str) -> str | None:
+    """Check a value against a type tag string. Returns error message or None.
+
+    Type tags: "int", "dict", "dict[str,str]", "list[str]", "list[dict]", "list[list[str]]"
+    """
+    expected = _OUTER_TYPES.get(type_tag)
+    if expected is None:
+        return None
+
+    # bool is a subclass of int in Python, so True/False would pass without this guard
+    if expected is int and isinstance(value, bool):
+        return "expected int, got bool"
+    if not isinstance(value, expected):
+        return f"expected {type_tag}, got {type(value).__name__}"
+
+    # Inner element validation for compound types
+    if type_tag == "dict[str,str]":
+        for k, v in value.items():
+            if not isinstance(v, str):
+                return f"expected dict[str, str], but value for key '{k}' is {type(v).__name__}"
+    elif type_tag == "list[str]":
+        for i, item in enumerate(value):
+            if not isinstance(item, str):
+                return f"expected list[str], but element [{i}] is {type(item).__name__}"
+    elif type_tag == "list[dict]":
+        for i, item in enumerate(value):
+            if not isinstance(item, dict):
+                return f"expected list[dict], but element [{i}] is {type(item).__name__}"
+    elif type_tag == "list[list[str]]":
+        for i, item in enumerate(value):
+            if not isinstance(item, list):
+                return f"expected list[list[str]], but element [{i}] is {type(item).__name__}"
+            for j, sub in enumerate(item):
+                if not isinstance(sub, str):
+                    return (
+                        f"expected list[list[str]], but element [{i}][{j}] "
+                        f"is {type(sub).__name__}"
+                    )
+    return None
+
+
+def _validate_field_types(
+    entry: dict[str, Any],
+    path: str,
+    type_rules: list[tuple[str, str]],
+) -> ValidationResult:
+    """Validate field value types against declarative rules from mcp_validation_rules.py.
+
+    Skips values that contain ${...} placeholders since their final type
+    depends on expansion (e.g. healthcheck.tcp: ${...} is a string at parse
+    time but resolves to an int).
+    """
+    result = ValidationResult()
+    for field_name, type_tag in type_rules:
+        if field_name not in entry:
+            continue
+        value = entry[field_name]
+        # skip placeholder-bearing strings; type resolves after expansion
+        if isinstance(value, str) and _PLACEHOLDER_REGEX.search(value):
+            continue
+        if error := _check_type(value, type_tag):
+            result.errors.append(f"{path}.{field_name}: {error}")
+    return result
+
+
+def _validate_mounts(
+    entry: dict[str, Any], path: str, result: ValidationResult,
+) -> None:
+    """Validate mounts sub-structure if present and already type-checked as list[dict]."""
+    from .mcp_validation_rules import MOUNT_REQUIRED_KEYS
+
+    mounts = entry.get("mounts")
+    if not isinstance(mounts, list):
+        return
+    for i, mount in enumerate(mounts):
+        if not isinstance(mount, dict):
+            return  # already caught by type rules
+        mount_path = f"{path}.mounts[{i}]"
+        for req in sorted(MOUNT_REQUIRED_KEYS):
+            if req not in mount:
+                result.errors.append(f"{mount_path}: missing required key '{req}'")
+        for key in sorted(set(mount.keys()) - MOUNT_REQUIRED_KEYS):
+            result.warnings.append(f"{mount_path}: unknown key '{key}'")
+
+
+def _validate_healthcheck(
+    entry: dict[str, Any], path: str, result: ValidationResult,
+) -> None:
+    """Validate healthcheck sub-structure if present and already type-checked as dict."""
+    from .mcp_validation_rules import HEALTHCHECK_ALLOWED_KEYS
+
+    hc = entry.get("healthcheck")
+    if not isinstance(hc, dict):
+        return  # already caught by type rules
+    hc_path = f"{path}.healthcheck"
+    for key in sorted(set(hc.keys()) - HEALTHCHECK_ALLOWED_KEYS):
+        result.warnings.append(f"{hc_path}: unknown key '{key}'")
+    # validate tcp field type (int), skip if placeholder
+    tcp = hc.get("tcp")
+    if tcp is not None:
+        if isinstance(tcp, str) and _PLACEHOLDER_REGEX.search(tcp):
+            pass  # placeholder; type resolves after expansion
+        elif isinstance(tcp, bool) or not isinstance(tcp, int):
+            result.errors.append(
+                f"{hc_path}.tcp: expected int, got {type(tcp).__name__}"
+            )
+
+
+def _validate_entry_schema(
+    name: str,
+    entry: Any,
+    path_prefix: str,
+    allowed_keys: set[str],
+    kind_enum: set[str] | None = None,
+    required_by_kind: dict[str, set[str]] | None = None,
+) -> ValidationResult:
+    """Validate a single MCP entry against declarative rules from mcp_validation_rules.py.
+
+    This is a generic engine: bucket-specific validators (e.g. _validate_mcp_dependencies, 
+    _validate_mcp_services, _validate_mcp_client_configs) call this with their 
+    constants one-by-one to validate the config entries in their scope.
+    """
+    from .mcp_validation_rules import DEPENDS_ON_ALLOWED_KEYS
+
+    result = ValidationResult()
+    prefix = f"{path_prefix}.{name}"
+
+    if not isinstance(entry, dict):
+        result.errors.append(f"{prefix}: expected dict, got {type(entry).__name__}")
+        return result
+
+    # unknown keys → warnings (not errors, to allow extension keys)
+    for key in sorted(set(entry.keys()) - allowed_keys):
+        result.warnings.append(f"{prefix}: unknown key '{key}'")
+
+    # kind enum validation → errors
+    if kind_enum is not None and "kind" in entry:
+        kind = entry["kind"]
+        if kind not in kind_enum:
+            result.errors.append(
+                f"{prefix}.kind: '{kind}' not in {sorted(kind_enum)}"
+            )
+
+    # required fields per kind → errors
+    if required_by_kind is not None and "kind" in entry:
+        kind = entry["kind"]
+        for req in sorted(required_by_kind.get(kind, set())):
+            if req not in entry:
+                result.errors.append(
+                    f"{prefix}: missing required field '{req}' for kind '{kind}'"
+                )
+
+    # depends_on sub-key validation → warnings
+    depends_on = entry.get("depends_on")
+    if isinstance(depends_on, dict):
+        for key in sorted(set(depends_on.keys()) - DEPENDS_ON_ALLOWED_KEYS):
+            result.warnings.append(f"{prefix}.depends_on: unknown key '{key}'")
+
+    return result
+
+
+def _validate_mcp_dependencies(config: Mapping[str, Any]) -> ValidationResult:
+    """Validate mcp.dependencies entries: kind enums, required fields, unknown keys, field types."""
+    from .mcp_validation_rules import (
+        DEPENDENCY_ALLOWED_KEYS, DEPENDENCY_KINDS, DEPENDENCY_REQUIRED,
+        DEPENDENCY_TYPE_RULES,
+    )
+
+    result = ValidationResult()
+    deps = config.get("mcp", {}).get("dependencies", {})
+    for name, entry in deps.items():
+        r = _validate_entry_schema(
+            name, entry, "mcp.dependencies",
+            DEPENDENCY_ALLOWED_KEYS, DEPENDENCY_KINDS, DEPENDENCY_REQUIRED,
+        )
+        result.errors.extend(r.errors)
+        result.warnings.extend(r.warnings)
+        # field type validation (only if entry is a dict — non-dict already caught above)
+        if isinstance(entry, dict):
+            t = _validate_field_types(entry, f"mcp.dependencies.{name}", DEPENDENCY_TYPE_RULES)
+            result.errors.extend(t.errors)
+    return result
+
+
+def _validate_mcp_services(config: Mapping[str, Any]) -> ValidationResult:
+    """Validate mcp.services entries: kind enums, required fields, unknown keys, field types."""
+    from .mcp_validation_rules import (
+        SERVICE_ALLOWED_KEYS, SERVICE_KINDS,
+        SERVICE_REQUIRED, SERVICE_TYPE_RULES,
+    )
+
+    result = ValidationResult()
+    services = config.get("mcp", {}).get("services", {})
+    for name, entry in services.items():
+        r = _validate_entry_schema(
+            name, entry, "mcp.services",
+            SERVICE_ALLOWED_KEYS, SERVICE_KINDS, SERVICE_REQUIRED,
+        )
+        result.errors.extend(r.errors)
+        result.warnings.extend(r.warnings)
+        # field type validation + sub-structure checks
+        if isinstance(entry, dict):
+            prefix = f"mcp.services.{name}"
+            t = _validate_field_types(entry, prefix, SERVICE_TYPE_RULES)
+            result.errors.extend(t.errors)
+            _validate_mounts(entry, prefix, result)
+            _validate_healthcheck(entry, prefix, result)
+    return result
+
+
+def _validate_mcp_client_configs(config: Mapping[str, Any]) -> ValidationResult:
+    """Validate mcp.client_configs entries: top-level keys, client entries, transport requirements.
+
+    Client configs have two nesting levels — the top-level entry (enabled, clients, settings, ...)
+    and individual client entries inside clients.* (transport, url, command, ...).  Both are checked.
+    """
+    from .mcp_validation_rules import (
+        CLIENT_CONFIG_ALLOWED_KEYS, CLIENT_CONFIG_TYPE_RULES,
+        CLIENT_ENTRY_ALLOWED_KEYS, CLIENT_ENTRY_TYPE_RULES,
+        CLIENT_TRANSPORT_KINDS, CLIENT_TRANSPORT_REQUIRED,
+        CLIENTS_RESERVED_KEYS,
+    )
+
+    result = ValidationResult()
+    configs = config.get("mcp", {}).get("client_configs", {})
+    for name, entry in configs.items():
+        # validate top-level entry keys (no kind_enum — client_configs don't have kind)
+        r = _validate_entry_schema(name, entry, "mcp.client_configs", CLIENT_CONFIG_ALLOWED_KEYS)
+        result.errors.extend(r.errors)
+        result.warnings.extend(r.warnings)
+
+        if not isinstance(entry, dict):
+            continue
+
+        # top-level field type validation
+        t = _validate_field_types(
+            entry, f"mcp.client_configs.{name}", CLIENT_CONFIG_TYPE_RULES,
+        )
+        result.errors.extend(t.errors)
+
+        clients = entry.get("clients", {})
+        if not isinstance(clients, dict):
+            result.errors.append(
+                f"mcp.client_configs.{name}.clients: expected dict, "
+                f"got {type(clients).__name__}"
+            )
+            continue
+
+        # validate disabled_for if present
+        disabled_for = clients.get("disabled_for")
+        if disabled_for is not None:
+            df_path = f"mcp.client_configs.{name}.clients.disabled_for"
+            if not isinstance(disabled_for, list):
+                result.errors.append(
+                    f"{df_path}: expected list, got {type(disabled_for).__name__}"
+                )
+            else:
+                top_agents = set(config.get("agents", []))
+                for i, val in enumerate(disabled_for):
+                    if not isinstance(val, str):
+                        result.errors.append(
+                            f"{df_path}[{i}]: expected string, "
+                            f"got {type(val).__name__}"
+                        )
+                    elif val not in top_agents:
+                        result.warnings.append(
+                            f"{df_path}: '{val}' is not in the "
+                            f"top-level agents list"
+                        )
+
+        actual_clients = {
+            k: v for k, v in clients.items() if k not in CLIENTS_RESERVED_KEYS
+        }
+        if not actual_clients:
+            result.errors.append(
+                f"mcp.client_configs.{name}.clients: must have at least one client"
+            )
+
+        for client_name, client_cfg in clients.items():
+            if client_name in CLIENTS_RESERVED_KEYS:
+                continue
+            client_path = f"mcp.client_configs.{name}.clients.{client_name}"
+            if not isinstance(client_cfg, dict):
+                result.errors.append(
+                    f"{client_path}: expected dict, got {type(client_cfg).__name__}"
+                )
+                continue
+
+            # unknown client entry keys → warnings
+            for key in sorted(set(client_cfg.keys()) - CLIENT_ENTRY_ALLOWED_KEYS):
+                result.warnings.append(f"{client_path}: unknown key '{key}'")
+
+            # client entry field type validation
+            ct = _validate_field_types(client_cfg, client_path, CLIENT_ENTRY_TYPE_RULES)
+            result.errors.extend(ct.errors)
+
+            # transport enum validation → errors
+            transport = client_cfg.get("transport")
+            if transport is not None and transport not in CLIENT_TRANSPORT_KINDS:
+                result.errors.append(
+                    f"{client_path}.transport: '{transport}' not in "
+                    f"{sorted(CLIENT_TRANSPORT_KINDS)}"
+                )
+
+            # transport-required fields → errors
+            if transport:
+                for req in sorted(CLIENT_TRANSPORT_REQUIRED.get(transport, set())):
+                    if req not in client_cfg:
+                        result.errors.append(
+                            f"{client_path}: missing required field '{req}' "
+                            f"for transport '{transport}'"
+                        )
+
+    return result
+
+
+def _validate_cross_references(config: Mapping[str, Any]) -> ValidationResult:
+    """Validate that depends_on references point to declared entries.
+
+    Checks both services and client_configs depends_on blocks.
+    Mismatches produce warnings (not errors) because the reference might
+    come from a conditionally-loaded config layer.
+    """
+    result = ValidationResult()
+    mcp = config.get("mcp", {})
+    declared_services = set(mcp.get("services", {}).keys())
+    declared_deps = set(mcp.get("dependencies", {}).keys())
+
+    # check references in services
+    for name, svc in mcp.get("services", {}).items():
+        if not isinstance(svc, dict):
+            continue
+        depends_on = svc.get("depends_on", {})
+        if not isinstance(depends_on, dict):
+            continue
+        for ref in _as_list(depends_on.get("services")):
+            if ref not in declared_services:
+                result.warnings.append(
+                    f"mcp.services.{name}.depends_on.services: "
+                    f"'{ref}' does not match any declared service"
+                )
+        for ref in _as_list(depends_on.get("dependencies")):
+            if ref not in declared_deps:
+                result.warnings.append(
+                    f"mcp.services.{name}.depends_on.dependencies: "
+                    f"'{ref}' does not match any declared dependency"
+                )
+
+    # check references in client_configs
+    for name, entry in mcp.get("client_configs", {}).items():
+        if not isinstance(entry, dict):
+            continue
+        depends_on = entry.get("depends_on", {})
+        if not isinstance(depends_on, dict):
+            continue
+        for ref in _as_list(depends_on.get("services")):
+            if ref not in declared_services:
+                result.warnings.append(
+                    f"mcp.client_configs.{name}.depends_on.services: "
+                    f"'{ref}' does not match any declared service"
+                )
+        for ref in _as_list(depends_on.get("dependencies")):
+            if ref not in declared_deps:
+                result.warnings.append(
+                    f"mcp.client_configs.{name}.depends_on.dependencies: "
+                    f"'{ref}' does not match any declared dependency"
+                )
+
+    return result
 
 
 def validate_mcp_rules(config: Mapping[str, Any]) -> ValidationResult:
@@ -276,13 +704,14 @@ def validate_mcp_rules(config: Mapping[str, Any]) -> ValidationResult:
     result = ValidationResult()
     for validator in (
         _validate_mcp_dependencies,
-        _validate_mcp_runtime_services,
+        _validate_mcp_services,
         _validate_mcp_client_configs,
         _validate_cross_references,
     ):
         r = validator(config)
         result.errors.extend(r.errors)
         result.warnings.extend(r.warnings)
+        result.info.extend(r.info)
     return result
 
 
@@ -303,6 +732,7 @@ def validate_config(config: Mapping[str, Any], add_warnings: bool = False) -> Va
         List of all error messages.
     """
     errors = validate_config_schema(config)
+    errors.extend(validate_legacy_mcp_keys(config))
 
     # only run deeper checks if structure is valid
     if errors:
@@ -316,7 +746,7 @@ def validate_config(config: Mapping[str, Any], add_warnings: bool = False) -> Va
     validation_result = validate_mcp_rules(config)
     errors.extend(validation_result.errors)
 
-    return ValidationResult(errors=errors, warnings=validation_result.warnings) if add_warnings else errors
+    return ValidationResult(errors=errors, warnings=validation_result.warnings, info=validation_result.info) if add_warnings else errors
 
 
 def main() -> int:
@@ -334,6 +764,10 @@ def main() -> int:
         return 1
 
     result = validate_config(config, add_warnings=True)
+
+    if result.info:
+        for i in result.info:
+            print(f"  \u2139 {i}", file=sys.stderr)
 
     if result.warnings:
         for w in result.warnings:
