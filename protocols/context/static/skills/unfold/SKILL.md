@@ -175,10 +175,12 @@ You now have **exclusive write access** to this dossier file. No other agent sho
    - `parent: <original-hash>` added to frontmatter to track lineage
    - `locked_by: null` (forks start unlocked)
    - All other content copied verbatim from the original
-4. Copy the task database:
+4. Copy the task database (if it exists):
 
 ```bash
-cp ~/.config/bureau/dossiers/<original-slug>.tasks.db ~/.config/bureau/dossiers/<new-slug>.tasks.db
+if [ -f ~/.config/bureau/dossiers/<original-slug>.tasks.db ]; then
+    cp ~/.config/bureau/dossiers/<original-slug>.tasks.db ~/.config/bureau/dossiers/<new-slug>.tasks.db
+fi
 ```
 
 5. Inform the user:
@@ -187,6 +189,8 @@ cp ~/.config/bureau/dossiers/<original-slug>.tasks.db ~/.config/bureau/dossiers/
 Forked dossier <original-hash> → <new-hash> (<new-slug>).
 Task database copied. You can now work on this fork independently.
 ```
+
+If the original had no task database, note this: "No task database found in original — fork has dossier content only."
 
 #### If no flag (default)
 
@@ -308,6 +312,17 @@ If the dossier was claimed (`--claim`), also remind:
 ```
 This dossier is still locked by you. It will be unlocked when you fold, or you can release it manually.
 ```
+
+### Releasing a lock manually
+
+To release a lock without folding, edit the dossier file's YAML frontmatter and set:
+
+```yaml
+locked_by: null
+locked_at: null
+```
+
+Update the `updated` timestamp to the current time as well. This frees the dossier for other agents to claim.
 
 ---
 

@@ -25,7 +25,7 @@ from ...config_loader import get_trash_grace_period
 DOSSIERS_DIR = Path(os.path.expanduser("~/.config/bureau/dossiers"))
 
 # Regex to extract YAML frontmatter block delimited by ---
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
+_FRONTMATTER_RE = re.compile(r"^---\s*\r?\n(.*?)\r?\n---", re.DOTALL)
 # Regex to find the 'updated:' line within frontmatter
 _UPDATED_RE = re.compile(r"^updated:\s*(.+)$", re.MULTILINE)
 
