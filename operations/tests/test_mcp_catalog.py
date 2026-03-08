@@ -423,3 +423,73 @@ class TestDependencyRequiresOrdering:
         result = resolve_mcp_catalog(config, env={})
         assert "x" in result["dependencies"]
         assert "y" in result["dependencies"]
+
+
+class TestAutoDetectedDependencyResolution:
+    """W6: auto-detected deps affect enablement gating in resolution."""
+
+    def test_client_config_skipped_when_inferred_service_disabled(self):
+        """If qdrant client_config references qdrant_mcp service via placeholder,
+        and qdrant_mcp is disabled, qdrant should be skipped even without explicit depends_on."""
+        config = {
+            "mcp": {
+                "services": {
+                    "qdrant_mcp": {"kind": "docker_container", "image": "qdrant",
+                                   "host_port": 6333, "container_port": 6333,
+                                   "enabled": False},
+                },
+                "client_configs": {
+                    "qdrant": {"clients": {"default": {
+                        "transport": "http",
+                        "url": "http://localhost:${mcp.services.qdrant_mcp.host_port}/",
+                    }}},
+                },
+                "dependencies": {},
+            }
+        }
+        result = resolve_mcp_catalog(config, env={})
+        assert "qdrant" not in result["client_configs"]
+
+    def test_client_config_kept_when_inferred_service_enabled(self):
+        config = {
+            "mcp": {
+                "services": {
+                    "qdrant_mcp": {"kind": "docker_container", "image": "qdrant",
+                                   "host_port": 6333, "container_port": 6333},
+                },
+                "client_configs": {
+                    "qdrant": {"clients": {"default": {
+                        "transport": "http",
+                        "url": "http://localhost:${mcp.services.qdrant_mcp.host_port}/",
+                    }}},
+                },
+                "dependencies": {},
+            }
+        }
+        result = resolve_mcp_catalog(config, env={})
+        assert "qdrant" in result["client_configs"]
+
+    def test_explicit_depends_on_unions_with_inferred(self):
+        """Explicit depends_on adds to inferred, never subtracts."""
+        config = {
+            "mcp": {
+                "services": {
+                    "svc_a": {"kind": "http_process", "port": 1, "command": ["x"]},
+                    "svc_b": {"kind": "http_process", "port": 2, "command": ["y"],
+                              "enabled": False},
+                },
+                "client_configs": {
+                    "client": {
+                        "depends_on": {"services": ["svc_b"]},
+                        "clients": {"default": {
+                            "transport": "http",
+                            "url": "http://localhost:${mcp.services.svc_a.port}/",
+                        }},
+                    },
+                },
+                "dependencies": {},
+            }
+        }
+        result = resolve_mcp_catalog(config, env={})
+        # svc_b disabled → explicit dep fails → client skipped
+        assert "client" not in result["client_configs"]

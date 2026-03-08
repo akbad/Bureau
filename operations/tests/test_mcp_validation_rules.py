@@ -1102,3 +1102,76 @@ class TestMissingDefaultClient:
         }}}
         info = _info(config)
         assert not any("clients.default" in i for i in info)
+
+
+class TestInferRequires:
+    """W6: auto-detect dependencies from placeholder references."""
+
+    def test_infer_service_dep_from_placeholder(self):
+        from operations.validate_config import _infer_requires
+        entry = {"clients": {"default": {"url": "http://localhost:${mcp.services.qdrant_mcp.host_port}/"}}}
+        result = _infer_requires("qdrant", "client_configs", entry)
+        assert "qdrant_mcp" in result["services"]
+
+    def test_infer_dependency_dep_from_placeholder(self):
+        from operations.validate_config import _infer_requires
+        entry = {"command": ["--repo", "${mcp.dependencies.my_repo.path}"]}
+        result = _infer_requires("svc", "services", entry)
+        assert "my_repo" in result["dependencies"]
+
+    def test_no_self_reference(self):
+        from operations.validate_config import _infer_requires
+        entry = {"url": "http://localhost:${mcp.services.self_svc.port}"}
+        result = _infer_requires("self_svc", "services", entry)
+        assert "self_svc" not in result["services"]
+
+    def test_no_placeholder_returns_empty(self):
+        from operations.validate_config import _infer_requires
+        entry = {"url": "http://localhost:8080"}
+        result = _infer_requires("svc", "client_configs", entry)
+        assert result == {"services": [], "dependencies": []}
+
+    def test_multiple_refs_deduplicated(self):
+        from operations.validate_config import _infer_requires
+        entry = {
+            "url": "http://${mcp.services.a.host}:${mcp.services.a.port}",
+            "extra": "${mcp.services.b.port}",
+        }
+        result = _infer_requires("svc", "client_configs", entry)
+        assert sorted(result["services"]) == ["a", "b"]
+
+
+class TestAutoDetectedDependencyInfo:
+    """W6: info messages for auto-detected dependencies."""
+
+    def test_auto_detected_service_dep_produces_info(self):
+        config = {"mcp": {
+            "services": {"qdrant_mcp": {"kind": "docker_container", "image": "qdrant",
+                         "host_port": 6333, "container_port": 6333}},
+            "client_configs": {
+                "qdrant": {"clients": {"default": {
+                    "transport": "http",
+                    "url": "http://localhost:${mcp.services.qdrant_mcp.host_port}/",
+                }}},
+            },
+        }}
+        info = _info(config)
+        assert any("qdrant" in i and "qdrant_mcp" in i and "auto" in i.lower() for i in info)
+
+    def test_explicit_dep_no_duplicate_info(self):
+        """If depends_on already declares the dep, no info message needed."""
+        config = {"mcp": {
+            "services": {"qdrant_mcp": {"kind": "docker_container", "image": "qdrant",
+                         "host_port": 6333, "container_port": 6333}},
+            "client_configs": {
+                "qdrant": {
+                    "depends_on": {"services": ["qdrant_mcp"]},
+                    "clients": {"default": {
+                        "transport": "http",
+                        "url": "http://localhost:${mcp.services.qdrant_mcp.host_port}/",
+                    }},
+                },
+            },
+        }}
+        info = _info(config)
+        assert not any("auto" in i.lower() and "qdrant_mcp" in i for i in info)

@@ -5,6 +5,7 @@ from typing import Any, Mapping
 
 from .config_templating import expand_placeholders
 from .mcp_validation_rules import CLIENTS_RESERVED_KEYS
+from .validate_config import _infer_requires
 
 
 def _has_required_env(req: list[str], env: Mapping[str, str]) -> bool:
@@ -120,14 +121,20 @@ def resolve_mcp_catalog(
         if not svc.get("enabled", True):
             continue
 
+        # W6: merge auto-inferred dependency deps from placeholders
+        inferred = _infer_requires(name, "services", svc)
+
         depends_on = svc.get("depends_on", {})
         if isinstance(depends_on, dict):
-            # Check dependency (git repo / file storage) deps
             dep_deps = depends_on.get("dependencies", [])
             if not isinstance(dep_deps, list):
                 dep_deps = [dep_deps]
-            if any(dep not in enabled_dependencies for dep in dep_deps):
-                continue
+        else:
+            dep_deps = []
+        dep_deps = list(set(dep_deps) | set(inferred["dependencies"]))
+
+        if any(dep not in enabled_dependencies for dep in dep_deps):
+            continue
 
         candidates[name] = svc
 
@@ -167,23 +174,32 @@ def resolve_mcp_catalog(
         if requires_env and not _has_required_env(requires_env, env):
             continue
 
+        # W6: merge auto-inferred dependencies from placeholders
+        inferred = _infer_requires(name, "client_configs", entry)
+
         depends_on = entry.get("depends_on", {})
-        if isinstance(depends_on, dict):
+        if not isinstance(depends_on, dict):
+            depends_on = {}
+        else:
             depends_on = _expand_strings(depends_on, config_with_deps, env)
 
-            # Check services dependencies
-            service_deps = depends_on.get("services", [])
-            if not isinstance(service_deps, list):
-                service_deps = [service_deps]
-            if any(dep not in enabled_services for dep in service_deps):
-                continue
+        # Union explicit + inferred service deps
+        service_deps = depends_on.get("services", [])
+        if not isinstance(service_deps, list):
+            service_deps = [service_deps]
+        service_deps = list(set(service_deps) | set(inferred["services"]))
 
-            # Check dependency dependencies
-            dep_deps = depends_on.get("dependencies", [])
-            if not isinstance(dep_deps, list):
-                dep_deps = [dep_deps]
-            if any(dep not in enabled_dependencies for dep in dep_deps):
-                continue
+        if any(dep not in enabled_services for dep in service_deps):
+            continue
+
+        # Union explicit + inferred dependency deps
+        dep_deps = depends_on.get("dependencies", [])
+        if not isinstance(dep_deps, list):
+            dep_deps = [dep_deps]
+        dep_deps = list(set(dep_deps) | set(inferred["dependencies"]))
+
+        if any(dep not in enabled_dependencies for dep in dep_deps):
+            continue
 
         clients = entry.get("clients", {})
         resolved_clients: dict[str, Any] = {}

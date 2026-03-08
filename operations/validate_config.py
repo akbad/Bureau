@@ -4,11 +4,53 @@ Validates that all required configuration fields are present before
 cleanup operations run. This prevents silent failures due to missing keys
 or unsupported values.
 """
+import re
 import sys
 from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping, overload
 
 from .config_templating import _PLACEHOLDER_REGEX
+
+# Regex to extract bucket and name from MCP placeholder references.
+# Matches: ${mcp.<bucket>.<name>.<field>}
+_MCP_REF_REGEX = re.compile(
+    r"\$\{mcp\.(services|dependencies|client_configs)\.([^.}]+)\.[^}]+\}"
+)
+
+
+def _collect_mcp_refs(node: Any, refs: dict[str, set[str]]) -> None:
+    """Recursively collect ${mcp.<bucket>.<name>} references from values."""
+    if isinstance(node, str):
+        for match in _MCP_REF_REGEX.finditer(node):
+            bucket, name = match.group(1), match.group(2)
+            if bucket in refs:
+                refs[bucket].add(name)
+    elif isinstance(node, list):
+        for item in node:
+            _collect_mcp_refs(item, refs)
+    elif isinstance(node, dict):
+        for value in node.values():
+            _collect_mcp_refs(value, refs)
+
+
+def _infer_requires(
+    entry_name: str, entry_bucket: str, entry_data: Any,
+) -> dict[str, list[str]]:
+    """Infer dependencies from ${mcp.<bucket>.<name>.<field>} placeholders.
+
+    Walks all string values recursively, extracts references, filters out
+    self-references, and returns deduplicated sorted lists.
+    """
+    refs: dict[str, set[str]] = {"services": set(), "dependencies": set()}
+    _collect_mcp_refs(entry_data, refs)
+
+    # filter self-references
+    if entry_bucket == "services" and entry_name in refs["services"]:
+        refs["services"].discard(entry_name)
+    if entry_bucket == "dependencies" and entry_name in refs["dependencies"]:
+        refs["dependencies"].discard(entry_name)
+
+    return {k: sorted(v) for k, v in refs.items()}
 
 
 class ConfigurationError(Exception):
@@ -759,6 +801,42 @@ def _validate_cross_references(config: Mapping[str, Any]) -> ValidationResult:
                 result.warnings.append(
                     f"mcp.client_configs.{name}.depends_on.dependencies: "
                     f"'{ref}' does not match any declared dependency"
+                )
+
+    # W6: auto-detect dependencies from placeholders → info messages
+    for name, entry in mcp.get("services", {}).items():
+        if not isinstance(entry, dict):
+            continue
+        inferred = _infer_requires(name, "services", entry)
+        explicit_deps = set()
+        depends_on = entry.get("depends_on", {})
+        if isinstance(depends_on, dict):
+            explicit_deps.update(_as_list(depends_on.get("dependencies", [])))
+        for ref in inferred["dependencies"]:
+            if ref not in explicit_deps:
+                result.info.append(
+                    f"mcp.services.{name} auto-depends on dependencies.{ref} (via placeholder)"
+                )
+
+    for name, entry in mcp.get("client_configs", {}).items():
+        if not isinstance(entry, dict):
+            continue
+        inferred = _infer_requires(name, "client_configs", entry)
+        explicit_svcs = set()
+        explicit_deps = set()
+        depends_on = entry.get("depends_on", {})
+        if isinstance(depends_on, dict):
+            explicit_svcs.update(_as_list(depends_on.get("services", [])))
+            explicit_deps.update(_as_list(depends_on.get("dependencies", [])))
+        for ref in inferred["services"]:
+            if ref not in explicit_svcs:
+                result.info.append(
+                    f"mcp.client_configs.{name} auto-depends on services.{ref} (via placeholder)"
+                )
+        for ref in inferred["dependencies"]:
+            if ref not in explicit_deps:
+                result.info.append(
+                    f"mcp.client_configs.{name} auto-depends on dependencies.{ref} (via placeholder)"
                 )
 
     return result
