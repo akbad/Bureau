@@ -159,6 +159,27 @@ class MCPConfig(TypedDict, total=False):
     runtime_services: dict[str, MCPRuntimeServiceConfig]
     client_configs: dict[str, MCPClientConfig]
 
+
+class ConversationsConciergeConfig(TypedDict, total=False):
+    """Concierge-specific dossier behaviors."""
+
+    auto_offer_resume: bool
+    auto_offer_save: bool
+    notify_task_updates: bool
+    notify_interval: str
+
+
+class ConversationsConfig(TypedDict, total=False):
+    """Dossiers: cross-agent conversation continuity configuration."""
+
+    save: str                                   # command verb, default "fold"
+    resume: str                                 # command verb, default "unfold"
+    storage_dir: str                            # default "~/.config/bureau/dossiers"
+    stale_dossier_days: int                     # cleanup threshold, default 30
+    concierge: ConversationsConciergeConfig
+    keywords: dict[str, list[str]]
+
+
 # root-level config-modeling object
 class Config(TypedDict, total=False):
     agents: list[str]
@@ -169,6 +190,7 @@ class Config(TypedDict, total=False):
     path_to: PathToConfig
     roles: NativeAgentsConfig
     mcp: MCPConfig
+    conversations: ConversationsConfig
 
 
 def find_repo_root(start_path: Path | None = None) -> Path:
@@ -550,6 +572,12 @@ def get_qdrant_collection() -> str:
     if not collection:
         return ""
     return expand_placeholders(str(collection), get_config(), os.environ)
+
+
+def get_conversations_config() -> ConversationsConfig:
+    """Get conversations (dossiers) configuration."""
+    config = get_config()
+    return config.get("conversations", {})
 
 
 # Duration parsing (moved from cleanup/config.py)
