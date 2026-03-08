@@ -25,6 +25,11 @@ def _warnings(config: dict) -> list[str]:
     return validate_mcp_rules(config).warnings
 
 
+def _info(config: dict) -> list[str]:
+    """Shortcut: extract only info from validate_mcp_rules."""
+    return validate_mcp_rules(config).info
+
+
 # ── Dependency kind validation ──────────────────────────────────────
 
 class TestDependencyKindValidation:
@@ -1025,3 +1030,30 @@ class TestInfoTier:
             "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
             "mcp": {"services": {}, "client_configs": {}},
         }
+
+
+class TestMissingDefaultClient:
+    """W8: info message when clients.default is absent."""
+
+    def test_no_default_client_produces_info(self):
+        config = {"mcp": {"client_configs": {
+            "svc": {"clients": {"claude": {"transport": "http", "url": "http://localhost"}}},
+        }}}
+        info = _info(config)
+        assert any("no clients.default" in i for i in info)
+        assert any("svc" in i for i in info)
+
+    def test_default_client_present_no_info(self):
+        config = {"mcp": {"client_configs": {
+            "svc": {"clients": {"default": {"transport": "http", "url": "http://localhost"}}},
+        }}}
+        info = _info(config)
+        assert not any("clients.default" in i for i in info)
+
+    def test_no_clients_key_no_info(self):
+        """No clients dict at all — different error, not this info message."""
+        config = {"mcp": {"client_configs": {
+            "svc": {"enabled": True},
+        }}}
+        info = _info(config)
+        assert not any("clients.default" in i for i in info)

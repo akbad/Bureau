@@ -619,6 +619,13 @@ def _validate_mcp_client_configs(config: Mapping[str, Any]) -> ValidationResult:
                 f"mcp.client_configs.{name}.clients: must have at least one client"
             )
 
+        # W8: info when clients.default is absent
+        if actual_clients and "default" not in clients:
+            result.info.append(
+                f"mcp.client_configs.{name} has no clients.default — "
+                f"agents without a specific override will skip this server"
+            )
+
         for client_name, client_cfg in clients.items():
             if client_name in CLIENTS_RESERVED_KEYS:
                 continue
