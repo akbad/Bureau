@@ -625,9 +625,16 @@ def _validate_mcp_client_configs(config: Mapping[str, Any]) -> ValidationResult:
             ct = _validate_field_types(client_cfg, client_path, CLIENT_ENTRY_TYPE_RULES)
             result.errors.extend(ct.errors)
 
-            # transport enum validation → errors
+            # transport required → error (W2)
             transport = client_cfg.get("transport")
-            if transport is not None and transport not in CLIENT_TRANSPORT_KINDS:
+            if transport is None:
+                result.errors.append(
+                    f"{client_path}: missing required field 'transport'"
+                )
+                continue  # skip transport-dependent checks
+
+            # transport enum validation → errors
+            if transport not in CLIENT_TRANSPORT_KINDS:
                 result.errors.append(
                     f"{client_path}.transport: '{transport}' not in "
                     f"{sorted(CLIENT_TRANSPORT_KINDS)}"

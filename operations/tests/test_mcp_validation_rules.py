@@ -711,15 +711,15 @@ class TestTransportEnumValidation:
         errors = _errors(config)
         assert any("transport" in e and "'sse'" in e for e in errors)
 
-    def test_missing_transport_produces_no_error(self):
-        """Client entry without transport field should not trigger enum error."""
+    def test_missing_transport_produces_error(self):
+        """Client entry without transport field should trigger required error (W2)."""
         config = {"mcp": {"client_configs": {
             "srv": {"clients": {
                 "default": {"url": "http://x"},
             }},
         }}}
         errors = _errors(config)
-        assert not any("transport" in e for e in errors)
+        assert any("missing required field 'transport'" in e for e in errors)
 
 
 # ── Cross-reference validation ─────────────────────────────────────
@@ -855,6 +855,24 @@ class TestKindRequired:
         }}}
         errors = _errors(config)
         assert not any("kind" in e for e in errors)
+
+
+class TestTransportRequired:
+    """W2: transport is required for client entries."""
+
+    def test_client_missing_transport_produces_error(self):
+        config = {"mcp": {"client_configs": {
+            "svc": {"clients": {"default": {"url": "http://localhost"}}},
+        }}}
+        errors = _errors(config)
+        assert any("missing required field 'transport'" in e for e in errors)
+
+    def test_client_with_transport_is_fine(self):
+        config = {"mcp": {"client_configs": {
+            "svc": {"clients": {"default": {"transport": "http", "url": "http://localhost"}}},
+        }}}
+        errors = _errors(config)
+        assert not any("transport" in e for e in errors)
 
 
 class TestInfoTier:
