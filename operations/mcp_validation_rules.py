@@ -30,9 +30,10 @@ SERVICE_REQUIRED: dict[str, set[str]] = {
     "http_process": {"port", "command"},
 }
 
-# Fields that must be present for each client_config transport type (http, stdio)
+# Fields that must be present for each client_config transport type (http, sse, stdio)
 CLIENT_TRANSPORT_REQUIRED: dict[str, set[str]] = {
     "http": {"url"},
+    "sse": {"url"},
     "stdio": {"command"},
 }
 
@@ -75,7 +76,7 @@ CLIENTS_RESERVED_KEYS: set[str] = {"disabled_for"}
 # ── Transport enum ─────────────────────────────────────────────────
 
 # Valid values for client entry transport field
-CLIENT_TRANSPORT_KINDS: set[str] = {"http", "stdio"}
+CLIENT_TRANSPORT_KINDS: set[str] = {"http", "sse", "stdio"}
 
 # ── Field type rules ───────────────────────────────────────────────
 # Declarative (field_name, type_tag) tuples consumed by _validate_field_types().

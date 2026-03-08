@@ -705,11 +705,11 @@ class TestTransportEnumValidation:
     def test_unknown_transport_produces_error(self):
         config = {"mcp": {"client_configs": {
             "srv": {"clients": {
-                "default": {"transport": "sse", "url": "http://x"},
+                "default": {"transport": "grpc", "url": "http://x"},
             }},
         }}}
         errors = _errors(config)
-        assert any("transport" in e and "'sse'" in e for e in errors)
+        assert any("transport" in e and "'grpc'" in e for e in errors)
 
     def test_missing_transport_produces_error(self):
         """Client entry without transport field should trigger required error (W2)."""
@@ -720,6 +720,26 @@ class TestTransportEnumValidation:
         }}}
         errors = _errors(config)
         assert any("missing required field 'transport'" in e for e in errors)
+
+
+# ── SSE transport ──────────────────────────────────────────────────
+
+class TestSseTransport:
+    """W4: sse is a valid transport."""
+
+    def test_sse_transport_is_valid(self):
+        config = {"mcp": {"client_configs": {
+            "svc": {"clients": {"default": {"transport": "sse", "url": "http://localhost/sse"}}},
+        }}}
+        errors = _errors(config)
+        assert not any("transport" in e for e in errors)
+
+    def test_sse_requires_url(self):
+        config = {"mcp": {"client_configs": {
+            "svc": {"clients": {"default": {"transport": "sse"}}},
+        }}}
+        errors = _errors(config)
+        assert any("url" in e and "sse" in e for e in errors)
 
 
 # ── Cross-reference validation ─────────────────────────────────────
