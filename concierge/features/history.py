@@ -7,10 +7,18 @@ with one JSON object per line::
      "surfaced_at": "2026-03-07T12:00:00+00:00", "outcome": "engaged"}
 """
 
+# Design rationale:
+# JSONL-based feature history for tracking when features were surfaced and their
+# outcomes, enabling frequency and recency queries for scheduling decisions.
+# Uses flat-file JSONL for simplicity and append-only writes; queries filter
+# in-memory since history size is bounded by practical surfacing rates.
+# Key invariants: all timestamps are ISO-8601 UTC-aware; missing files yield
+# empty history.
+
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 _HISTORY_FILENAME = "feature_history.jsonl"
@@ -53,7 +61,7 @@ def count_in_period(
     history: list[dict], now: datetime, period_hours: float
 ) -> int:
     """Count entries within the last *period_hours* hours."""
-    cutoff = now - __import__("datetime").timedelta(hours=period_hours)
+    cutoff = now - timedelta(hours=period_hours)
     return sum(
         1
         for e in history

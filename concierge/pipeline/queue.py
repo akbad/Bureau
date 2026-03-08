@@ -4,6 +4,13 @@ Uses ``pqdict`` (a min-heap priority queue dict) internally.  Priorities are
 negated so that **higher** logical priority is dequeued first.
 """
 
+# Design rationale:
+# Bounded min-heap priority queue with time-based aging and eviction for
+# ordering feature candidates before delivery.
+# Uses pqdict with negated priorities so that pqdict's min-heap yields the
+# highest logical priority first; eviction scans for the max (lowest priority).
+# Key invariants: queue size never exceeds max_size; all timestamps are UTC-aware.
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -74,6 +81,8 @@ class PriorityQueue:
             # to the *lowest* logical priority.  pqdict.top() returns the
             # *minimum* stored value (highest real priority), so we must
             # search for the maximum stored value to find the worst item.
+            # O(n) scan acceptable for small bounded queues (max_size typically <= 10);
+            # pqdict.top() returns the min (highest-priority in negated scheme), not the max
             worst_id = max(self._pq, key=self._pq.__getitem__)
             worst_priority = -self._pq[worst_id]
             if priority <= worst_priority:
@@ -122,13 +131,10 @@ class PriorityQueue:
 
     def expire_stale(self) -> list[QueueItem]:
         """Remove items older than *max_age_hours*.  Return expired items."""
-        now_aware = datetime.now(timezone.utc)
-        now_naive = datetime.now()
+        now = datetime.now(timezone.utc)
         expired: list[QueueItem] = []
         for item_id in list(self._pq):
             item = self._items[item_id]
-            # Support both tz-aware and tz-naive queued_at timestamps.
-            now = now_aware if item.queued_at.tzinfo is not None else now_naive
             age_hours = (now - item.queued_at).total_seconds() / 3600
             if age_hours > self.max_age_hours:
                 del self._pq[item_id]

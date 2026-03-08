@@ -1,6 +1,6 @@
 """Tests for the priority queue with aging and eviction."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from concierge.models import FeatureCandidate, FeatureType, QueueItem
 from concierge.pipeline.queue import PriorityQueue
@@ -47,7 +47,7 @@ class TestPriorityQueue:
         q.add(self._make_candidate(), priority=0.5)
         # Manually backdate the item
         for item in q:
-            item.queued_at = datetime.now() - timedelta(hours=2)
+            item.queued_at = datetime.now(timezone.utc) - timedelta(hours=2)
         expired = q.expire_stale()
         assert len(expired) == 1
         assert len(q) == 0

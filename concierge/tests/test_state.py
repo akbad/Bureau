@@ -23,15 +23,15 @@ class TestSessionStatePersistence:
         assert loaded.recent_classifications == []
 
     def test_roundtrip_with_all_fields(self, tmp_data_dir):
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         state = SessionState(
             current_suite=Suite.PROCESSING,
-            suite_since=datetime(2026, 3, 7, 10, 0),
+            suite_since=datetime(2026, 3, 7, 10, 0, tzinfo=timezone.utc),
             active_feature=FeatureType.HUDDLE,
             active_feature_id="huddle_123",
-            feature_started_at=datetime(2026, 3, 7, 10, 5),
-            last_message_at=datetime(2026, 3, 7, 10, 10),
+            feature_started_at=datetime(2026, 3, 7, 10, 5, tzinfo=timezone.utc),
+            last_message_at=datetime(2026, 3, 7, 10, 10, tzinfo=timezone.utc),
             processing_cooldown_remaining=3,
         )
         state.record_classification(MessageClass.CONVERSE)
