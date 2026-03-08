@@ -11,13 +11,23 @@ learns about the user.  There are six huddle types:
 - **check-in**: periodic catch-up (every 90 days)
 """
 
+# Design rationale:
+# Manages multi-turn structured conversations that onboard and periodically
+# re-engage the user. A dataclass tracks state so huddles can survive across
+# session boundaries without requiring a database.
+# Key invariant: at most one huddle is active per session; candidate evaluation
+# gates on active_feature to prevent overlapping huddles.
+
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from concierge.models import FeatureCandidate, FeatureType, MessageEnvelope, SessionState
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -198,8 +208,8 @@ def evaluate_huddle_candidates(
                         metadata={"huddle_type": "check-in"},
                     )
                 )
-        except (ValueError, OSError):
-            pass  # Malformed or unreadable file — skip
+        except (ValueError, OSError) as exc:
+            logger.warning("Malformed or unreadable check-in file, skipping: %s", exc)
 
     # --- Trigger 3: goals (3+ topic files, no goals.md) ---
     topics_dir = data_dir / "topics"

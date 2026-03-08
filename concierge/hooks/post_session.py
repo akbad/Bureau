@@ -1,12 +1,23 @@
 """Post-session hook -- extracts memories and updates state after each session."""
+
+# Design rationale:
+# Runs after every session to persist noteworthy facts (preferences, people,
+# plans) extracted from the conversation transcript. V1 uses regex pattern
+# matching; production would use LLM extraction.
+# Key invariant: extraction never fails the session -- missing topic files
+# are warned about but silently skipped so the user experience is unaffected.
+
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 from concierge.memory.writer import append_raw_entry, append_auto_entry
+
+logger = logging.getLogger(__name__)
 
 
 def extract_memories(
@@ -35,6 +46,8 @@ def extract_memories(
         if topic_path.is_file():
             append_raw_entry(topic_path, pref["entry"])
             results["preferences"] += 1
+        else:
+            logger.warning("Topic file not found, preference discarded: %s", topic_path)
 
     # Store a summary auto-entry for every session
     auto_entry = {
