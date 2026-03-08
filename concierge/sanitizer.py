@@ -1,4 +1,14 @@
 """UX sanitizer — makes outgoing messages feel like they came from a friend, not software."""
+
+# Design rationale:
+# Strips machine artifacts (code blocks, tool prompts, thinking tags, terminal
+# commands) from outgoing text so Telegram messages read as natural conversation.
+# Processing is split into two phases: strip patterns (remove entirely) run
+# first, then cleanup patterns (normalize whitespace) run second, so cleanup
+# never accidentally collapses content that was about to be stripped.  All
+# regexes are compiled at module level to avoid per-call compilation overhead
+# since sanitize() is called on every outgoing message.
+
 from __future__ import annotations
 
 import re

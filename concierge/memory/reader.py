@@ -1,5 +1,13 @@
 """Read concierge memory files (topics, core, personality)."""
 
+# Design rationale:
+# Section extraction uses a regex (^## Header ... next ^## or EOF) because
+# topic files follow a simple, predictable Markdown convention and a full
+# Markdown parser would be overkill for two heading levels.  Every read
+# function returns an empty string (not None) when the file is missing or the
+# section is absent, so callers never need null checks — the empty-string
+# convention lets them simply test truthiness or concatenate safely.
+
 from __future__ import annotations
 
 import re

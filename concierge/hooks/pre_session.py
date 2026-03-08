@@ -1,4 +1,15 @@
 """Pre-session hook -- injects memory, personality, and vocabulary into CLI sessions."""
+
+# Design rationale:
+# Context is assembled in a fixed priority order — personality first, then
+# core memory, then vocabulary guidance, then topic distilled sections — so
+# the most identity-defining information survives if the context budget is
+# reached partway through.  The word-budget (context_budget) enforcement is
+# approximate (split-on-whitespace counting) to keep it fast; precision is
+# unnecessary because the downstream model handles minor overages gracefully.
+# Topics are loaded last and individually checked against remaining budget so
+# one large topic cannot crowd out all others.
+
 from __future__ import annotations
 
 from pathlib import Path

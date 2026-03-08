@@ -5,6 +5,16 @@ into a single entry point that resolves every incoming message to a
 :class:`~concierge.models.MessageClass`.
 """
 
+# Design rationale:
+# Classification proceeds through a 3-stage chain: (0a) deterministic rules
+# for unambiguous patterns like attachments or single-word commands, (0b) model
+# inference for everything else, and (0c) fuzzy command-verb reconciliation to
+# catch commands the model misses and demote false-positive COMMANDs.  The
+# fuzzy upgrade (0c) deliberately does NOT update envelope.confidence because
+# the verb match is a binary signal, not a probability; mixing it into the
+# model's confidence would produce a misleading number.  The chain short-
+# circuits on stage 0a (confidence=1.0) to avoid unnecessary model loading.
+
 from __future__ import annotations
 
 import logging

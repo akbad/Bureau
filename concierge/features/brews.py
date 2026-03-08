@@ -5,6 +5,15 @@ never notice. Constraints: max 1-2 per month, 168h (1 week) cooldown,
 need significant raw data accumulated.
 """
 
+# Design rationale:
+# Brews differ from dispatches in two key ways: a much longer cooldown (168h
+# vs 12h) because brews require accumulated raw data to be meaningful, and a
+# per-suite fit score (_BREW_SUITE_FIT) because brews land better in relaxed
+# contexts (REST/CREATIVE = 1.0) than during focused work (0.8).  The
+# PROCESSING suite is an explicit exclusion (suite_fit = 0.0) — brews should
+# never interrupt emotional processing.  A separate processing-cooldown gate
+# extends the PROCESSING exclusion beyond the active suite window.
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

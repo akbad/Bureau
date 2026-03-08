@@ -1,4 +1,14 @@
 """Background check runner — orchestrates periodic background tasks."""
+
+# Design rationale:
+# The CheckType enum defines the full catalogue of periodic background jobs;
+# each type carries a minimum interval (in hours) so the runner never re-fires
+# a check before its cooldown expires.  Interval-based scheduling (rather than
+# cron expressions) keeps the logic trivial and avoids a cron parser
+# dependency.  Every time-sensitive method accepts an injectable `now`
+# parameter so unit tests can exercise scheduling logic deterministically
+# without mocking datetime.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

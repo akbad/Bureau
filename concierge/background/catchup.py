@@ -1,4 +1,13 @@
 """Catch-up policy — determines what to run after wake from sleep."""
+
+# Design rationale:
+# After a laptop sleep or extended downtime, running every overdue check at
+# once would spike CPU and network usage.  The catch-up policy selects at most
+# 3 checks (max_catchup_checks), ordered by a priority tuple that puts
+# schedule-bound items (probes, valets) first and least-urgent maintenance
+# (brew analysis) last.  The cap of 3 was chosen empirically to balance
+# freshness against the typical wake-from-sleep latency budget.
+
 from __future__ import annotations
 
 from dataclasses import dataclass

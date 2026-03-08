@@ -4,6 +4,16 @@ Loads default configs from concierge/config/defaults/*.yml,
 optionally merges user overrides, and provides cached accessors.
 """
 
+# Design rationale:
+# Separates default configs (shipped with the package) from user overrides so
+# the package always has sane defaults even without user configuration.  Deep
+# merge (_deep_merge) is used instead of dict.update so users can override a
+# single nested key without clobbering sibling keys.  The lru_cache on
+# get_classifier_config / get_priorities_config / get_pipeline_config provides
+# fast, zero-arg access to default-only config for hot paths (classifier,
+# pipeline) that never need user overrides at runtime; load_config(user_dir)
+# remains uncached for the setup/wizard flow where overrides matter.
+
 from __future__ import annotations
 
 import copy

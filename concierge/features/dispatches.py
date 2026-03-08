@@ -5,6 +5,14 @@ not scheduled and not requested. Constraints: max 2-3 per week, 12h
 cooldown, suite-aware (no dispatches during Processing).
 """
 
+# Design rationale:
+# Dispatches are gated by a 12-hour cooldown and a 3-per-week frequency cap
+# to feel serendipitous rather than spammy.  The evaluator returns at most a
+# single FeatureCandidate (not a list of options) because dispatch content is
+# generated downstream — this stage only decides whether *any* dispatch should
+# fire.  The PROCESSING suite gate is checked first to short-circuit cheaply
+# before loading history from disk.
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

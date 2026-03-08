@@ -5,6 +5,14 @@ user cares about.  They run on a schedule (weekly / biweekly) with a 24-hour
 cooldown between runs.
 """
 
+# Design rationale:
+# Probes are schedule-gated: each configured probe is checked independently
+# via is_due(), so multiple probes can become candidates in a single cycle if
+# their schedules align.  Suite-fit is a placeholder heuristic (0.5 default,
+# 0.0 during PROCESSING) because a richer domain-to-suite mapping requires
+# user configuration that does not yet exist.  Per-due-probe candidates let
+# the lottery pick the best one when several are due simultaneously.
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

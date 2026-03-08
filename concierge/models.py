@@ -4,6 +4,16 @@ Defines message types, session state, feature candidates, and queue items
 used throughout the concierge pipeline.
 """
 
+# Design rationale:
+# Central domain types shared across every pipeline stage and feature evaluator.
+# FeatureCandidate uses identity-based __hash__ (id(self)) because mutable
+# score_inputs make value-based hashing unsafe, yet candidates must be usable
+# as dict keys in the lottery's priority_scores map.  Suite precedence is kept
+# in a manual dict (_SUITE_PRECEDENCE) rather than auto-numbering so that
+# reordering enum members never silently changes priority semantics.  All Enum
+# values are lowercase strings to stay YAML-friendly (serialised configs and
+# schedule files reference these values directly).
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

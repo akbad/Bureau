@@ -1,4 +1,15 @@
 """Epsilon-greedy feature selector with suite-fit floor."""
+
+# Design rationale:
+# Epsilon-greedy was chosen over Thompson sampling or UCB because the action
+# space is small (typically 2-5 candidates) and the reward signal is sparse
+# (user engagement feedback is rare and delayed), making the exploration
+# guarantees of UCB/Thompson unnecessary overhead.  The suite_fit_floor
+# (default 0.3) acts as a hard gate that prevents the random exploration arm
+# from surfacing a feature that is contextually wrong for the current suite.
+# Epsilon decays multiplicatively toward min_epsilon so the system shifts from
+# exploration to exploitation as it accumulates implicit preference data.
+
 from __future__ import annotations
 
 import random

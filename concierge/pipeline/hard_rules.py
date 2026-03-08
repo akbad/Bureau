@@ -5,6 +5,16 @@ and session state. These are non-negotiable constraints that take
 precedence over scoring and soft heuristics.
 """
 
+# Design rationale:
+# Hard rules are non-negotiable gates that block feature types before scoring
+# ever runs, preventing the lottery from surfacing content at inappropriate
+# times (e.g., a brew during an emotional processing episode).  Rules are
+# checked in a fixed, numbered order (suite -> active huddle -> active valet
+# -> cooldown) so that reasoning about cumulative blocking is straightforward
+# and new rules can be appended without reordering concerns.  The function
+# returns a set of blocked types rather than a pass/fail bool so callers can
+# filter any candidate list in one step.
+
 from __future__ import annotations
 
 from concierge.models import FeatureType, SessionState, Suite

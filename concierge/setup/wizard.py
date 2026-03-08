@@ -1,4 +1,14 @@
 """Setup wizard — guides initial Concierge configuration."""
+
+# Design rationale:
+# Setup questions are declared as a data-driven list (SETUP_QUESTIONS) rather
+# than hard-coded in a procedural flow, making it easy to add, reorder, or
+# skip questions without touching control logic.  Validation is a separate
+# pure function (validate_answers) that returns a list of error strings,
+# keeping it testable independently of I/O.  Directory initialization
+# (initialize_data_dir) creates the full expected folder tree and stub files
+# up front so downstream code can assume the structure exists.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

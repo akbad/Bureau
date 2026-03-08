@@ -4,6 +4,14 @@ Valets are guided, proactive multi-step routines (e.g., Sunday meal prep,
 Friday wind-down).  They run on a schedule with specific day/time slots.
 """
 
+# Design rationale:
+# The simplest evaluator in the feature family — valets use fixed score_inputs
+# (suite_fit=1.0, relevance=0.8, urgency=0.7) because they are user-configured
+# routines whose value is inherent, not context-dependent.  Unlike brews and
+# dispatches, valets are NOT blocked during the PROCESSING suite; they are
+# intentional user-scheduled activities.  The only gate is "another valet is
+# already active", preventing overlapping multi-turn routines.
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

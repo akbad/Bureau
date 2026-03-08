@@ -4,6 +4,17 @@ Checks message text against keyword sets in precedence order, falls back to
 session state and time-of-day heuristics.
 """
 
+# Design rationale:
+# Suite detection uses a keyword-set approach with substring matching (via
+# `kw in text_lower`) rather than word-boundary regex so that multi-word
+# phrases like "burned out" and "dinner with" are naturally supported.
+# Keyword sets are checked in strict precedence order (Processing > Social >
+# Creative > Work) because higher-precedence suites represent more sensitive
+# states that must not be overridden by a lower-priority match.  When no
+# keyword matches, the detector falls back to session persistence (sticky
+# suite) and finally to time-of-day heuristics, ensuring the system always
+# returns a concrete Suite and never None.
+
 from __future__ import annotations
 
 from datetime import time

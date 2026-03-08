@@ -5,6 +5,15 @@ schedule entries are due to run based on cadence, day-of-week, and
 last-run timestamps.
 """
 
+# Design rationale:
+# Supports daily, weekly, and biweekly cadences to cover the full range of
+# user-configured routines (probes and valets).  All time handling is
+# timezone-naive by convention — timestamps are compared in UTC and the
+# _last_run_older_than helper normalises bare datetimes to UTC on the fly so
+# callers do not need to worry about timezone plumbing.  The helper exists as
+# a single chokepoint for the "never ran or ran long enough ago" check,
+# keeping is_due() readable despite three cadence branches.
+
 from __future__ import annotations
 
 from dataclasses import dataclass

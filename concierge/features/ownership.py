@@ -5,6 +5,14 @@ claim/release/timeout logic, and determines whether the full
 pipeline should run or be short-circuited.
 """
 
+# Design rationale:
+# Ownership follows a single-slot model — only one feature can own the
+# conversation at a time, enforced by claim() returning False when a slot is
+# already taken.  Only HUDDLE and VALET can own because they are multi-turn
+# interactions; one-shot features (DISPATCH, BREW, PROBE) deliver and exit.
+# An inactivity timeout (30 min for huddles, 60 min for valets) auto-releases
+# ownership so a forgotten session does not permanently block the pipeline.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

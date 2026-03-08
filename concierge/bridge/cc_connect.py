@@ -1,4 +1,13 @@
 """cc-connect adapter — bridges Telegram messages to CLI tools."""
+
+# Design rationale:
+# CLIBackend enum + CLI_COMMANDS dict pattern cleanly separates backend
+# identity from invocation details; adding a new backend requires one enum
+# member and one dict entry, with zero changes to command-building logic.
+# build_headless_command reads prompt text from a file and appends it to the
+# base command, producing a fully self-contained argv list suitable for
+# subprocess.run — no shell interpolation, no quoting bugs.
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,4 +1,14 @@
 """launchd plist generator — creates macOS Launch Agent for background operation."""
+
+# Design rationale:
+# Uses string.Template for plist generation instead of an XML library because
+# plist structure is fixed and Template.substitute is simpler, faster, and
+# produces human-readable output that users can inspect or hand-edit.  The
+# install_plist function deliberately only writes the file and does NOT call
+# `launchctl load` — separating the write from activation lets the setup
+# wizard preview, confirm, or dry-run without side effects, and avoids
+# requiring elevated permissions at import time.
+
 from __future__ import annotations
 
 from pathlib import Path
