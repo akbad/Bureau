@@ -459,6 +459,11 @@ def _validate_entry_schema(
     for key in sorted(set(entry.keys()) - allowed_keys):
         result.warnings.append(f"{prefix}: unknown key '{key}'")
 
+    # kind required → error (when kind_enum is provided, the bucket requires kind)
+    if kind_enum is not None and "kind" not in entry:
+        result.errors.append(f"{prefix}: missing required field 'kind'")
+        return result  # no point checking kind-dependent rules without kind
+
     # kind enum validation → errors
     if kind_enum is not None and "kind" in entry:
         kind = entry["kind"]

@@ -53,12 +53,13 @@ class TestDependencyKindValidation:
         assert len(errors) == 1
         assert "'invalid_kind' not in" in errors[0]
 
-    def test_missing_kind_produces_no_error(self):
-        """kind is not globally required — only validated when present."""
+    def test_missing_kind_produces_error(self):
+        """kind is required for dependencies (W1)."""
         config = {"mcp": {"dependencies": {
-            "no_kind": {"enabled": True, "path": "/x"},
+            "repo": {"enabled": True, "path": "/tmp/repo"},
         }}}
-        assert _errors(config) == []
+        errors = _errors(config)
+        assert any("missing required field 'kind'" in e for e in errors)
 
     def test_git_repo_missing_required_fields(self):
         config = {"mcp": {"dependencies": {
@@ -829,6 +830,32 @@ class TestCrossReferenceValidation:
 
 
 # ── Info tier ──────────────────────────────────────────────────────
+
+class TestKindRequired:
+    """W1: kind is required for dependencies and services."""
+
+    def test_dependency_missing_kind_produces_error(self):
+        config = {"mcp": {"dependencies": {
+            "repo": {"enabled": True, "path": "/tmp/repo", "repo_url": "https://x.git"},
+        }}}
+        errors = _errors(config)
+        assert any("missing required field 'kind'" in e for e in errors)
+
+    def test_service_missing_kind_produces_error(self):
+        config = {"mcp": {"services": {
+            "svc": {"port": 8080, "command": ["x"]},
+        }}}
+        errors = _errors(config)
+        assert any("missing required field 'kind'" in e for e in errors)
+
+    def test_client_config_missing_kind_is_fine(self):
+        """client_configs don't have a kind field — no error expected."""
+        config = {"mcp": {"client_configs": {
+            "qdrant": {"clients": {"default": {"transport": "http", "url": "http://localhost"}}},
+        }}}
+        errors = _errors(config)
+        assert not any("kind" in e for e in errors)
+
 
 class TestInfoTier:
     """Tests for the info severity tier on ValidationResult."""
