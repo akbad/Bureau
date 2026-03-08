@@ -11,8 +11,8 @@ from __future__ import annotations
 
 # Permitted values for mcp.dependencies.*.kind
 DEPENDENCY_KINDS: set[str] = {"git_repo", "file"}
-# Permitted values for mcp.runtime_services.*.kind
-RUNTIME_SERVICE_KINDS: set[str] = {"docker_container", "http_process"}
+# Permitted values for mcp.services.*.kind
+SERVICE_KINDS: set[str] = {"docker_container", "http_process"}
 
 # ── Required fields per kind ────────────────────────────────────────
 
@@ -23,9 +23,9 @@ DEPENDENCY_REQUIRED: dict[str, set[str]] = {
     "file": {"path"},
 }
 
-# Required fields for each mcp.runtime_services kind
-# i.e. if mcp.runtime_services.*.kind = x, these fields must also be included
-RUNTIME_SERVICE_REQUIRED: dict[str, set[str]] = {
+# Required fields for each mcp.services kind
+# i.e. if mcp.services.*.kind = x, these fields must also be included
+SERVICE_REQUIRED: dict[str, set[str]] = {
     "docker_container": {"image", "host_port", "container_port"},
     "http_process": {"port", "command"},
 }
@@ -46,8 +46,8 @@ DEPENDENCY_ALLOWED_KEYS: set[str] = {
     "enabled", "kind", "repo_url", "branch", "path", "post_clone",
 }
 
-# Recognized keys for mcp.runtime_services.* entries
-RUNTIME_SERVICE_ALLOWED_KEYS: set[str] = {
+# Recognized keys for mcp.services.* entries
+SERVICE_ALLOWED_KEYS: set[str] = {
     "enabled", "kind", "depends_on", "healthcheck", "command",
     "env", "settings", "port", "container_name", "image",
     "host_port", "container_port", "mounts",
@@ -83,23 +83,28 @@ CLIENT_TRANSPORT_KINDS: set[str] = {"http", "stdio"}
 
 # Type rules for mcp.dependencies.* entries
 DEPENDENCY_TYPE_RULES: list[tuple[str, str]] = [
+    ("enabled", "bool"),
     ("post_clone", "list[list[str]]"),
 ]
 
-# Type rules for mcp.runtime_services.* entries
-RUNTIME_SERVICE_TYPE_RULES: list[tuple[str, str]] = [
+# Type rules for mcp.services.* entries
+SERVICE_TYPE_RULES: list[tuple[str, str]] = [
     ("command", "list[str]"),
+    ("enabled", "bool"),
     ("port", "int"),
     ("host_port", "int"),
     ("container_port", "int"),
     ("env", "dict[str,str]"),
     ("mounts", "list[dict]"),
     ("healthcheck", "dict"),
+    ("settings", "dict"),
 ]
 
 # Type rules for mcp.client_configs.* top-level entries
 CLIENT_CONFIG_TYPE_RULES: list[tuple[str, str]] = [
+    ("enabled", "bool"),
     ("requires_env", "list[str]"),
+    ("settings", "dict"),
 ]
 
 # Type rules for individual client entries inside clients.*

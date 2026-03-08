@@ -875,6 +875,62 @@ class TestTransportRequired:
         assert not any("transport" in e for e in errors)
 
 
+class TestEnabledTypeCheck:
+    """W3: enabled must be bool if present."""
+
+    def test_enabled_string_produces_error_dependency(self):
+        config = {"mcp": {"dependencies": {
+            "repo": {"kind": "file", "path": "/x", "enabled": "yes"},
+        }}}
+        assert any("enabled" in e and "bool" in e for e in _errors(config))
+
+    def test_enabled_int_produces_error_service(self):
+        config = {"mcp": {"services": {
+            "svc": {"kind": "http_process", "port": 1, "command": ["x"], "enabled": 42},
+        }}}
+        assert any("enabled" in e for e in _errors(config))
+
+    def test_enabled_string_produces_error_client_config(self):
+        config = {"mcp": {"client_configs": {
+            "svc": {"enabled": "true", "clients": {"default": {"transport": "http", "url": "http://x"}}},
+        }}}
+        assert any("enabled" in e for e in _errors(config))
+
+    def test_enabled_true_is_valid(self):
+        config = {"mcp": {"dependencies": {
+            "repo": {"kind": "file", "path": "/x", "enabled": True},
+        }}}
+        assert not any("enabled" in e for e in _errors(config))
+
+    def test_enabled_missing_is_valid(self):
+        config = {"mcp": {"dependencies": {
+            "repo": {"kind": "file", "path": "/x"},
+        }}}
+        assert not any("enabled" in e for e in _errors(config))
+
+
+class TestSettingsTypeCheck:
+    """W9: settings must be dict if present."""
+
+    def test_settings_string_produces_error_service(self):
+        config = {"mcp": {"services": {
+            "svc": {"kind": "http_process", "port": 1, "command": ["x"], "settings": "bad"},
+        }}}
+        assert any("settings" in e for e in _errors(config))
+
+    def test_settings_list_produces_error_client_config(self):
+        config = {"mcp": {"client_configs": {
+            "svc": {"settings": [1, 2], "clients": {"default": {"transport": "http", "url": "http://x"}}},
+        }}}
+        assert any("settings" in e for e in _errors(config))
+
+    def test_settings_dict_is_valid(self):
+        config = {"mcp": {"services": {
+            "svc": {"kind": "http_process", "port": 1, "command": ["x"], "settings": {"collection": "test"}},
+        }}}
+        assert not any("settings" in e for e in _errors(config))
+
+
 class TestInfoTier:
     """Tests for the info severity tier on ValidationResult."""
 

@@ -315,6 +315,7 @@ def _as_list(value: Any) -> list:
 
 
 _OUTER_TYPES: dict[str, type] = {
+    "bool": bool,
     "int": int,
     "dict": dict,
     "dict[str,str]": dict,
