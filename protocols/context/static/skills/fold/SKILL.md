@@ -69,7 +69,7 @@ Gather the current task state using **exactly one** of the following strategies,
    Read tasks from the existing SQLite database:
    ```bash
    sqlite3 -header -column ~/.config/bureau/dossiers/<slug>.tasks.db \
-     "SELECT id, subject, status, owner FROM tasks WHERE status != 'deleted';"
+     "SELECT id, subject, status, owner, blocked_by FROM tasks WHERE status != 'deleted';"
    ```
 
 3. **No task tools and no existing dossier:**
@@ -276,13 +276,13 @@ mkdir -p ~/.config/bureau/dossiers
 
 ### 2. Generate the 6-character hex hash
 
-Compute the hash from the dossier content and current timestamp to ensure uniqueness:
+Generate a unique 6-character hex hash:
 
 ```bash
-echo -n "<first-100-chars-of-dossier-body>$(date -u +%s)" | shasum -a 256 | cut -c1-6
+openssl rand -hex 3
 ```
 
-Use this hash in the `hash` and `slug` fields of the frontmatter.
+This produces exactly 6 hex characters (3 random bytes). Use this hash in the `hash` and `slug` fields of the frontmatter.
 
 ### 3. Write the dossier markdown file
 
@@ -319,13 +319,15 @@ CREATE TABLE IF NOT EXISTS tasks (
 Insert each task collected in Step 2:
 
 ```bash
-sqlite3 ~/.config/bureau/dossiers/<slug>.tasks.db "
+sqlite3 ~/.config/bureau/dossiers/<slug>.tasks.db <<'ENDSQL'
 INSERT INTO tasks (subject, description, status, owner, blocked_by)
-VALUES ('<subject>', '<description>', '<status>', '<owner>', '<blocked_by>');
-"
+VALUES ('subject here', 'description here', 'pending', NULL, NULL);
+ENDSQL
 ```
 
-Repeat for each task. **Escape single quotes** in all values by doubling them (e.g., `it''s`). Use `NULL` (not the string `'null'`) for empty fields.
+Repeat for each task. **Escape single quotes** in all values by doubling them (e.g., `it''s`). Use `NULL` (not the string `'null'`) for empty fields. The heredoc with `'ENDSQL'` (single-quoted delimiter) prevents shell expansion of special characters in the SQL values.
+
+If your agent environment supports native SQLite libraries or file-writing tools, prefer those over shell commands to avoid quoting issues entirely.
 
 ---
 

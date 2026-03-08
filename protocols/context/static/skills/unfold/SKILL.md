@@ -241,7 +241,9 @@ Ready to continue.
 
 ## Task list interaction
 
-The dossier's task list lives in a shared SQLite database at `~/.config/bureau/dossiers/<slug>.tasks.db`. Multiple agents can read from and write to this database concurrently.
+The dossier's task list lives in a shared SQLite database at `~/.config/bureau/dossiers/<slug>.tasks.db`. Multiple agents can read from and write to this database concurrently (the database uses WAL mode for safe concurrent access).
+
+**Important:** For all write operations (UPDATE, INSERT), always ensure WAL mode is active by prefixing with `PRAGMA journal_mode=WAL;`. **Escape single quotes** in all values by doubling them (e.g., `it''s`). Use `NULL` (not the string `'null'`) for empty fields.
 
 ### View all tasks
 
@@ -255,6 +257,7 @@ SELECT id, status, owner, subject FROM tasks WHERE status != 'deleted' ORDER BY 
 
 ```bash
 sqlite3 ~/.config/bureau/dossiers/<slug>.tasks.db "
+PRAGMA journal_mode=WAL;
 UPDATE tasks SET status='in_progress', owner='<your-session-id>', updated_at=datetime('now') WHERE id=<task-id>;
 "
 ```
@@ -263,6 +266,7 @@ UPDATE tasks SET status='in_progress', owner='<your-session-id>', updated_at=dat
 
 ```bash
 sqlite3 ~/.config/bureau/dossiers/<slug>.tasks.db "
+PRAGMA journal_mode=WAL;
 UPDATE tasks SET status='completed', updated_at=datetime('now') WHERE id=<task-id>;
 "
 ```
@@ -270,10 +274,11 @@ UPDATE tasks SET status='completed', updated_at=datetime('now') WHERE id=<task-i
 ### Add a new task
 
 ```bash
-sqlite3 ~/.config/bureau/dossiers/<slug>.tasks.db "
+sqlite3 ~/.config/bureau/dossiers/<slug>.tasks.db <<'ENDSQL'
+PRAGMA journal_mode=WAL;
 INSERT INTO tasks (subject, description, status, created_at, updated_at)
-VALUES ('<subject>', '<description>', 'pending', datetime('now'), datetime('now'));
-"
+VALUES ('subject here', 'description here', 'pending', datetime('now'), datetime('now'));
+ENDSQL
 ```
 
 ### Check for blocked tasks
@@ -285,6 +290,8 @@ SELECT id, subject, blocked_by FROM tasks WHERE blocked_by IS NOT NULL AND statu
 ```
 
 Use these commands throughout the session to coordinate work. Always check for blocked tasks before starting a new work item — if a task's `blocked_by` field references another task ID, that dependency must be completed first.
+
+If your agent environment supports native SQLite libraries or file-writing tools, prefer those over shell commands to avoid quoting issues entirely.
 
 ---
 
