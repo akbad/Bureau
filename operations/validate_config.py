@@ -408,6 +408,17 @@ def _validate_mounts(
                 result.errors.append(f"{mount_path}: missing required key '{req}'")
         for key in sorted(set(mount.keys()) - MOUNT_REQUIRED_KEYS):
             result.warnings.append(f"{mount_path}: unknown key '{key}'")
+        # W10: validate path values are strings (skip placeholders)
+        for key in ("host_path", "container_path"):
+            if key not in mount:
+                continue
+            val = mount[key]
+            if isinstance(val, str) and _PLACEHOLDER_REGEX.search(val):
+                continue
+            if not isinstance(val, str):
+                result.errors.append(
+                    f"{mount_path}.{key}: expected string, got {type(val).__name__}"
+                )
 
 
 def _validate_healthcheck(

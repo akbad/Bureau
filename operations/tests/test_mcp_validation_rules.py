@@ -929,6 +929,46 @@ class TestEnabledTypeCheck:
         assert not any("enabled" in e for e in _errors(config))
 
 
+class TestMountPathValueTypes:
+    """W10: mount path values must be strings."""
+
+    def test_host_path_int_produces_error(self):
+        config = {"mcp": {"services": {
+            "db": {"kind": "docker_container", "image": "pg",
+                   "host_port": 5432, "container_port": 5432,
+                   "mounts": [{"host_path": 123, "container_path": "/data"}]},
+        }}}
+        errors = _errors(config)
+        assert any("host_path" in e and "string" in e for e in errors)
+
+    def test_container_path_int_produces_error(self):
+        config = {"mcp": {"services": {
+            "db": {"kind": "docker_container", "image": "pg",
+                   "host_port": 5432, "container_port": 5432,
+                   "mounts": [{"host_path": "/host", "container_path": 42}]},
+        }}}
+        errors = _errors(config)
+        assert any("container_path" in e and "string" in e for e in errors)
+
+    def test_placeholder_paths_skip_type_check(self):
+        config = {"mcp": {"services": {
+            "db": {"kind": "docker_container", "image": "pg",
+                   "host_port": 5432, "container_port": 5432,
+                   "mounts": [{"host_path": "${path_to.data}", "container_path": "/data"}]},
+        }}}
+        errors = _errors(config)
+        assert not any("host_path" in e for e in errors)
+
+    def test_string_paths_are_valid(self):
+        config = {"mcp": {"services": {
+            "db": {"kind": "docker_container", "image": "pg",
+                   "host_port": 5432, "container_port": 5432,
+                   "mounts": [{"host_path": "/host/data", "container_path": "/data"}]},
+        }}}
+        errors = _errors(config)
+        assert not any("host_path" in e or "container_path" in e for e in errors)
+
+
 class TestSettingsTypeCheck:
     """W9: settings must be dict if present."""
 
