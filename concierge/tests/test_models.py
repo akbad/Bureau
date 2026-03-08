@@ -12,6 +12,7 @@ class TestMessageClass:
         assert MessageClass.COMMAND.value == "command"
         assert MessageClass.MEDIA.value == "media"
 
+
 class TestSuite:
     def test_all_suites_exist(self):
         assert Suite.WORK.value == "work"
@@ -22,6 +23,7 @@ class TestSuite:
 
     def test_suite_precedence(self):
         assert Suite.PROCESSING.precedence > Suite.WORK.precedence
+
 
 class TestSessionState:
     def test_default_state(self):
@@ -41,6 +43,7 @@ class TestSessionState:
             state.record_classification(MessageClass.CONVERSE)
         assert len(state.recent_classifications) == 5
 
+
 class TestFeatureCandidate:
     def test_score_computation(self):
         candidate = FeatureCandidate(
@@ -55,6 +58,7 @@ class TestFeatureCandidate:
         score = candidate.compute_score(weights)
         expected = (0.35*0.8 + 0.25*0.5 + 0.20*1.0 + (-0.10)*0.2 + 0.05*0.0 + 0.05*1.0)
         assert abs(score - expected) < 1e-9
+
 
 class TestMessageEnvelope:
     def test_envelope_tracks_reentry(self):

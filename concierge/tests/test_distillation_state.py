@@ -84,6 +84,13 @@ class TestTopicDistillationState:
         assert state.retry_count == 1
         assert state.should_retry() is True
 
+    def test_should_not_retry_at_limit(self):
+        """retry_count == max_retries must return False (boundary case)."""
+        state = TopicDistillationState(topic="food", max_retries=2)
+        state.status = DistillationStatus.FAILED
+        state.retry_count = 2
+        assert state.should_retry() is False
+
     def test_should_not_retry_beyond_limit(self):
         state = TopicDistillationState(topic="food", max_retries=2)
         state.status = DistillationStatus.FAILED

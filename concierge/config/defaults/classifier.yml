@@ -6,7 +6,7 @@ deterministic_checks:
       - active_feature: true
         max_length: 5
       - is_single_emoji: true
-      - exact_match: ["yes", "no", "ok", "y", "n"]
+      - exact_match: ["yes", "no", "ok", "y", "n", "sure", "nah", "yep", "nope"]
 
 model:
   path: "concierge/classifier/model.onnx"

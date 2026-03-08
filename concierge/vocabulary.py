@@ -1,6 +1,15 @@
 """Vocabulary introduction tracker — gradually introduces feature terminology."""
+
+# Design rationale:
+# Tracks which feature terms (dispatch, brew, etc.) have been introduced to the user.
+# Uses atomic tempfile+rename writes for consistency with state.py, preventing
+# corrupt files on crash.  YAML serialization uses safe_dump exclusively.
+# Key invariant: terms progress monotonically (unknown -> introduced -> user_has_used).
+
 from __future__ import annotations
 
+import os
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -77,7 +86,7 @@ class VocabularyTracker:
         return state.introduced
 
     def save(self, path: Path) -> None:
-        """Save vocabulary state to YAML file."""
+        """Save vocabulary state to YAML file (atomic write)."""
         data = {}
         for term, state in self.terms.items():
             entry: dict[str, object] = {
@@ -90,7 +99,14 @@ class VocabularyTracker:
                 entry["introduced_at"] = state.introduced_at.isoformat()
             data[term] = entry
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(yaml.dump(data, default_flow_style=False))
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                yaml.safe_dump(data, f, default_flow_style=False)
+            os.rename(tmp, str(path))
+        except BaseException:
+            os.unlink(tmp)
+            raise
 
     @classmethod
     def load(cls, path: Path) -> "VocabularyTracker":

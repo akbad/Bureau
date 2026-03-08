@@ -16,6 +16,7 @@ from concierge.distillation.detection import (
     scan_all_topics,
     scan_topic,
 )
+from concierge.distillation.state import DistillationStatus
 
 
 # ---------------------------------------------------------------------------
@@ -121,14 +122,14 @@ class TestScanTopic:
         assert info.raw_entries_since_last == 10
         assert info.redundancy_score > 0.0
         # With 10 identical entries it should be a candidate
-        assert info.status == "candidate"
+        assert info.status == DistillationStatus.CANDIDATE
         assert info.candidate_since is not None
 
     def test_scan_topic_missing_file(self, tmp_data_dir):
         info = scan_topic(tmp_data_dir, "nonexistent")
         assert info.redundancy_score == 0.0
         assert info.raw_entries_since_last == 0
-        assert info.status == "idle"
+        assert info.status == DistillationStatus.IDLE
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +164,7 @@ class TestSaveLoadCandidates:
                 raw_entries_since_last=12,
                 detected_patterns=["pasta: 4 mentions"],
                 candidate_since=now,
-                status="candidate",
+                status=DistillationStatus.CANDIDATE,
             ),
             CandidateInfo(
                 topic="people",
@@ -171,7 +172,7 @@ class TestSaveLoadCandidates:
                 raw_entries_since_last=3,
                 detected_patterns=[],
                 candidate_since=None,
-                status="idle",
+                status=DistillationStatus.IDLE,
             ),
         ]
 
@@ -183,11 +184,11 @@ class TestSaveLoadCandidates:
         meals = loaded["meals"]
         assert meals.redundancy_score == 0.72
         assert meals.raw_entries_since_last == 12
-        assert meals.status == "candidate"
+        assert meals.status == DistillationStatus.CANDIDATE
         assert meals.candidate_since is not None
         assert meals.detected_patterns == ["pasta: 4 mentions"]
 
         people = loaded["people"]
         assert people.redundancy_score == 0.15
-        assert people.status == "idle"
+        assert people.status == DistillationStatus.IDLE
         assert people.candidate_since is None

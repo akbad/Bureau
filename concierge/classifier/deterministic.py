@@ -5,20 +5,49 @@ any model inference is needed.  Returns ``None`` when the message cannot
 be classified deterministically and must fall through to the model stage.
 """
 
+# Design rationale:
+# Rule-based first-pass classifier that resolves obvious message types
+# (attachments, emojis, short replies) without model inference.
+# Reply tokens are loaded from config to stay in sync with classifier.yml.
+# Key invariant: returns None when uncertain; never guesses.
+
 from __future__ import annotations
 
 import re
 
+from ..config.loader import get_classifier_config
 from ..models import MessageClass, MessageEnvelope
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
+
+def _load_reply_tokens() -> frozenset[str]:
+    """Load exact-match reply tokens from classifier config."""
+    config = get_classifier_config()
+    tokens = (
+        config
+        .get("deterministic_checks", {})
+        .get("reply", {})
+        .get("conditions", [])
+    )
+    for condition in tokens:
+        if "exact_match" in condition:
+            return frozenset(condition["exact_match"])
+    return frozenset()
+
+
 # Exact-match tokens that count as a reply when an active feature exists.
-_REPLY_TOKENS: frozenset[str] = frozenset(
-    {"yes", "no", "ok", "y", "n", "sure", "nah", "yep", "nope"}
-)
+_REPLY_TOKENS: frozenset[str] | None = None
+
+
+def _get_reply_tokens() -> frozenset[str]:
+    """Return reply tokens, loading from config on first access."""
+    global _REPLY_TOKENS
+    if _REPLY_TOKENS is None:
+        _REPLY_TOKENS = _load_reply_tokens()
+    return _REPLY_TOKENS
 
 # Compiled regex that matches a single Unicode emoji (including skin-tone
 # modifiers, ZWJ sequences, keycap sequences, and flag sequences).
@@ -127,7 +156,7 @@ def classify_deterministic(
             return MessageClass.REPLY
 
         # 4. Active feature + exact match in reply set -> REPLY
-        if text.lower() in _REPLY_TOKENS:
+        if text.lower() in _get_reply_tokens():
             return MessageClass.REPLY
 
     # 5. Otherwise -> falls through to model

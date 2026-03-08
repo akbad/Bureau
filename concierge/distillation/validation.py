@@ -1,8 +1,16 @@
 """Semantic diff validator -- ensures distillation doesn't lose information."""
+
+# Design rationale:
+# Validates that proposed distilled summaries cover all raw facts by keyword overlap.
+# Uses the shared STOP_WORDS set for consistent word filtering across the package.
+# Key invariant: validation fails if ANY established fact is lost during distillation.
+
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+
+from . import STOP_WORDS
 
 
 @dataclass
@@ -44,12 +52,7 @@ def extract_facts(text: str) -> set[str]:
 
 def extract_key_words(fact: str) -> set[str]:
     """Extract meaningful words from a fact string."""
-    stop_words = {
-        "the", "a", "an", "i", "my", "was", "is", "it", "to", "and",
-        "of", "in", "for", "that", "with", "on", "at", "by", "from",
-        "she", "he", "her", "his", "been",
-    }
-    return {w for w in fact.split() if w not in stop_words and len(w) > 1}
+    return {w for w in fact.split() if w not in STOP_WORDS and len(w) > 1}
 
 
 def fact_is_covered(raw_fact: str, distilled_facts: set[str]) -> bool:

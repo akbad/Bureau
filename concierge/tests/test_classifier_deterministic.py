@@ -30,6 +30,13 @@ class TestReplyDetection:
         assert classify_deterministic(env, active_feature=None) is None
 
 
+class TestEmptyText:
+    def test_empty_text_with_active_feature_falls_through(self):
+        env = MessageEnvelope(text="", has_attachment=False)
+        result = classify_deterministic(env, active_feature="huddle_123")
+        assert result is None
+
+
 class TestFallthrough:
     def test_normal_text_returns_none(self):
         env = MessageEnvelope(text="what should I have for dinner?", has_attachment=False)

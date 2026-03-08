@@ -6,6 +6,12 @@ development), the function returns a safe fallback of
 ``(MessageClass.CONVERSE, 0.0)``.
 """
 
+# Design rationale:
+# Wraps ONNX DistilBERT inference behind a lazy-init cache so the tokenizer
+# and session are loaded once and reused across calls.
+# Falls back to CONVERSE with 0.0 confidence when model/runtime is unavailable.
+# Key invariant: never raises — all errors are caught and produce fallback output.
+
 from __future__ import annotations
 
 import logging
@@ -25,6 +31,21 @@ _CLASS_MAP: dict[int, MessageClass] = {
 }
 
 _FALLBACK: tuple[MessageClass, float] = (MessageClass.CONVERSE, 0.0)
+
+# Module-level cache for tokenizer and ONNX session
+_cached_session = None
+_cached_tokenizer = None
+
+
+def _get_model(model_path: str | Path, tokenizer_name: str):
+    """Return cached (session, tokenizer), loading on first call."""
+    global _cached_session, _cached_tokenizer
+    if _cached_session is None:
+        from onnxruntime import InferenceSession
+        from transformers import AutoTokenizer
+        _cached_session = InferenceSession(str(model_path))
+        _cached_tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    return _cached_session, _cached_tokenizer
 
 
 def classify_with_model(text: str) -> tuple[MessageClass, float]:
@@ -56,8 +77,8 @@ def classify_with_model(text: str) -> tuple[MessageClass, float]:
     # --- ONNX inference path (requires onnxruntime + transformers) ----------
     try:
         import numpy as np  # noqa: F811
-        import onnxruntime as ort
-        from transformers import AutoTokenizer
+        import onnxruntime  # noqa: F401
+        import transformers  # noqa: F401
     except ImportError:
         logger.warning(
             "onnxruntime and/or transformers not installed — "
@@ -67,8 +88,7 @@ def classify_with_model(text: str) -> tuple[MessageClass, float]:
 
     try:
         tokenizer_name = model_cfg.get("tokenizer", "distilbert-base-uncased")
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        session = ort.InferenceSession(str(model_path))
+        session, tokenizer = _get_model(model_path, tokenizer_name)
 
         inputs = tokenizer(
             text,

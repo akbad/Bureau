@@ -1,4 +1,10 @@
 """Distillation candidate detection — identifies topics ripe for re-summarization."""
+
+# Design rationale:
+# Scans topic files for redundancy patterns to decide when re-summarization is needed.
+# Uses the shared STOP_WORDS set and DistillationStatus enum for consistency.
+# Key invariant: status field uses DistillationStatus enum, not raw strings.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,6 +13,9 @@ from pathlib import Path
 import re
 
 import yaml
+
+from . import STOP_WORDS
+from .state import DistillationStatus
 
 
 @dataclass
@@ -17,7 +26,7 @@ class CandidateInfo:
     raw_entries_since_last: int
     detected_patterns: list[str] = field(default_factory=list)
     candidate_since: datetime | None = None
-    status: str = "idle"  # idle, candidate, compressing, compressed, validated, verified
+    status: DistillationStatus = DistillationStatus.IDLE
 
 
 def count_raw_entries(raw_text: str) -> int:
@@ -47,8 +56,7 @@ def compute_redundancy_score(phrases: list[str]) -> float:
     if len(phrases) < 2:
         return 0.0
 
-    stop_words = {"the", "a", "an", "i", "my", "was", "is", "it", "to", "and", "of", "in", "for"}
-    word_sets = [set(p.split()) - stop_words for p in phrases]
+    word_sets = [set(p.split()) - STOP_WORDS for p in phrases]
 
     overlap_count = 0
     pair_count = 0
@@ -73,10 +81,9 @@ def detect_patterns(phrases: list[str]) -> list[str]:
 
     # Count word frequency
     word_freq: dict[str, int] = {}
-    stop_words = {"the", "a", "an", "i", "my", "was", "is", "it", "to", "and", "of", "in", "for", "that", "with"}
     for phrase in phrases:
         for word in phrase.split():
-            if word not in stop_words and len(word) > 2:
+            if word not in STOP_WORDS and len(word) > 2:
                 word_freq[word] = word_freq.get(word, 0) + 1
 
     patterns = []
@@ -109,14 +116,14 @@ def scan_topic(data_dir: Path, topic: str) -> CandidateInfo:
     redundancy = compute_redundancy_score(phrases)
     patterns = detect_patterns(phrases)
 
-    status = "candidate" if redundancy > 0.5 and entry_count >= 5 else "idle"
+    status = DistillationStatus.CANDIDATE if redundancy > 0.5 and entry_count >= 5 else DistillationStatus.IDLE
 
     return CandidateInfo(
         topic=topic,
         redundancy_score=round(redundancy, 2),
         raw_entries_since_last=entry_count,
         detected_patterns=patterns,
-        candidate_since=datetime.now(timezone.utc) if status == "candidate" else None,
+        candidate_since=datetime.now(timezone.utc) if status == DistillationStatus.CANDIDATE else None,
         status=status,
     )
 
@@ -147,7 +154,7 @@ def save_candidates(data_dir: Path, candidates: list[CandidateInfo]) -> None:
             "raw_entries_since_last": c.raw_entries_since_last,
             "detected_patterns": c.detected_patterns,
             "candidate_since": c.candidate_since.isoformat() if c.candidate_since else None,
-            "status": c.status,
+            "status": c.status.value,
         }
 
     (state_dir / "distillation-candidates.yml").write_text(
@@ -171,6 +178,6 @@ def load_candidates(data_dir: Path) -> dict[str, CandidateInfo]:
             raw_entries_since_last=entry.get("raw_entries_since_last", 0),
             detected_patterns=entry.get("detected_patterns", []),
             candidate_since=datetime.fromisoformat(cs) if cs else None,
-            status=entry.get("status", "idle"),
+            status=DistillationStatus(entry.get("status", "idle")),
         )
     return result

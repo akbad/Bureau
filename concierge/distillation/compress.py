@@ -3,10 +3,19 @@
 In production, this calls a headless CLI for LLM summarization.
 For v1, provides a stub that extracts key facts deterministically.
 """
+
+# Design rationale:
+# Deterministic v1 stub for topic compression (production will use LLM).
+# Merges new raw entries into the distilled section, deduplicating via word overlap.
+# Uses a subset of the shared STOP_WORDS (only basic articles/pronouns needed here).
+# Key invariant: existing distilled bullets are always preserved.
+
 from __future__ import annotations
 
 import re
 from pathlib import Path
+
+from . import STOP_WORDS
 
 
 def compress_topic(
@@ -59,8 +68,8 @@ def compress_topic(
 
 def _significant_overlap(new: str, existing: str) -> bool:
     """Check if new entry significantly overlaps with existing distilled entry."""
-    new_words = set(new.split()) - {"the", "a", "an", "i", "my"}
-    existing_words = set(existing.split()) - {"the", "a", "an", "i", "my"}
+    new_words = set(new.split()) - STOP_WORDS
+    existing_words = set(existing.split()) - STOP_WORDS
     if not new_words or not existing_words:
         return False
     overlap = len(new_words & existing_words)

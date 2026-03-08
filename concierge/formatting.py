@@ -1,4 +1,10 @@
 """Quick-reply formatter for Telegram inline keyboards."""
+
+# Design rationale:
+# Formats option lists as letter-labeled choices (a, b, c...) for quick replies.
+# Validates that options fit within a-z range to prevent nonsensical labels.
+# Key invariant: labels are always lowercase ASCII letters; at most 26 options allowed.
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,6 +28,8 @@ def format_options(options: list[str], start_letter: str = "a") -> str:
         # b) Something new
         # c) Order in
     """
+    if options and ord(start_letter) + len(options) - 1 > ord("z"):
+        raise ValueError("Too many options for letter-based labeling")
     lines = []
     for i, option in enumerate(options):
         letter = chr(ord(start_letter) + i)
@@ -74,6 +82,8 @@ def build_keyboard_data(options: list[str]) -> list[QuickReply]:
     Returns a list of QuickReply objects that can later be used
     to construct Telegram InlineKeyboardButtons.
     """
+    if options and ord("a") + len(options) - 1 > ord("z"):
+        raise ValueError("Too many options for letter-based labeling")
     replies = []
     for i, option in enumerate(options):
         letter = chr(ord("a") + i)

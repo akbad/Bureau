@@ -4,11 +4,16 @@ Uses rapidfuzz to match the beginning of user text against known
 command verbs from the classifier config.
 """
 
+# Design rationale:
+# Matches user input against known command verbs using fuzzy string matching.
+# Uses relative imports for consistency with the rest of the classifier package.
+# Key invariant: returns None when no verb meets the minimum score threshold.
+
 from __future__ import annotations
 
 from rapidfuzz import fuzz
 
-from concierge.config.loader import get_classifier_config
+from ..config.loader import get_classifier_config
 
 
 def match_command_verb(text: str) -> str | None:

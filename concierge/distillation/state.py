@@ -1,4 +1,10 @@
 """Distillation state machine -- tracks lifecycle per topic."""
+
+# Design rationale:
+# Manages the distillation lifecycle (idle -> candidate -> compress -> validate -> verify).
+# Enforces valid state transitions via a whitelist and tracks retry counts.
+# Key invariant: retry_count < max_retries for retry eligibility (strict less-than).
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -73,7 +79,7 @@ class TopicDistillationState:
         """Check if a failed distillation should be retried."""
         return (
             self.status == DistillationStatus.FAILED
-            and self.retry_count <= self.max_retries
+            and self.retry_count < self.max_retries
         )
 
     def needs_brew_validation(self) -> bool:
