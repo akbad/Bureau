@@ -63,10 +63,9 @@
 **Before starting ANY task, you MUST:**
 
 1. **Query all memory systems for relevant context:**
-    
+
     - Memory MCP (`read_graph`, `search_nodes`) - for architectural relationships, component structure
     - Qdrant MCP (`qdrant-find`) - for past solutions, patterns, gotchas, learnings
-    - claude-mem (`get_recent_context`, `search_observations`, `find_by_type`) **(*ONLY* if you are Claude Code)** for recent session history, file changes
 
 2. **Verify memory accuracy BEFORE trusting it:**
     
@@ -122,12 +121,23 @@
 > When storing memories, *always* include these metadata fields depending on the tool you're using
 > (to enable cleanup of stale memories by the system):
 > 
-> | Memory storage tool | Metadata field to include | 
+> | Memory storage tool | Metadata field to include |
 > | --- | --- |
-> | Qdrant MCP | `metadata.created_at` (ISO 8601, UTC with explicit offset, e.g., `2025-12-05T21:10:00+00:00`) | 
+> | Qdrant MCP | `metadata.created_at` (ISO 8601, UTC with explicit offset, e.g., `2025-12-05T21:10:00+00:00`) |
 > | Memory MCP | `created_at` (ISO 8601, UTC with explicit offset, e.g., `2025-12-05T21:10:00+00:00`) |
 > | Serena MCP | *None required; automatically created* |
-> | claude-mem (Claude Code *only*) | *None required; automatically created* |
+
+
+## Dossier (work-stream state)
+
+- For **saving conversation state**: `uv run python -m operations.dossiers fold`
+- For **resuming a work-stream**: `uv run python -m operations.dossiers unfold <hash>`
+- For **task coordination**: `uv run python -m operations.dossiers tasks <slug> <subcommand>`
+
+> [!NOTE]
+> Dossiers track **active work-stream state** (tasks, decisions, context).
+> Memory tools (Qdrant/Memory MCP) track **distilled knowledge**.
+> Store insights in BOTH when appropriate.
 
 
 ## Code analysis, editing and Git

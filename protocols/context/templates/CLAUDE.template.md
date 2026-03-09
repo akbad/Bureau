@@ -90,4 +90,8 @@ Context auto-compacts as it approaches limits. For large tasks:
 3. **Be efficient** - Progressive file reading (offset/limit), reference stored memories
 4. **Never truncate** - If incomplete, store progress and delegate remainder with clear handoff
 
+**For conversation handoff**: Use `/bureau-fold` to save work-stream state
+to a dossier, then resume in a fresh agent with `/bureau-unfold`.
+Preserves full fidelity — superior to context compaction.
+
 **Task completion > token efficiency. Use delegation + memory to achieve both.**
