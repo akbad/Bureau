@@ -1,5 +1,5 @@
 ---
-description: Save the current conversation as a Bureau dossier for seamless cross-agent resumption. Activate when user says "fold", "save this conversation", "brain dump", or invokes /bureau-fold. Creates an exhaustive context snapshot at ~/.config/bureau/dossiers/ with a SQLite-backed task list for multi-agent collaboration. Outputs a hash for later resumption via /bureau-unfold.
+description: Save the current conversation as a Bureau dossier for seamless cross-agent resumption. Activate when user says "fold", "save this conversation", "brain dump", or invokes /bureau-fold. Creates an exhaustive context snapshot at ~/.config/bureau/dossiers/ via the dossier CLI with a SQLite-backed task list for multi-agent collaboration. Outputs a hash for later resumption via /bureau-unfold.
 ---
 
 # Bureau Fold: save conversation as dossier
@@ -66,10 +66,9 @@ Gather the current task state using **exactly one** of the following strategies,
    Dump all tasks with their current status, owner, and description.
 
 2. **Resuming from an existing dossier** (a prior dossier slug is known):
-   Read tasks from the existing SQLite database:
+   Read tasks from the existing dossier:
    ```bash
-   sqlite3 -header -column ~/.config/bureau/dossiers/<slug>.tasks.db \
-     "SELECT id, subject, status, owner, blocked_by FROM tasks WHERE status != 'deleted';"
+   uv run python -m operations.dossiers tasks <slug> list
    ```
 
 3. **No task tools and no existing dossier:**
@@ -200,147 +199,93 @@ Capture the context that exists **only** in the conversation and cannot be recov
 
 ---
 
-## Dossier file assembly
+## Dossier assembly and writing
 
-After completing all collection steps, assemble the dossier markdown file with this **exact structure**:
+After completing all collection steps, assemble the data and write the dossier using the CLI. The CLI handles all file creation, hash generation, schema setup, and metadata — you never touch the database or write frontmatter directly.
 
-```yaml
----
-hash: <6-char-hex>
-name: "<user-provided name or auto-generated>"
-slug: <name-slugified>-<hash>
-created: <ISO-8601 UTC timestamp>
-updated: <ISO-8601 UTC timestamp>
-agent: <agent-identifier>
-project: <git repo root path>
-branch: <current branch>
-commit: <short HEAD>
-parent: null
-locked_by: null
-locked_at: null
----
+### Step 6: Write the digest to a temp file
 
-## Task state
+Write the full conversation digest (the exhaustive brain dump covering ALL FIVE mandatory aspects) to a temporary file:
 
-<render current task list as a markdown table with columns: ID, Subject, Status, Owner>
-
-## Decision log
-
-<chronological list of every decision made, with reasoning per Mandatory Aspect 1>
-
-## Pending state
-
-<exact in-flight state per Mandatory Aspect 2>
-
-## Key files
-
-<files read, written, or discussed during the session, grouped by action type>
-
-## Active skills
-
-<skills invoked during this session, with state>
-
-## Conversation digest
-
+```bash
+cat > /tmp/fold-digest.md << 'ENDDIGEST'
 <the exhaustive brain dump covering ALL FIVE mandatory aspects>
+ENDDIGEST
 ```
 
-### Field reference
+### Step 7: Assemble the JSON input file
+
+Create a JSON file containing all structured data collected in Steps 1-4. The digest is referenced by path, not inlined.
+
+```bash
+cat > /tmp/fold-input.json << 'ENDJSON'
+{
+  "name": "<user-provided name or auto-generated>",
+  "agent": "<agent-identifier>",
+  "project": "<git repo root path>",
+  "branch": "<current branch>",
+  "commit": "<short HEAD>",
+  "digest_file": "/tmp/fold-digest.md",
+  "tasks": [
+    {"subject": "Task subject", "status": "pending", "owner": null, "description": "Task description", "blocked_by": null}
+  ],
+  "decisions": [
+    {"what": "What was decided", "why": "Why this option was chosen", "alternatives": "JSON-encoded array of rejected alternatives", "decided_by": "user directive"}
+  ],
+  "files": [
+    {"path": "/absolute/path/to/file.py", "action": "modified", "annotation": "edited lines 40-60"}
+  ]
+}
+ENDJSON
+```
+
+**Field reference:**
 
 | Field | Value |
 |---|---|
-| `hash` | 6-character hex string derived from dossier content (see file writing protocol below) |
-| `name` | User-provided name from `/bureau-fold "name"`, or auto-generated from conversation topic |
-| `slug` | `<name-slugified>-<hash>` — the name converted to lowercase kebab-case, appended with a dash and the hash. Example: `concierge-review-a7f3c2` |
-| `created` | ISO-8601 UTC timestamp at time of fold. Example: `2026-03-08T14:30:00Z` |
-| `updated` | Same as `created` for new dossiers; updated on subsequent folds |
+| `name` | User-provided name from `/bureau-fold "name"`, or auto-generated from conversation topic. Required for new dossiers; omit when re-folding with `--slug`. |
 | `agent` | Identifier of the agent performing the fold: `claude-code`, `codex`, `gemini-cli`, `opencode`, or similar |
 | `project` | Absolute path to the git repository root (from `git rev-parse --show-toplevel`) |
 | `branch` | Current git branch name |
 | `commit` | Short HEAD hash |
-| `parent` | Hash of the parent dossier if this is a re-fold; `null` for first fold |
-| `locked_by` | Always `null` for new dossiers (locking is done by the agent that resumes) |
-| `locked_at` | Always `null` for new dossiers |
+| `digest_file` | Path to the temp file containing the full digest |
+| `tasks` | Array of task objects from Step 2 |
+| `decisions` | Array of decision objects from the conversation (Mandatory Aspect 1) |
+| `files` | Array of file interaction objects from Step 3 |
 
----
+### Step 8: Run the CLI
 
-## File writing protocol
+Run **one** command to create or update the dossier:
 
-After assembling the dossier content, write the files to disk following these exact steps.
-
-### 1. Create the dossiers directory
-
-```bash
-mkdir -p ~/.config/bureau/dossiers
-```
-
-### 2. Generate the 6-character hex hash
-
-Generate a unique 6-character hex hash:
+**For a new dossier:**
 
 ```bash
-openssl rand -hex 3
+uv run python -m operations.dossiers fold --input-file /tmp/fold-input.json
 ```
 
-This produces exactly 6 hex characters (3 random bytes). Use this hash in the `hash` and `slug` fields of the frontmatter.
-
-### 3. Write the dossier markdown file
-
-Write the assembled dossier to:
-
-```
-~/.config/bureau/dossiers/<slug>.md
-```
-
-Where `<slug>` is `<name-slugified>-<hash>` (e.g., `concierge-review-a7f3c2.md`).
-
-### 4. Create the SQLite task database
-
-Create a WAL-mode SQLite database alongside the dossier:
+**For re-folding an existing dossier** (when a prior slug is known):
 
 ```bash
-sqlite3 ~/.config/bureau/dossiers/<slug>.tasks.db "
-PRAGMA journal_mode=WAL;
-CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    subject TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'pending',
-    owner TEXT,
-    blocked_by TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-"
+uv run python -m operations.dossiers fold --slug <existing-slug> --input-file /tmp/fold-input.json
 ```
 
-### 5. Populate tasks from collected task state
+The CLI automatically:
+- Generates the 6-character hex hash and slug (new dossiers)
+- Creates the SQLite database with the full schema (WAL mode)
+- Inserts metadata, session digest, tasks, decisions, and file interactions
+- Prunes old file interactions beyond the retention window
+- Updates `metadata.updated_at` on re-folds
 
-Insert each task collected in Step 2:
+### Step 9: Confirm output
 
-```bash
-sqlite3 ~/.config/bureau/dossiers/<slug>.tasks.db <<'ENDSQL'
-INSERT INTO tasks (subject, description, status, owner, blocked_by)
-VALUES ('subject here', 'description here', 'pending', NULL, NULL);
-ENDSQL
-```
-
-Repeat for each task. **Escape single quotes** in all values by doubling them (e.g., `it''s`). Use `NULL` (not the string `'null'`) for empty fields. The heredoc with `'ENDSQL'` (single-quoted delimiter) prevents shell expansion of special characters in the SQL values.
-
-If your agent environment supports native SQLite libraries or file-writing tools, prefer those over shell commands to avoid quoting issues entirely.
-
----
-
-## Output
-
-After writing both files successfully, confirm to the user with this exact format:
+The CLI prints a confirmation line on success. Relay it to the user in this format:
 
 ```
-Dossier saved: `<slug>` (<N> tasks recorded)
+Dossier saved: `<slug>` (<N> tasks, <M> decisions)
 Resume with `/bureau-unfold <hash>` or `/bureau-unfold <name>`
 ```
 
-If any step fails, report the failure clearly and do **not** leave partial files on disk.
+If the CLI exits with a non-zero status, report the error clearly. The CLI is atomic — a failed fold leaves no partial state.
 
 ---
 
@@ -348,7 +293,9 @@ If any step fails, report the failure clearly and do **not** leave partial files
 
 - **Do NOT** save the raw conversation transcript — the digest replaces it
 - **Do NOT** modify any repository files or git state — dossiers live outside the repo in `~/.config/bureau/dossiers/`
-- **Do NOT** auto-lock the dossier — fresh dossiers are always `locked_by: null`
+- **Do NOT** auto-lock the dossier — fresh dossiers are always unlocked
 - **Do NOT** abbreviate, truncate, or summarize the digest — exhaustive detail is mandatory; if in doubt, include more rather than less
 - **Do NOT** include a `name` field in this skill's YAML frontmatter (per Bureau convention — the skill name is derived from the install directory)
 - **Do NOT** prompt the user for additional information unless absolutely necessary — use the conversation history and tool outputs to fill in all fields
+- **Do NOT** run raw `sqlite3` commands or write YAML frontmatter manually — all database and file operations go through the CLI
+- **Do NOT** run `openssl rand` for hash generation — the CLI generates hashes automatically
