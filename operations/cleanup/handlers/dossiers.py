@@ -40,9 +40,11 @@ class DossiersHandler(CleanupHandler):
         """Read updated_at from SQLite metadata table."""
         try:
             conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-            row = conn.execute("SELECT updated_at FROM metadata").fetchone()
-            conn.close()
+            try:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute("SELECT updated_at FROM metadata").fetchone()
+            finally:
+                conn.close()
             if not row:
                 return None
             dt = datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00"))

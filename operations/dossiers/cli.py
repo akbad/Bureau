@@ -34,6 +34,8 @@ def cmd_fold(args: argparse.Namespace) -> int:
         branch = input_data.get("branch", args.branch)
         commit = input_data.get("commit", args.commit)
         digest = input_data.get("digest", "")
+        if not digest and "digest_file" in input_data:
+            digest = Path(input_data["digest_file"]).read_text(encoding="utf-8")
         tasks = input_data.get("tasks")
         decisions = input_data.get("decisions")
         files = input_data.get("files")
