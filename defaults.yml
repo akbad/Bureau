@@ -473,6 +473,7 @@ conversations:
   resume: unfold
   storage_dir: ~/.config/bureau/dossiers
   stale_dossier_days: 30
+  max_retained_sessions: 5
   concierge:
     auto_offer_resume: true
     auto_offer_save: true

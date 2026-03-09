@@ -176,6 +176,7 @@ class ConversationsConfig(TypedDict, total=False):
     resume: str                                 # command verb, default "unfold"
     storage_dir: str                            # default "~/.config/bureau/dossiers"
     stale_dossier_days: int                     # cleanup threshold, default 30
+    max_retained_sessions: int                  # prune file_interactions beyond this, default 5
     concierge: ConversationsConciergeConfig
     keywords: dict[str, list[str]]
 
