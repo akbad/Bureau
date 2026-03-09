@@ -10,6 +10,16 @@
 
 **Design doc:** `docs/plans/2026-03-08-dossier-cli-design.md`
 
+**Critical prerequisite:** `operations/__init__.py` eagerly imports from
+`mcp_catalog`, `config_templating`, and `skills_catalog`. When running
+`python -m operations.dossiers`, the parent package's `__init__.py` executes
+first. If any dependency in that import chain is unavailable, the dossier CLI
+will fail even though it has no dependency on those modules. Before starting
+Task 1, verify that `uv run python -m operations.dossiers --help` doesn't
+crash. If it does, make the imports in `operations/__init__.py` lazy or
+guarded, or restructure the dossier package to avoid triggering the parent
+package init.
+
 ---
 
 ### Task 1: Core DB module — schema and connection
@@ -18,6 +28,7 @@
 - Create: `operations/dossiers/__init__.py`
 - Create: `operations/dossiers/db.py`
 - Test: `operations/dossiers/tests/__init__.py`
+- Test: `operations/dossiers/tests/conftest.py` (shared fixtures for dossier tests)
 - Test: `operations/dossiers/tests/test_db.py`
 
 **Step 1: Write the failing test**
@@ -27,6 +38,8 @@
 """Tests for dossier database creation and schema."""
 import sqlite3
 from pathlib import Path
+
+import pytest
 
 from operations.dossiers.db import create_dossier_db, connect_dossier_db, SCHEMA_VERSION
 
@@ -87,11 +100,8 @@ class TestConnectDossierDb:
     def test_raises_on_missing_db(self, tmp_path: Path):
         """Raises FileNotFoundError for non-existent DB."""
         db_path = tmp_path / "nonexistent.db"
-        try:
+        with pytest.raises(FileNotFoundError):
             connect_dossier_db(db_path)
-            assert False, "Should have raised"
-        except FileNotFoundError:
-            pass
 ```
 
 **Step 2: Run test to verify it fails**
@@ -119,6 +129,7 @@ _SCHEMA_SQL = """
 PRAGMA journal_mode=WAL;
 
 CREATE TABLE IF NOT EXISTS metadata (
+    id          INTEGER PRIMARY KEY CHECK (id = 1) DEFAULT 1,
     hash        TEXT NOT NULL,
     name        TEXT NOT NULL,
     slug        TEXT NOT NULL,
@@ -170,6 +181,11 @@ CREATE TABLE IF NOT EXISTS file_interactions (
     action      TEXT NOT NULL,
     annotation  TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_file_interactions_session
+    ON file_interactions(session_id);
+CREATE INDEX IF NOT EXISTS idx_decisions_session
+    ON decisions(session_id);
 """
 
 
@@ -405,6 +421,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'operations.dossiers.f
 ```python
 # operations/dossiers/fold.py
 """Fold operation: create or update a dossier."""
+import json
 import os
 import re
 from datetime import datetime, timezone
@@ -424,6 +441,8 @@ def _slugify(name: str) -> str:
     slug = name.lower().strip()
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
     slug = slug.strip("-")
+    if not slug:
+        slug = "dossier"
     return slug
 
 
@@ -477,8 +496,8 @@ def fold_dossier(
 
         conn.execute(
             """INSERT INTO metadata
-               (hash, name, slug, created_at, updated_at, agent, project, branch, commit_hash, parent, locked_by, locked_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)""",
+               (id, hash, name, slug, created_at, updated_at, agent, project, branch, commit_hash, parent, locked_by, locked_at)
+               VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)""",
             (dossier_hash, name, slug, now, now, agent, project, branch, commit_hash),
         )
 
@@ -504,13 +523,16 @@ def fold_dossier(
 
     # Insert decisions
     for decision in (decisions or []):
+        alternatives = decision.get("alternatives")
+        if alternatives is not None and not isinstance(alternatives, str):
+            alternatives = json.dumps(alternatives)
         conn.execute(
             "INSERT INTO decisions (session_id, what, why, alternatives, decided_by) VALUES (?, ?, ?, ?, ?)",
             (
                 session_id,
                 decision["what"],
                 decision["why"],
-                decision.get("alternatives"),
+                alternatives,
                 decision.get("decided_by"),
             ),
         )
@@ -554,6 +576,8 @@ git commit -m "feat(dossiers): add fold operation for creating/updating dossiers
 # operations/dossiers/tests/test_unfold.py
 """Tests for dossier unfold (render for context injection)."""
 from pathlib import Path
+
+import pytest
 
 from operations.dossiers.fold import fold_dossier
 from operations.dossiers.unfold import unfold_dossier, list_dossiers, find_dossier
@@ -653,6 +677,27 @@ class TestUnfoldDossier:
         assert "Session 1." in output
         assert "Session 2." in output
 
+    def test_caps_rendered_sessions(self, tmp_path: Path):
+        """Only last N session digests are rendered when max_sessions is set."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="Session 1."
+        )
+        for i in range(2, 8):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a",
+                digest=f"Session {i}.",
+            )
+        output = unfold_dossier(tmp_path, result["hash"], max_sessions=3)
+        assert "Session 5." in output
+        assert "Session 7." in output
+        assert "Session 1." not in output
+        assert "showing 3 of 7" in output
+
+    def test_raises_on_unknown_dossier(self, tmp_path: Path):
+        """Raises FileNotFoundError for unknown dossier."""
+        with pytest.raises(FileNotFoundError):
+            unfold_dossier(tmp_path, "nonexistent")
+
 
 class TestListDossiers:
     """Tests for listing all dossiers."""
@@ -690,21 +735,30 @@ from .db import connect_dossier_db
 def find_dossier(dossiers_dir: Path, query: str) -> Path | None:
     """Find a dossier DB by hash or name substring.
 
-    Searches .db files in dossiers_dir. Tries exact hash match first,
-    then slug substring match.
+    Priority: exact hash suffix > substring match.
+    Raises ValueError if multiple matches at the same priority level.
     """
     if not dossiers_dir.exists():
         return None
 
-    for db_file in dossiers_dir.glob("*.db"):
-        slug = db_file.stem
-        # Exact hash match (last 6 chars of slug)
-        if slug.endswith(query):
-            return db_file
-        # Substring match on slug
-        if query.lower() in slug.lower():
-            return db_file
+    exact_matches = []
+    substring_matches = []
+    query_lower = query.lower()
 
+    for db_file in sorted(dossiers_dir.glob("*.db")):
+        slug = db_file.stem
+        if slug.endswith(query):
+            exact_matches.append(db_file)
+        elif query_lower in slug.lower():
+            substring_matches.append(db_file)
+
+    # Priority: exact hash match > substring
+    matches = exact_matches or substring_matches
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        slugs = [m.stem for m in matches]
+        raise ValueError(f"Ambiguous query '{query}', matches: {', '.join(slugs)}")
     return None
 
 
@@ -733,18 +787,20 @@ def list_dossiers(dossiers_dir: Path) -> list[dict[str, Any]]:
                     "tasks": task_count,
                     "sessions": session_count,
                 })
-        except Exception:
+        except (sqlite3.Error, FileNotFoundError):
             continue
 
     results.sort(key=lambda x: x["updated_at"], reverse=True)
     return results
 
 
-def unfold_dossier(dossiers_dir: Path, query: str) -> str:
+def unfold_dossier(dossiers_dir: Path, query: str, max_sessions: int = 5) -> str:
     """Render a dossier as markdown for context injection.
 
     Finds the dossier by hash or name, reads all state, and returns
     a markdown string ready for injection into an agent's context.
+    Only the last `max_sessions` session digests are rendered (all
+    sessions are kept in storage).
     """
     db_path = find_dossier(dossiers_dir, query)
     if not db_path:
@@ -753,7 +809,10 @@ def unfold_dossier(dossiers_dir: Path, query: str) -> str:
     conn = connect_dossier_db(db_path)
 
     meta = conn.execute("SELECT * FROM metadata").fetchone()
-    sessions = conn.execute("SELECT * FROM sessions ORDER BY id").fetchall()
+    total_sessions = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+    sessions = conn.execute(
+        "SELECT * FROM sessions ORDER BY id DESC LIMIT ?", (max_sessions,)
+    ).fetchall()[::-1]  # reverse to chronological order
     tasks = conn.execute(
         "SELECT * FROM tasks WHERE status != 'deleted' ORDER BY id"
     ).fetchall()
@@ -785,7 +844,7 @@ def unfold_dossier(dossiers_dir: Path, query: str) -> str:
             )
         lines.append("")
 
-    # Decisions
+    # Decisions (all — decisions are durable architectural choices)
     if decisions:
         lines.append("## Decisions")
         lines.append("")
@@ -793,8 +852,11 @@ def unfold_dossier(dossiers_dir: Path, query: str) -> str:
             lines.append(f"- **{d['what']}**: {d['why']} *(decided by: {d['decided_by']})*")
         lines.append("")
 
-    # Session digests
-    lines.append("## Session digests")
+    # Session digests (capped)
+    if total_sessions > len(sessions):
+        lines.append(f"## Session digests (showing {len(sessions)} of {total_sessions})")
+    else:
+        lines.append("## Session digests")
     lines.append("")
     for s in sessions:
         lines.append(f"### Session {s['id']} ({s['folded_at']}, {s['agent']})")
@@ -831,6 +893,8 @@ git commit -m "feat(dossiers): add unfold operation for context injection render
 # operations/dossiers/tests/test_tasks.py
 """Tests for dossier task CRUD operations."""
 from pathlib import Path
+
+import pytest
 
 from operations.dossiers.fold import fold_dossier
 from operations.dossiers.tasks import list_tasks, add_task, update_task, remove_task
@@ -904,11 +968,8 @@ class TestUpdateTask:
         result = fold_dossier(
             dossiers_dir=tmp_path, name="Test", agent="a", digest="D."
         )
-        try:
+        with pytest.raises(ValueError):
             update_task(tmp_path, result["slug"], task_id=999, status="completed")
-            assert False, "Should have raised"
-        except ValueError:
-            pass
 
 
 class TestRemoveTask:
@@ -1046,6 +1107,8 @@ git commit -m "feat(dossiers): add task CRUD operations"
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from operations.dossiers.fold import fold_dossier
 from operations.dossiers.lock import claim_lock, release_lock, get_lock_status
 
@@ -1065,11 +1128,8 @@ class TestClaimLock:
             dossiers_dir=tmp_path, name="Test", agent="a", digest="D."
         )
         claim_lock(tmp_path, result["slug"], agent="claude-code")
-        try:
+        with pytest.raises(ValueError, match="claude-code"):
             claim_lock(tmp_path, result["slug"], agent="codex")
-            assert False, "Should have raised"
-        except ValueError as e:
-            assert "claude-code" in str(e)
 
 
 class TestReleaseLock:
@@ -1199,7 +1259,7 @@ def release_lock(dossiers_dir: Path, slug: str) -> None:
 ```python
 # operations/dossiers/fork.py
 """Fork operation: create independent copy of a dossier."""
-import shutil
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -1212,23 +1272,29 @@ def fork_dossier(
     slug: str,
     name: str | None = None,
 ) -> dict[str, str]:
-    """Create an independent copy of a dossier. Always unlocked."""
+    """Create an independent copy of a dossier. Always unlocked.
+
+    Uses sqlite3.backup() for a WAL-safe copy (ensures uncommitted
+    WAL transactions are included in the fork).
+    """
     source_path = dossiers_dir / f"{slug}.db"
     if not source_path.exists():
         raise FileNotFoundError(f"Dossier not found: {slug}")
 
     # Read original metadata for defaults
-    conn = connect_dossier_db(source_path)
-    meta = conn.execute("SELECT * FROM metadata").fetchone()
-    conn.close()
+    source_conn = connect_dossier_db(source_path)
+    meta = source_conn.execute("SELECT * FROM metadata").fetchone()
 
     new_hash = _generate_hash()
     fork_name = name or f"{meta['name']} (fork)"
     new_slug = f"{_slugify(fork_name)}-{new_hash}"
     dest_path = dossiers_dir / f"{new_slug}.db"
 
-    # Copy the entire DB
-    shutil.copy2(source_path, dest_path)
+    # WAL-safe copy via sqlite3 backup API
+    dest_conn = sqlite3.connect(dest_path)
+    source_conn.backup(dest_conn)
+    source_conn.close()
+    dest_conn.close()
 
     # Update metadata in the fork
     now = _now_iso()
@@ -1325,9 +1391,12 @@ class TestCliUnfold:
             ],
             capture_output=True, text=True,
         )
-        # Extract hash from output
-        # Output format: "Dossier saved: <slug> (..."
-        slug = fold_result.stdout.split("`")[1]  # between backticks
+        assert fold_result.returncode == 0, fold_result.stderr
+        # Extract slug from output: "Dossier saved: `<slug>` (..."
+        import re as _re
+        slug_match = _re.search(r"`([^`]+)`", fold_result.stdout)
+        assert slug_match, f"Could not parse slug from: {fold_result.stdout}"
+        slug = slug_match.group(1)
 
         result = subprocess.run(
             [
@@ -1421,27 +1490,51 @@ def cmd_fold(args: argparse.Namespace) -> int:
     dossiers_dir = _get_dossiers_dir(args)
     dossiers_dir.mkdir(parents=True, exist_ok=True)
 
-    # Read digest from file or stdin
-    if args.digest_file:
-        digest = Path(args.digest_file).read_text(encoding="utf-8")
-    elif not sys.stdin.isatty():
-        digest = sys.stdin.read()
+    # --input-file: single JSON blob with all fields (recommended)
+    if args.input_file:
+        input_data = json.loads(Path(args.input_file).read_text(encoding="utf-8"))
+        name = input_data.get("name", args.name)
+        slug = input_data.get("slug", args.slug)
+        agent = input_data.get("agent", args.agent)
+        project = input_data.get("project", args.project)
+        branch = input_data.get("branch", args.branch)
+        commit = input_data.get("commit", args.commit)
+        digest = input_data.get("digest", "")
+        tasks = input_data.get("tasks")
+        decisions = input_data.get("decisions")
+        files = input_data.get("files")
     else:
-        print("Error: --digest-file required (or pipe digest via stdin)", file=sys.stderr)
-        return 1
+        name = args.name
+        slug = args.slug
+        agent = args.agent
+        project = args.project
+        branch = args.branch
+        commit = args.commit
+        tasks = json.loads(args.tasks_json) if args.tasks_json else None
+        decisions = json.loads(args.decisions_json) if args.decisions_json else None
+        files = json.loads(args.files_json) if args.files_json else None
 
-    tasks = json.loads(args.tasks_json) if args.tasks_json else None
-    decisions = json.loads(args.decisions_json) if args.decisions_json else None
-    files = json.loads(args.files_json) if args.files_json else None
+        # Read digest from file or stdin
+        if args.digest_file:
+            digest = Path(args.digest_file).read_text(encoding="utf-8")
+        elif not sys.stdin.isatty():
+            digest = sys.stdin.read()
+        else:
+            print("Error: --digest-file or --input-file required (or pipe via stdin)", file=sys.stderr)
+            return 1
+
+    if not agent:
+        print("Error: --agent is required", file=sys.stderr)
+        return 1
 
     result = fold_dossier(
         dossiers_dir=dossiers_dir,
-        name=args.name,
-        slug=args.slug,
-        agent=args.agent,
-        project=args.project,
-        branch=args.branch,
-        commit_hash=args.commit,
+        name=name,
+        slug=slug,
+        agent=agent,
+        project=project,
+        branch=branch,
+        commit_hash=commit,
         digest=digest,
         tasks=tasks,
         decisions=decisions,
@@ -1456,10 +1549,31 @@ def cmd_fold(args: argparse.Namespace) -> int:
 def cmd_unfold(args: argparse.Namespace) -> int:
     dossiers_dir = _get_dossiers_dir(args)
     try:
-        output = unfold_dossier(dossiers_dir, args.query)
+        # Handle --fork: fork first, then unfold the fork
+        if getattr(args, "fork", False):
+            from .fork import fork_dossier
+            db_path = find_dossier(dossiers_dir, args.query)
+            if not db_path:
+                print(f"Error: No dossier found matching: {args.query}", file=sys.stderr)
+                return 1
+            fork_result = fork_dossier(dossiers_dir, db_path.stem)
+            args.query = fork_result["hash"]
+
+        # Handle --claim: acquire lock during unfold
+        if getattr(args, "claim", False):
+            from .lock import claim_lock
+            db_path = find_dossier(dossiers_dir, args.query)
+            if db_path:
+                claim_lock(dossiers_dir, db_path.stem, agent=args.agent)
+
+        max_sessions = getattr(args, "max_sessions", 5) or 5
+        output = unfold_dossier(dossiers_dir, args.query, max_sessions=max_sessions)
         print(output)
         return 0
     except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
@@ -1560,12 +1674,17 @@ def cmd_fork(args: argparse.Namespace) -> int:
 
 
 def cmd_show(args: argparse.Namespace) -> int:
+    """Human-readable on-demand view (replaces auto-generated .md projection)."""
     dossiers_dir = _get_dossiers_dir(args)
     try:
-        output = unfold_dossier(dossiers_dir, args.query)
+        max_sessions = getattr(args, "max_sessions", 5) or 5
+        output = unfold_dossier(dossiers_dir, args.query, max_sessions=max_sessions)
         print(output)
         return 0
     except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
@@ -1579,11 +1698,12 @@ def main() -> int:
     p_fold = subparsers.add_parser("fold", help="Create or update a dossier")
     p_fold.add_argument("--name", help="Dossier name (for new dossiers)")
     p_fold.add_argument("--slug", help="Existing dossier slug (for re-fold)")
-    p_fold.add_argument("--agent", required=True, help="Agent identifier")
+    p_fold.add_argument("--agent", help="Agent identifier (required)")
     p_fold.add_argument("--project", help="Git repo root path")
     p_fold.add_argument("--branch", help="Current git branch")
     p_fold.add_argument("--commit", help="Short HEAD hash")
     p_fold.add_argument("--digest-file", help="Path to digest markdown file")
+    p_fold.add_argument("--input-file", help="JSON file with all fold fields (recommended)")
     p_fold.add_argument("--tasks-json", help="JSON array of tasks")
     p_fold.add_argument("--decisions-json", help="JSON array of decisions")
     p_fold.add_argument("--files-json", help="JSON array of file interactions")
@@ -1591,6 +1711,11 @@ def main() -> int:
     # unfold
     p_unfold = subparsers.add_parser("unfold", help="Render dossier for context injection")
     p_unfold.add_argument("query", help="Dossier hash or name to find")
+    p_unfold.add_argument("--claim", action="store_true", help="Acquire advisory lock during unfold")
+    p_unfold.add_argument("--agent", help="Agent name for --claim")
+    p_unfold.add_argument("--fork", action="store_true", help="Fork the dossier, then unfold the fork")
+    p_unfold.add_argument("--max-sessions", type=int, default=5, dest="max_sessions",
+                          help="Max session digests to render (default: 5)")
 
     # list
     p_list = subparsers.add_parser("list", help="List all dossiers")
@@ -1636,9 +1761,11 @@ def main() -> int:
     p_fork.add_argument("slug", help="Source dossier slug")
     p_fork.add_argument("--name", help="Name for the fork")
 
-    # show
+    # show (on-demand human-readable view, replaces auto-generated .md)
     p_show = subparsers.add_parser("show", help="Render human-readable view")
     p_show.add_argument("query", help="Dossier hash or name")
+    p_show.add_argument("--max-sessions", type=int, default=5, dest="max_sessions",
+                        help="Max session digests to render (default: 5)")
 
     args = parser.parse_args()
 
@@ -1672,8 +1799,15 @@ git commit -m "feat(dossiers): add CLI entry point with all subcommands"
 
 ### Task 7: Auto-prune file interactions during fold
 
+**Prerequisite:** Add `max_retained_sessions: 5` to `defaults.yml` under
+`conversations:` and add it to the `ConversationsConfig` TypedDict in
+`operations/config_loader.py`. The CLI hardcodes the default of 5 but the
+config should also document it.
+
 **Files:**
 - Modify: `operations/dossiers/fold.py`
+- Modify: `defaults.yml` (add `max_retained_sessions: 5` under `conversations:`)
+- Modify: `operations/config_loader.py` (add `max_retained_sessions: int` to `ConversationsConfig`)
 - Test: `operations/dossiers/tests/test_fold.py` (add pruning tests)
 
 **Step 1: Write the failing test**
@@ -1826,13 +1960,227 @@ class TestDossiersHandlerGetStaleItems:
 Run: `uv run pytest operations/cleanup/tests/test_handlers/test_dossiers.py -v`
 Expected: FAIL (handler still looks for .md files with YAML frontmatter)
 
-**Step 3: Update DossiersHandler to use .db format**
+**Step 3: Rewrite DossiersHandler for .db format (with legacy transition)**
 
-Rewrite `dossiers.py` to:
-- Scan for `*.db` files instead of `*.md`
-- Read `updated_at` from the SQLite `metadata` table instead of YAML frontmatter
-- Companion files are `*.db-wal` and `*.db-shm` (no `.md` to clean up unless it exists)
-- Optionally also clean up any `.md` projection file with the same stem
+Replace the contents of `operations/cleanup/handlers/dossiers.py` with:
+
+```python
+"""Cleanup handler for Bureau dossiers.
+
+Manages retention of conversation dossier databases (.db) and their
+SQLite sidecars in ~/.config/bureau/dossiers/.
+
+# Design rationale:
+# Dossiers are now single .db files (WAL mode). Companion files are
+# the WAL and SHM sidecars created by SQLite.
+# During transition, legacy .md + .tasks.db pairs are also scanned
+# and cleaned up based on YAML frontmatter timestamps.
+# Retention is based on the 'updated_at' metadata timestamp from
+# the SQLite database, not filesystem mtime.
+"""
+import os
+import re
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from .base import CleanupHandler, CleanupError
+from ..trash import get_trash_dir, move_to_trash, write_manifest
+from ...config_loader import get_trash_grace_period
+
+
+DOSSIERS_DIR = Path(os.path.expanduser("~/.config/bureau/dossiers"))
+
+# Legacy format support (transition period)
+_FRONTMATTER_RE = re.compile(r"^---\s*\r?\n(.*?)\r?\n---", re.DOTALL)
+_UPDATED_RE = re.compile(r"^updated:\s*(.+)$", re.MULTILINE)
+
+
+class DossiersHandler(CleanupHandler):
+    """Cleanup handler for Bureau dossiers (.db files, with legacy .md support)."""
+
+    name = "dossiers"
+
+    @staticmethod
+    def _read_updated_from_db(db_path: Path) -> datetime | None:
+        """Read updated_at from SQLite metadata table."""
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT updated_at FROM metadata").fetchone()
+            conn.close()
+            if not row:
+                return None
+            dt = datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except (sqlite3.Error, OSError):
+            return None
+
+    @staticmethod
+    def _read_updated_from_md(md_path: Path) -> datetime | None:
+        """Read updated timestamp from legacy YAML frontmatter."""
+        try:
+            text = md_path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        fm_match = _FRONTMATTER_RE.search(text)
+        if not fm_match:
+            return None
+        updated_match = _UPDATED_RE.search(fm_match.group(1))
+        if not updated_match:
+            return None
+        try:
+            dt = datetime.fromisoformat(updated_match.group(1).strip())
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _companion_files_db(db_path: Path) -> list[Path]:
+        """WAL/SHM sidecars for a .db file."""
+        parent = db_path.parent
+        stem = db_path.name  # e.g. "slug.db"
+        candidates = [
+            parent / f"{stem}-wal",
+            parent / f"{stem}-shm",
+        ]
+        return [p for p in candidates if p.exists()]
+
+    @staticmethod
+    def _companion_files_legacy(md_path: Path) -> list[Path]:
+        """Companion files for legacy .md format."""
+        slug = md_path.stem
+        parent = md_path.parent
+        candidates = [
+            parent / f"{slug}.tasks.db",
+            parent / f"{slug}.tasks.db-wal",
+            parent / f"{slug}.tasks.db-shm",
+        ]
+        return [p for p in candidates if p.exists()]
+
+    def get_stale_items(self, cutoff: datetime) -> list[dict[str, Any]]:
+        """Find stale dossiers (new .db format + legacy .md format)."""
+        try:
+            items: list[dict[str, Any]] = []
+            if not DOSSIERS_DIR.exists():
+                return items
+
+            # New format: .db files
+            for db_file in DOSSIERS_DIR.glob("*.db"):
+                # Skip WAL/SHM sidecars and legacy .tasks.db files
+                if db_file.name.endswith(("-wal", "-shm")) or ".tasks." in db_file.name:
+                    continue
+                updated = self._read_updated_from_db(db_file)
+                if updated is None:
+                    continue
+                if updated < cutoff:
+                    companions = self._companion_files_db(db_file)
+                    all_files = [db_file] + companions
+                    items.append({
+                        "path": db_file,
+                        "companions": companions,
+                        "all_files": all_files,
+                        "updated": updated,
+                        "size": sum(f.stat().st_size for f in all_files),
+                    })
+
+            # Legacy format: .md files (transition period)
+            for md_file in DOSSIERS_DIR.glob("*.md"):
+                updated = self._read_updated_from_md(md_file)
+                if updated is None:
+                    continue
+                if updated < cutoff:
+                    companions = self._companion_files_legacy(md_file)
+                    all_files = [md_file] + companions
+                    items.append({
+                        "path": md_file,
+                        "companions": companions,
+                        "all_files": all_files,
+                        "updated": updated,
+                        "size": sum(f.stat().st_size for f in all_files),
+                    })
+
+            return items
+        except OSError as e:
+            raise CleanupError(f"Failed to scan dossiers: {e}") from e
+
+    def export_items_to_trash(self, items: list[dict[str, Any]], retention: str) -> str:
+        """Move all dossier files to trash."""
+        try:
+            trash_dir = get_trash_dir(self.name)
+            moved_files: list[Path] = []
+            for item in items:
+                for file_path in item["all_files"]:
+                    if file_path.exists():
+                        dest = move_to_trash(file_path, self.name)
+                        moved_files.append(dest)
+            write_manifest(trash_dir, self.name, len(items), retention,
+                           get_trash_grace_period(), files=moved_files)
+            return str(trash_dir)
+        except OSError as e:
+            raise CleanupError(f"Failed to move dossier files to trash: {e}") from e
+
+    def delete_items_from_storage(self, items: list[dict[str, Any]]) -> int:
+        """Files already moved by export_items_to_trash."""
+        return len(items)
+
+    def _wipe(self, backup: bool) -> dict[str, Any]:
+        """Completely erase all dossier files (both formats)."""
+        try:
+            items: list[dict[str, Any]] = []
+            if not DOSSIERS_DIR.exists():
+                return {"storage": self.name, "wiped": 0, "message": "no dossier files found"}
+
+            # Collect all .db files (new format)
+            for db_file in DOSSIERS_DIR.glob("*.db"):
+                if db_file.name.endswith(("-wal", "-shm")) or ".tasks." in db_file.name:
+                    continue
+                companions = self._companion_files_db(db_file)
+                all_files = [db_file] + companions
+                items.append({
+                    "path": db_file,
+                    "companions": companions,
+                    "all_files": all_files,
+                    "updated": self._read_updated_from_db(db_file),
+                    "size": sum(f.stat().st_size for f in all_files),
+                })
+
+            # Collect legacy .md files
+            for md_file in DOSSIERS_DIR.glob("*.md"):
+                companions = self._companion_files_legacy(md_file)
+                all_files = [md_file] + companions
+                items.append({
+                    "path": md_file,
+                    "companions": companions,
+                    "all_files": all_files,
+                    "updated": self._read_updated_from_md(md_file),
+                    "size": sum(f.stat().st_size for f in all_files),
+                })
+
+            if not items:
+                return {"storage": self.name, "wiped": 0, "message": "no dossier files found"}
+
+            backup_path = None
+            if backup:
+                backup_path = self.export_items_to_trash(items, "wipe")
+            else:
+                for item in items:
+                    for file_path in item["all_files"]:
+                        if file_path.exists():
+                            file_path.unlink()
+
+            result: dict[str, Any] = {"storage": self.name, "wiped": len(items)}
+            if backup_path:
+                result["backup_path"] = backup_path
+            return result
+        except OSError as e:
+            raise CleanupError(f"Failed to wipe dossiers: {e}") from e
+```
 
 **Step 4: Run test to verify it passes**
 

@@ -29,20 +29,19 @@ CLI (Python, operations.dossiers)
     list     — list all dossiers
     lock     — claim/release advisory lock
     fork     — create independent copy
-    show     — render human-readable view
+    show     — render human-readable view (on-demand)
 
   Backend: SQLite (WAL mode). Bureau-specific.
         │
         ▼
 Storage (~/.config/bureau/dossiers/)
   <slug>.db     — all state (single SQLite file)
-  <slug>.md     — rendered projection (optional)
 ```
 
 ### Key decisions
 
 1. **Single `.db` file per dossier** replaces the split `.md` + `.tasks.db` model.
-   The `.md` becomes a generated view, not a source of truth.
+   No `.md` projection is generated; use `unfold` to render on-demand.
 
 2. **All agent I/O goes through the CLI.** Skills never run `sqlite3`, write
    frontmatter, or touch the DB directly.
@@ -66,6 +65,7 @@ PRAGMA journal_mode=WAL;
 
 -- Metadata (single row, updated on each fold)
 CREATE TABLE metadata (
+    id          INTEGER PRIMARY KEY CHECK (id = 1) DEFAULT 1,
     hash        TEXT NOT NULL,
     name        TEXT NOT NULL,
     slug        TEXT NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE decisions (
     session_id  INTEGER REFERENCES sessions(id),
     what        TEXT NOT NULL,
     why         TEXT NOT NULL,
-    alternatives TEXT,          -- JSON array of rejected alternatives
+    alternatives TEXT,          -- JSON-encoded array of rejected alternatives
     decided_by  TEXT,           -- "user directive", "agent recommendation", etc.
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -121,6 +121,12 @@ CREATE TABLE file_interactions (
     action      TEXT NOT NULL,  -- "created", "modified", "read", "discussed"
     annotation  TEXT
 );
+
+-- Indexes for pruning and join queries
+CREATE INDEX IF NOT EXISTS idx_file_interactions_session
+    ON file_interactions(session_id);
+CREATE INDEX IF NOT EXISTS idx_decisions_session
+    ON decisions(session_id);
 ```
 
 ### Table semantics
@@ -146,6 +152,7 @@ Create or update a dossier. Accepts structured JSON input for all fields.
 The agent writes the digest as free-form text; everything else is validated JSON.
 
 ```bash
+# Via CLI flags (good for simple folds):
 uv run python -m operations.dossiers fold \
   --name "Dossiers Implementation" \
   --project /path/to/repo \
@@ -155,6 +162,26 @@ uv run python -m operations.dossiers fold \
   --tasks-json '[{"subject":"Wire up pipeline","status":"pending"}]' \
   --decisions-json '[{"what":"Use SQLite","why":"ACID guarantees","decided_by":"user"}]' \
   --files-json '[{"path":"fold/SKILL.md","action":"created"}]'
+
+# Via input file (recommended — avoids shell escaping):
+uv run python -m operations.dossiers fold \
+  --input-file /tmp/fold-input.json
+```
+
+The `--input-file` JSON format:
+
+```json
+{
+  "name": "Dossiers Implementation",
+  "agent": "claude-code",
+  "project": "/path/to/repo",
+  "branch": "feat/concierge",
+  "commit": "93408be",
+  "digest": "Full digest text here...",
+  "tasks": [{"subject": "Wire up pipeline", "status": "pending"}],
+  "decisions": [{"what": "Use SQLite", "why": "ACID guarantees", "decided_by": "user"}],
+  "files": [{"path": "fold/SKILL.md", "action": "created"}]
+}
 ```
 
 For existing dossiers (re-fold):
@@ -171,7 +198,6 @@ Output: `Dossier saved: <slug> (<N> tasks, <M> decisions)`
 During fold, the CLI automatically:
 1. Prunes `file_interactions` older than `max_retained_sessions`
 2. Updates `metadata.updated_at`
-3. Regenerates the `.md` projection
 
 ### `unfold`
 
@@ -181,10 +207,17 @@ Render dossier context to stdout for injection into a fresh agent.
 uv run python -m operations.dossiers unfold <hash-or-name>
 uv run python -m operations.dossiers unfold <hash-or-name> --claim --agent claude-code
 uv run python -m operations.dossiers unfold <hash-or-name> --fork
+uv run python -m operations.dossiers unfold <hash-or-name> --max-sessions 3
 ```
 
-Output: full dossier state rendered as markdown (metadata, latest session
-digest, task list, recent decisions) — ready for context injection.
+Flags:
+- `--claim --agent <name>`: acquire advisory lock during unfold (single step)
+- `--fork`: create an independent copy and unfold the fork
+- `--max-sessions N`: limit rendered session digests to the last N (default 5).
+  All sessions remain stored; only the rendered output is capped.
+
+Output: full dossier state rendered as markdown (metadata, recent session
+digests, task list, all decisions) — ready for context injection.
 
 ### `list`
 
@@ -225,11 +258,16 @@ uv run python -m operations.dossiers fork <slug> --name "my fork"
 
 ### `show`
 
-Render human-readable view to stdout.
+Render human-readable view to stdout (on-demand replacement for the
+removed auto-generated `.md` projection).
 
 ```bash
 uv run python -m operations.dossiers show <slug>
+uv run python -m operations.dossiers show <slug> > dossier.md
 ```
+
+Same rendering as `unfold` but intended for human inspection, not
+context injection. Pipe to a file to get the `.md` view when needed.
 
 ## Cleanup
 
@@ -243,10 +281,11 @@ Two-level cleanup strategy:
 
 ### Level 2: Whole-dossier retention (periodic cleanup)
 
-- Entire `.db` + `.md` deleted when `metadata.updated_at` exceeds
-  `stale_dossier_days`
+- Entire `.db` (plus WAL/SHM sidecars) deleted when `metadata.updated_at`
+  exceeds `stale_dossier_days`
 - Handled by the existing `DossiersHandler` (updated to scan `*.db` files
   and read `updated_at` from the SQLite `metadata` table)
+- During transition: also cleans up legacy `.md` + `.tasks.db` files
 
 ### Configuration
 
@@ -255,6 +294,17 @@ conversations:
   max_retained_sessions: 5    # prune file_interactions beyond this
   stale_dossier_days: 30      # whole-dossier retention
 ```
+
+## Migration from legacy format
+
+The old format used `.md` (YAML frontmatter) + `.tasks.db` per dossier.
+The new format uses a single `.db` file per dossier.
+
+During the transition period:
+1. The cleanup handler scans for **both** `*.db` (new) and `*.md` (legacy) files
+2. `unfold` and `list` only read the new `.db` format
+3. Legacy dossiers are not auto-migrated — they age out via `stale_dossier_days`
+4. No `migrate` command is needed; the old format was short-lived
 
 ## Protocol updates
 
