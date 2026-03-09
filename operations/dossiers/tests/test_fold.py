@@ -174,3 +174,40 @@ class TestFoldExistingDossier:
         ts2 = conn.execute("SELECT updated_at FROM metadata").fetchone()["updated_at"]
         conn.close()
         assert ts2 >= ts1
+
+
+class TestFoldPruning:
+    """Tests for auto-pruning file_interactions during fold."""
+
+    def test_prunes_old_file_interactions(self, tmp_path: Path):
+        """File interactions beyond max_retained_sessions are deleted."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="S1.",
+            files=[{"path": "/a.py", "action": "read"}],
+        )
+        for i in range(6):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a",
+                digest=f"S{i+2}.",
+                files=[{"path": f"/{i}.py", "action": "read"}],
+                max_retained_sessions=5,
+            )
+        conn = sqlite3.connect(tmp_path / f"{result['slug']}.db")
+        fi_count = conn.execute("SELECT COUNT(*) FROM file_interactions").fetchone()[0]
+        session_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+        conn.close()
+        # 7 sessions total, but only last 5 sessions' file_interactions kept
+        assert session_count == 7
+        assert fi_count == 5  # pruned first 2
+
+    def test_no_prune_when_under_threshold(self, tmp_path: Path):
+        """No pruning when sessions <= max_retained_sessions."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="S1.",
+            files=[{"path": "/a.py", "action": "read"}],
+            max_retained_sessions=5,
+        )
+        conn = sqlite3.connect(tmp_path / f"{result['slug']}.db")
+        fi_count = conn.execute("SELECT COUNT(*) FROM file_interactions").fetchone()[0]
+        conn.close()
+        assert fi_count == 1

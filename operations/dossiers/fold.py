@@ -40,6 +40,7 @@ def fold_dossier(
     tasks: list[dict[str, Any]] | None = None,
     decisions: list[dict[str, Any]] | None = None,
     files: list[dict[str, Any]] | None = None,
+    max_retained_sessions: int = 5,
 ) -> dict[str, str]:
     """Create a new dossier or append a session to an existing one.
 
@@ -121,6 +122,18 @@ def fold_dossier(
             "INSERT INTO file_interactions (session_id, file_path, action, annotation) VALUES (?, ?, ?, ?)",
             (session_id, f["path"], f["action"], f.get("annotation")),
         )
+
+    # Prune old file_interactions
+    if max_retained_sessions > 0:
+        cutoff_session = conn.execute(
+            "SELECT id FROM sessions ORDER BY id DESC LIMIT 1 OFFSET ?",
+            (max_retained_sessions,),
+        ).fetchone()
+        if cutoff_session:
+            conn.execute(
+                "DELETE FROM file_interactions WHERE session_id <= ?",
+                (cutoff_session["id"],),
+            )
 
     conn.commit()
     conn.close()
