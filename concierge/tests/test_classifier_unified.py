@@ -1,7 +1,16 @@
 """Tests for the unified classifier pipeline (Stage 0a -> 0b -> 0c)."""
 
+import pytest
+
 from concierge.classifier.classify import classify_message
 from concierge.models import MessageClass, MessageEnvelope
+
+_has_ml_deps = True
+try:
+    import onnxruntime  # noqa: F401
+    import transformers  # noqa: F401
+except ImportError:
+    _has_ml_deps = False
 
 
 class TestUnifiedClassifier:
@@ -15,6 +24,7 @@ class TestUnifiedClassifier:
         result = classify_message(env, active_feature=None)
         assert result.classification == MessageClass.REPLY
 
+    @pytest.mark.skipif(not _has_ml_deps, reason="ML deps not installed")
     def test_normal_text_falls_through_to_model(self):
         env = MessageEnvelope(text="what should I eat for dinner?", has_attachment=False)
         result = classify_message(env, active_feature=None)
