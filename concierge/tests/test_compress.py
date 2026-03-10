@@ -1,66 +1,79 @@
-"""Tests for distillation compression (Task 8.2)."""
+"""Tests for LLM-based topic compression."""
 
-from concierge.distillation.compress import compress_topic, _significant_overlap
+from unittest.mock import patch, MagicMock
 
+import pytest
 
-# ---------------------------------------------------------------------------
-# compress_topic
-# ---------------------------------------------------------------------------
+from concierge.distillation.compress import compress_topic, DISTILLATION_PROMPT
+
 
 class TestCompressTopic:
-    def test_compress_keeps_existing(self):
-        distilled = "- Likes pasta\n- Shops at Trader Joe's"
-        raw = "- [2026-03-07] Made a chicken stir-fry\n"
-        result = compress_topic(distilled, raw, "meals")
-        assert "Likes pasta" in result
-        assert "Shops at Trader Joe's" in result
+    def test_calls_llm_with_prompt(self):
+        """compress_topic calls call_agent with the distillation prompt."""
+        with patch("concierge.distillation.compress.call_agent") as mock_llm:
+            mock_llm.return_value = "- Enjoys pasta"
+            result = compress_topic("- Old fact", "- [2026-01-01] Made pasta", "meals")
+            assert mock_llm.called
+            prompt = mock_llm.call_args[0][0]
+            assert "meals" in prompt
+            assert "Old fact" in prompt
+            assert "Made pasta" in prompt
 
-    def test_compress_adds_new_entries(self):
-        distilled = "- Likes pasta"
-        raw = (
-            "- [2026-03-07] Started a sourdough starter\n"
-            "- [2026-03-06] Bought a new cast iron pan\n"
+    def test_returns_llm_output(self):
+        with patch("concierge.distillation.compress.call_agent") as mock_llm:
+            mock_llm.return_value = "- Enjoys pasta\n- Runs daily"
+            result = compress_topic("", "- [2026-01-01] Made pasta", "meals")
+            assert result == "- Enjoys pasta\n- Runs daily"
+
+    def test_falls_back_to_deterministic_on_llm_error(self):
+        """When LLM fails, falls back to deterministic merge."""
+        with patch("concierge.distillation.compress.call_agent") as mock_llm:
+            mock_llm.side_effect = Exception("API error")
+            result = compress_topic(
+                "- Existing fact",
+                "- [2026-01-01] New entry",
+                "meals",
+            )
+            # Deterministic fallback should preserve existing + add new
+            assert "Existing fact" in result
+            assert "New entry" in result
+
+    def test_empty_distilled_shows_first_distillation(self):
+        with patch("concierge.distillation.compress.call_agent") as mock_llm:
+            mock_llm.return_value = "- First fact"
+            compress_topic("", "- [2026-01-01] Raw entry", "meals")
+            prompt = mock_llm.call_args[0][0]
+            assert "first distillation" in prompt.lower()
+
+    def test_prompt_contains_all_rules(self):
+        with patch("concierge.distillation.compress.call_agent") as mock_llm:
+            mock_llm.return_value = "- Fact"
+            compress_topic("- Old", "- New", "meals")
+            prompt = mock_llm.call_args[0][0]
+            assert "Preserve ALL facts" in prompt
+            assert "Consolidate" in prompt
+            assert "No preamble" in prompt
+
+
+class TestDeterministicFallback:
+    """Test the deterministic fallback directly."""
+
+    def test_keeps_existing_entries(self):
+        from concierge.distillation.compress import _deterministic_compress
+        result = _deterministic_compress("- Existing fact", "")
+        assert "Existing fact" in result
+
+    def test_adds_new_entries(self):
+        from concierge.distillation.compress import _deterministic_compress
+        result = _deterministic_compress("", "- [2026-01-01] New entry")
+        assert "New entry" in result
+
+    def test_deduplicates(self):
+        from concierge.distillation.compress import _deterministic_compress
+        result = _deterministic_compress(
+            "- I like pasta very much",
+            "- [2026-01-01] I really like pasta a lot",
         )
-        result = compress_topic(distilled, raw, "meals")
-        assert "Likes pasta" in result
-        assert "Started a sourdough starter" in result
-        assert "Bought a new cast iron pan" in result
-
-    def test_compress_skips_duplicates(self):
-        distilled = "- Likes pasta"
-        raw = "- [2026-03-07] Likes pasta a lot\n"
-        result = compress_topic(distilled, raw, "meals")
-        # The raw entry overlaps significantly with the existing distilled
-        lines = [l for l in result.splitlines() if l.strip().startswith("- ")]
-        # Should not double up - the original bullet stays, but the raw one is skipped
-        assert lines.count("- Likes pasta") == 1
-
-    def test_compress_empty_distilled(self):
-        distilled = ""
-        raw = (
-            "- [2026-03-07] Made a chicken stir-fry\n"
-            "- [2026-03-06] Tried sushi for the first time\n"
-        )
-        result = compress_topic(distilled, raw, "meals")
-        assert "Made a chicken stir-fry" in result
-        assert "Tried sushi for the first time" in result
-
-    def test_compress_empty_raw(self):
-        distilled = "- Likes pasta\n- Shops at Trader Joe's"
-        raw = ""
-        result = compress_topic(distilled, raw, "meals")
-        assert "Likes pasta" in result
-        assert "Shops at Trader Joe's" in result
-
-
-# ---------------------------------------------------------------------------
-# _significant_overlap
-# ---------------------------------------------------------------------------
-
-class TestSignificantOverlap:
-    def test_significant_overlap(self):
-        assert _significant_overlap("likes pasta a lot", "likes pasta") is True
-        assert _significant_overlap(
-            "started a sourdough starter",
-            "likes pasta",
-        ) is False
+        # Should not add the duplicate
+        lines = [l for l in result.strip().split("\n") if l.startswith("- ")]
+        assert len(lines) == 1
