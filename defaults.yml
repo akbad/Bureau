@@ -475,6 +475,7 @@ conversations:
   stale_dossier_days: 30
   max_retained_sessions: 5
   concierge:
+    preferred_agent: claude
     auto_offer_resume: true
     auto_offer_save: true
     notify_task_updates: true

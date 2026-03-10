@@ -163,6 +163,7 @@ class MCPConfig(TypedDict, total=False):
 class ConversationsConciergeConfig(TypedDict, total=False):
     """Concierge-specific dossier behaviors."""
 
+    preferred_agent: str                        # agent CLI for LLM calls, default "claude"
     auto_offer_resume: bool
     auto_offer_save: bool
     notify_task_updates: bool
