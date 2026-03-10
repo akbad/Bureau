@@ -1,0 +1,500 @@
+{"text": "what should I have for dinner tonight?", "label": "QUERY"}
+{"text": "when is my next meeting?", "label": "QUERY"}
+{"text": "where's a good place to go running?", "label": "QUERY"}
+{"text": "how many calories are in a banana?", "label": "QUERY"}
+{"text": "why did you suggest yoga today?", "label": "QUERY"}
+{"text": "which workout is best for mornings?", "label": "QUERY"}
+{"text": "who's joining the dinner tonight?", "label": "QUERY"}
+{"text": "what time does the sun set today?", "label": "QUERY"}
+{"text": "how far is the nearest gym from here?", "label": "QUERY"}
+{"text": "what's the best way to meal prep for the week?", "label": "QUERY"}
+{"text": "when should I start cooking the turkey?", "label": "QUERY"}
+{"text": "where can I find a good yoga class?", "label": "QUERY"}
+{"text": "how do I make overnight oats?", "label": "QUERY"}
+{"text": "why is stretching important after a workout?", "label": "QUERY"}
+{"text": "which protein powder do you recommend?", "label": "QUERY"}
+{"text": "who else is coming to brunch on Sunday?", "label": "QUERY"}
+{"text": "what's the weather forecast for this weekend?", "label": "QUERY"}
+{"text": "how long does it take to run a 5K?", "label": "QUERY"}
+{"text": "what's a good substitute for butter in baking?", "label": "QUERY"}
+{"text": "when does the farmers market open?", "label": "QUERY"}
+{"text": "where should I go for a weekend getaway?", "label": "QUERY"}
+{"text": "how much sleep should I be getting?", "label": "QUERY"}
+{"text": "why am I always tired after lunch?", "label": "QUERY"}
+{"text": "which running shoes are best for flat feet?", "label": "QUERY"}
+{"text": "who's free for a hike this Saturday?", "label": "QUERY"}
+{"text": "what's a quick lunch idea?", "label": "QUERY"}
+{"text": "any healthy snack suggestions?", "label": "QUERY"}
+{"text": "what can I make with chicken and rice?", "label": "QUERY"}
+{"text": "how long do I cook salmon in the oven?", "label": "QUERY"}
+{"text": "what's a good breakfast for energy?", "label": "QUERY"}
+{"text": "any vegetarian dinner ideas?", "label": "QUERY"}
+{"text": "what pairs well with steak?", "label": "QUERY"}
+{"text": "what's a good recipe for meal prep?", "label": "QUERY"}
+{"text": "how do you make a smoothie bowl?", "label": "QUERY"}
+{"text": "what's the best way to cook brown rice?", "label": "QUERY"}
+{"text": "any suggestions for a high-protein breakfast?", "label": "QUERY"}
+{"text": "what should I bring to the potluck?", "label": "QUERY"}
+{"text": "how many carbs are in a sweet potato?", "label": "QUERY"}
+{"text": "what's a healthy dessert option?", "label": "QUERY"}
+{"text": "any good slow cooker recipes?", "label": "QUERY"}
+{"text": "what's a simple pasta dish I can make?", "label": "QUERY"}
+{"text": "how do I season cast iron properly?", "label": "QUERY"}
+{"text": "what goes well with grilled chicken?", "label": "QUERY"}
+{"text": "any ideas for a quick weeknight dinner?", "label": "QUERY"}
+{"text": "what's a good sauce for salmon?", "label": "QUERY"}
+{"text": "how long should I marinate chicken?", "label": "QUERY"}
+{"text": "what can I do with leftover rice?", "label": "QUERY"}
+{"text": "any gluten-free dinner options?", "label": "QUERY"}
+{"text": "what's the best cut of steak for grilling?", "label": "QUERY"}
+{"text": "how do I make homemade pizza dough?", "label": "QUERY"}
+{"text": "what are some good meal prep containers?", "label": "QUERY"}
+{"text": "any ideas for packing lunch for work?", "label": "QUERY"}
+{"text": "what's a low-calorie snack I can have?", "label": "QUERY"}
+{"text": "how do you poach an egg?", "label": "QUERY"}
+{"text": "what spices go well with roasted vegetables?", "label": "QUERY"}
+{"text": "any dairy-free alternatives for cooking?", "label": "QUERY"}
+{"text": "what's a good side dish for fish?", "label": "QUERY"}
+{"text": "how much protein is in Greek yogurt?", "label": "QUERY"}
+{"text": "what can I make with what's in my fridge?", "label": "QUERY"}
+{"text": "any brunch ideas for the weekend?", "label": "QUERY"}
+{"text": "what's the best way to reheat leftovers?", "label": "QUERY"}
+{"text": "how do I make a vinaigrette dressing?", "label": "QUERY"}
+{"text": "what's a filling but healthy lunch?", "label": "QUERY"}
+{"text": "any keto-friendly dinner ideas?", "label": "QUERY"}
+{"text": "what's a good pre-workout snack?", "label": "QUERY"}
+{"text": "how do I cook quinoa properly?", "label": "QUERY"}
+{"text": "what's the best bread for sandwiches?", "label": "QUERY"}
+{"text": "any easy breakfast recipes I can try?", "label": "QUERY"}
+{"text": "what's a good stretch routine?", "label": "QUERY"}
+{"text": "how many steps did I do today?", "label": "QUERY"}
+{"text": "what's my workout schedule this week?", "label": "QUERY"}
+{"text": "is yoga or pilates better for flexibility?", "label": "QUERY"}
+{"text": "how much water should I drink daily?", "label": "QUERY"}
+{"text": "what's a good cool-down exercise?", "label": "QUERY"}
+{"text": "how long should I run as a beginner?", "label": "QUERY"}
+{"text": "what's the best time of day to exercise?", "label": "QUERY"}
+{"text": "how many sets should I do for chest exercises?", "label": "QUERY"}
+{"text": "what's a good ab workout I can do at home?", "label": "QUERY"}
+{"text": "is it better to do cardio before or after weights?", "label": "QUERY"}
+{"text": "how often should I take rest days?", "label": "QUERY"}
+{"text": "what's a good warm-up routine?", "label": "QUERY"}
+{"text": "how do I improve my running pace?", "label": "QUERY"}
+{"text": "what's the recommended daily calorie intake?", "label": "QUERY"}
+{"text": "any exercises I can do at my desk?", "label": "QUERY"}
+{"text": "what muscles does a deadlift work?", "label": "QUERY"}
+{"text": "how do I get better at push-ups?", "label": "QUERY"}
+{"text": "what's a good yoga routine for beginners?", "label": "QUERY"}
+{"text": "how long should I hold a plank?", "label": "QUERY"}
+{"text": "is walking enough exercise for the day?", "label": "QUERY"}
+{"text": "what heart rate zone should I train in?", "label": "QUERY"}
+{"text": "how many calories does running burn per mile?", "label": "QUERY"}
+{"text": "what's a good leg day routine?", "label": "QUERY"}
+{"text": "should I stretch before or after a workout?", "label": "QUERY"}
+{"text": "how do I prevent shin splints?", "label": "QUERY"}
+{"text": "what's a HIIT workout?", "label": "QUERY"}
+{"text": "how do I build endurance for running?", "label": "QUERY"}
+{"text": "what's the best exercise for lower back pain?", "label": "QUERY"}
+{"text": "any good bodyweight exercises for strength?", "label": "QUERY"}
+{"text": "how do I track my macros?", "label": "QUERY"}
+{"text": "what's a good recovery routine after a hard workout?", "label": "QUERY"}
+{"text": "how do I foam roll properly?", "label": "QUERY"}
+{"text": "is swimming good for weight loss?", "label": "QUERY"}
+{"text": "what's the difference between reps and sets?", "label": "QUERY"}
+{"text": "how do I start a meditation practice?", "label": "QUERY"}
+{"text": "what supplements should I take for muscle growth?", "label": "QUERY"}
+{"text": "how often should I do yoga?", "label": "QUERY"}
+{"text": "what's on my calendar tomorrow?", "label": "QUERY"}
+{"text": "do I have anything this weekend?", "label": "QUERY"}
+{"text": "when's my next free evening?", "label": "QUERY"}
+{"text": "what time is the meeting?", "label": "QUERY"}
+{"text": "am I busy on Friday?", "label": "QUERY"}
+{"text": "what's the plan for today?", "label": "QUERY"}
+{"text": "do I have any conflicts next Tuesday?", "label": "QUERY"}
+{"text": "when is the dentist appointment?", "label": "QUERY"}
+{"text": "what do I have going on this afternoon?", "label": "QUERY"}
+{"text": "is there anything scheduled for Monday morning?", "label": "QUERY"}
+{"text": "when's the deadline for that project?", "label": "QUERY"}
+{"text": "what events do I have this month?", "label": "QUERY"}
+{"text": "do I have time for a haircut this week?", "label": "QUERY"}
+{"text": "when's the best time to schedule a workout?", "label": "QUERY"}
+{"text": "what's happening on Wednesday?", "label": "QUERY"}
+{"text": "am I free for lunch on Thursday?", "label": "QUERY"}
+{"text": "when does my subscription renew?", "label": "QUERY"}
+{"text": "how many meetings do I have this week?", "label": "QUERY"}
+{"text": "is there a gap in my schedule tomorrow afternoon?", "label": "QUERY"}
+{"text": "what time do I need to leave for the airport?", "label": "QUERY"}
+{"text": "when should I start getting ready for the party?", "label": "QUERY"}
+{"text": "do I have back-to-back meetings today?", "label": "QUERY"}
+{"text": "what's the earliest I can meet on Friday?", "label": "QUERY"}
+{"text": "is next weekend open for a trip?", "label": "QUERY"}
+{"text": "when's the last day to register for that class?", "label": "QUERY"}
+{"text": "what time does the reservation start?", "label": "QUERY"}
+{"text": "do I need to pick up anything before tonight?", "label": "QUERY"}
+{"text": "how long is the commute to the office?", "label": "QUERY"}
+{"text": "when should I leave to avoid traffic?", "label": "QUERY"}
+{"text": "what's the agenda for tomorrow's standup?", "label": "QUERY"}
+{"text": "do I have any errands to run today?", "label": "QUERY"}
+{"text": "when does school pick-up happen?", "label": "QUERY"}
+{"text": "what's the latest I can schedule a call?", "label": "QUERY"}
+{"text": "is there time to squeeze in a gym session today?", "label": "QUERY"}
+{"text": "can you suggest a good book?", "label": "QUERY"}
+{"text": "what movie should I watch tonight?", "label": "QUERY"}
+{"text": "any podcast recommendations?", "label": "QUERY"}
+{"text": "what music fits a rainy day?", "label": "QUERY"}
+{"text": "know any good coffee shops nearby?", "label": "QUERY"}
+{"text": "what's a fun weekend activity?", "label": "QUERY"}
+{"text": "any suggestions for a date night restaurant?", "label": "QUERY"}
+{"text": "what's a good playlist for studying?", "label": "QUERY"}
+{"text": "can you recommend a relaxing hobby?", "label": "QUERY"}
+{"text": "what's a good show to binge watch?", "label": "QUERY"}
+{"text": "any ideas for a fun group activity?", "label": "QUERY"}
+{"text": "what board games are good for couples?", "label": "QUERY"}
+{"text": "what's a good housewarming gift?", "label": "QUERY"}
+{"text": "any recommendations for noise-canceling headphones?", "label": "QUERY"}
+{"text": "what's a good app for tracking habits?", "label": "QUERY"}
+{"text": "can you suggest a guided meditation app?", "label": "QUERY"}
+{"text": "what's a good journal to start with?", "label": "QUERY"}
+{"text": "any travel destinations you'd recommend for spring?", "label": "QUERY"}
+{"text": "what's a good playlist for a road trip?", "label": "QUERY"}
+{"text": "can you recommend a meal delivery service?", "label": "QUERY"}
+{"text": "what's a nice indoor plant for the living room?", "label": "QUERY"}
+{"text": "any good YouTube channels for cooking?", "label": "QUERY"}
+{"text": "what's a good gift for someone who likes fitness?", "label": "QUERY"}
+{"text": "can you recommend a good alarm clock?", "label": "QUERY"}
+{"text": "what's a relaxing tea to drink before bed?", "label": "QUERY"}
+{"text": "any suggestions for a weekend brunch spot?", "label": "QUERY"}
+{"text": "what's a good wine to pair with pasta?", "label": "QUERY"}
+{"text": "can you suggest a good running route nearby?", "label": "QUERY"}
+{"text": "what's a nice weekend project I could do?", "label": "QUERY"}
+{"text": "any good audiobooks for long drives?", "label": "QUERY"}
+{"text": "what's a fun craft to try at home?", "label": "QUERY"}
+{"text": "can you recommend a good water bottle?", "label": "QUERY"}
+{"text": "what's a good birthday party idea?", "label": "QUERY"}
+{"text": "any suggestions for a family dinner recipe?", "label": "QUERY"}
+{"text": "what's the weather like today?", "label": "QUERY"}
+{"text": "will it rain tomorrow?", "label": "QUERY"}
+{"text": "is it cold outside?", "label": "QUERY"}
+{"text": "should I bring a jacket?", "label": "QUERY"}
+{"text": "what's the temperature right now?", "label": "QUERY"}
+{"text": "is it going to snow this week?", "label": "QUERY"}
+{"text": "what's the UV index today?", "label": "QUERY"}
+{"text": "will it be warm enough for a picnic on Saturday?", "label": "QUERY"}
+{"text": "is there a storm coming?", "label": "QUERY"}
+{"text": "what's the humidity like today?", "label": "QUERY"}
+{"text": "should I wear sunscreen today?", "label": "QUERY"}
+{"text": "is it going to be windy this afternoon?", "label": "QUERY"}
+{"text": "what's the pollen count like today?", "label": "QUERY"}
+{"text": "will it be nice enough to eat outside?", "label": "QUERY"}
+{"text": "what's the air quality like right now?", "label": "QUERY"}
+{"text": "do I need an umbrella?", "label": "QUERY"}
+{"text": "is it a good day for a run outside?", "label": "QUERY"}
+{"text": "what's the weather like at the beach today?", "label": "QUERY"}
+{"text": "how hot will it get this afternoon?", "label": "QUERY"}
+{"text": "is it safe to go hiking today given the weather?", "label": "QUERY"}
+{"text": "what's the forecast for the rest of the week?", "label": "QUERY"}
+{"text": "will it clear up later today?", "label": "QUERY"}
+{"text": "is there a heat advisory today?", "label": "QUERY"}
+{"text": "what should I wear based on the weather?", "label": "QUERY"}
+{"text": "what does that mean?", "label": "QUERY"}
+{"text": "can you explain that?", "label": "QUERY"}
+{"text": "how does that work?", "label": "QUERY"}
+{"text": "what's the difference between those?", "label": "QUERY"}
+{"text": "is that true?", "label": "QUERY"}
+{"text": "tell me more about that", "label": "QUERY"}
+{"text": "what are the benefits of intermittent fasting?", "label": "QUERY"}
+{"text": "how does sleep affect muscle recovery?", "label": "QUERY"}
+{"text": "what's the difference between whole wheat and white bread?", "label": "QUERY"}
+{"text": "why is hydration important during exercise?", "label": "QUERY"}
+{"text": "what does HIIT stand for?", "label": "QUERY"}
+{"text": "how do antioxidants work?", "label": "QUERY"}
+{"text": "what's the difference between a marathon and a half marathon?", "label": "QUERY"}
+{"text": "is cold brew stronger than regular coffee?", "label": "QUERY"}
+{"text": "what are probiotics good for?", "label": "QUERY"}
+{"text": "how does caffeine affect sleep?", "label": "QUERY"}
+{"text": "what's the difference between vegan and vegetarian?", "label": "QUERY"}
+{"text": "why do muscles get sore after working out?", "label": "QUERY"}
+{"text": "what are omega-3 fatty acids?", "label": "QUERY"}
+{"text": "how does meal timing affect performance?", "label": "QUERY"}
+{"text": "what's the glycemic index?", "label": "QUERY"}
+{"text": "is organic food actually healthier?", "label": "QUERY"}
+{"text": "what does BMI really measure?", "label": "QUERY"}
+{"text": "how do electrolytes work in the body?", "label": "QUERY"}
+{"text": "what's the best type of magnesium supplement?", "label": "QUERY"}
+{"text": "why is protein important after a workout?", "label": "QUERY"}
+{"text": "what are adaptogens?", "label": "QUERY"}
+{"text": "how does stress affect weight gain?", "label": "QUERY"}
+{"text": "what's the difference between saturated and unsaturated fat?", "label": "QUERY"}
+{"text": "I wonder what's for dinner", "label": "QUERY"}
+{"text": "curious about the weather tomorrow", "label": "QUERY"}
+{"text": "not sure what to wear today", "label": "QUERY"}
+{"text": "trying to figure out my schedule", "label": "QUERY"}
+{"text": "wondering if I should go to the gym", "label": "QUERY"}
+{"text": "can't decide what to cook tonight", "label": "QUERY"}
+{"text": "thinking about what workout to do", "label": "QUERY"}
+{"text": "not sure if I have plans this weekend", "label": "QUERY"}
+{"text": "wondering what time I need to wake up tomorrow", "label": "QUERY"}
+{"text": "trying to decide between pasta and salad", "label": "QUERY"}
+{"text": "curious if there's a good trail nearby", "label": "QUERY"}
+{"text": "wondering how many calories that was", "label": "QUERY"}
+{"text": "not sure if I should meal prep today or tomorrow", "label": "QUERY"}
+{"text": "thinking about whether to take a rest day", "label": "QUERY"}
+{"text": "can't remember when the appointment is", "label": "QUERY"}
+{"text": "wondering if it'll be warm enough for shorts", "label": "QUERY"}
+{"text": "trying to figure out what to get from the grocery store", "label": "QUERY"}
+{"text": "not sure what music to put on", "label": "QUERY"}
+{"text": "curious how long this recipe takes", "label": "QUERY"}
+{"text": "thinking about what to do this evening", "label": "QUERY"}
+{"text": "wondering if there's a farmers market this weekend", "label": "QUERY"}
+{"text": "trying to decide on a restaurant for tonight", "label": "QUERY"}
+{"text": "not sure how much water I should be drinking", "label": "QUERY"}
+{"text": "can't figure out what to pack for the trip", "label": "QUERY"}
+{"text": "curious about good post-workout meals", "label": "QUERY"}
+{"text": "wondering what the best time to go grocery shopping is", "label": "QUERY"}
+{"text": "trying to think of a birthday gift idea", "label": "QUERY"}
+{"text": "not sure if I need to bring anything to the party", "label": "QUERY"}
+{"text": "thinking about switching up my routine", "label": "QUERY"}
+{"text": "wondering how late the gym is open", "label": "QUERY"}
+{"text": "dinner ideas?", "label": "QUERY"}
+{"text": "weather tomorrow?", "label": "QUERY"}
+{"text": "best workout for abs?", "label": "QUERY"}
+{"text": "healthy snacks?", "label": "QUERY"}
+{"text": "running tips?", "label": "QUERY"}
+{"text": "good morning stretches?", "label": "QUERY"}
+{"text": "meal prep ideas?", "label": "QUERY"}
+{"text": "calories in avocado?", "label": "QUERY"}
+{"text": "best time to work out?", "label": "QUERY"}
+{"text": "yoga for beginners?", "label": "QUERY"}
+{"text": "quick breakfast options?", "label": "QUERY"}
+{"text": "protein-rich foods?", "label": "QUERY"}
+{"text": "sleep tips?", "label": "QUERY"}
+{"text": "best running app?", "label": "QUERY"}
+{"text": "low carb dinner?", "label": "QUERY"}
+{"text": "weekend plans?", "label": "QUERY"}
+{"text": "coffee alternatives?", "label": "QUERY"}
+{"text": "stress relief techniques?", "label": "QUERY"}
+{"text": "good hikes nearby?", "label": "QUERY"}
+{"text": "recovery foods?", "label": "QUERY"}
+{"text": "whatd be good for dinner", "label": "QUERY"}
+{"text": "whats a good workout for today", "label": "QUERY"}
+{"text": "u know if its gonna rain later", "label": "QUERY"}
+{"text": "any idea what i should cook", "label": "QUERY"}
+{"text": "whats the move for tonight", "label": "QUERY"}
+{"text": "yo what time is the thing tomorrow", "label": "QUERY"}
+{"text": "anything fun going on this weekend", "label": "QUERY"}
+{"text": "got any ideas for a quick snack", "label": "QUERY"}
+{"text": "whats a chill playlist for studying", "label": "QUERY"}
+{"text": "is it supposed to be hot out today", "label": "QUERY"}
+{"text": "know any good spots for lunch around here", "label": "QUERY"}
+{"text": "whats a solid arm workout", "label": "QUERY"}
+{"text": "is it too late to eat carbs", "label": "QUERY"}
+{"text": "any recs for a good smoothie recipe", "label": "QUERY"}
+{"text": "how many cals in a protein shake", "label": "QUERY"}
+{"text": "whats something easy to make for breakfast", "label": "QUERY"}
+{"text": "u think i should run today or rest", "label": "QUERY"}
+{"text": "whats good to eat before a workout", "label": "QUERY"}
+{"text": "got any healthy dessert ideas", "label": "QUERY"}
+{"text": "is oatmeal actually good for you", "label": "QUERY"}
+{"text": "I'm going out tonight. What should I wear?", "label": "QUERY"}
+{"text": "I have some leftover chicken. What can I make with it?", "label": "QUERY"}
+{"text": "I'm feeling stressed. What's a good way to unwind?", "label": "QUERY"}
+{"text": "I want to start running. How should I begin?", "label": "QUERY"}
+{"text": "I've got friends coming over. What should I cook?", "label": "QUERY"}
+{"text": "I'm trying to eat healthier. What should I cut out first?", "label": "QUERY"}
+{"text": "I need a gift for my mom. Any ideas?", "label": "QUERY"}
+{"text": "I woke up with a sore throat. What should I drink?", "label": "QUERY"}
+{"text": "I have a presentation tomorrow. Any tips for calming nerves?", "label": "QUERY"}
+{"text": "I want to try cooking something new. What's a fun recipe?", "label": "QUERY"}
+{"text": "I'm going camping next weekend. What should I pack for food?", "label": "QUERY"}
+{"text": "I slept terribly last night. What could help me sleep better?", "label": "QUERY"}
+{"text": "I'm bored on a Sunday. What should I do?", "label": "QUERY"}
+{"text": "My energy dips in the afternoon. What can I do about it?", "label": "QUERY"}
+{"text": "I'm hosting a barbecue. What sides should I make?", "label": "QUERY"}
+{"text": "what should I eat after a late-night workout?", "label": "QUERY"}
+{"text": "how do I know if I'm overtraining?", "label": "QUERY"}
+{"text": "what's the best way to stay motivated to exercise?", "label": "QUERY"}
+{"text": "how can I make my salads more interesting?", "label": "QUERY"}
+{"text": "what's a good morning routine for productivity?", "label": "QUERY"}
+{"text": "how do I balance work and personal time?", "label": "QUERY"}
+{"text": "what's the best way to organize my week?", "label": "QUERY"}
+{"text": "how can I reduce my screen time before bed?", "label": "QUERY"}
+{"text": "what are some ways to stay active on a rainy day?", "label": "QUERY"}
+{"text": "how do I make a weekly meal plan?", "label": "QUERY"}
+{"text": "what are some easy ways to add more vegetables to my diet?", "label": "QUERY"}
+{"text": "how can I make my apartment feel more cozy?", "label": "QUERY"}
+{"text": "what's a good way to start the day on a positive note?", "label": "QUERY"}
+{"text": "how do I pick a ripe avocado?", "label": "QUERY"}
+{"text": "what's the best type of rice for stir fry?", "label": "QUERY"}
+{"text": "should I do a full body workout or split routine?", "label": "QUERY"}
+{"text": "how do I improve my posture?", "label": "QUERY"}
+{"text": "what's a good amount of fiber to eat daily?", "label": "QUERY"}
+{"text": "how often should I change my workout routine?", "label": "QUERY"}
+{"text": "what's the healthiest cooking oil to use?", "label": "QUERY"}
+{"text": "how do I stay hydrated if I don't like plain water?", "label": "QUERY"}
+{"text": "what are some fun ways to exercise with a friend?", "label": "QUERY"}
+{"text": "what time should I stop eating before bed?", "label": "QUERY"}
+{"text": "how do I deal with workout plateaus?", "label": "QUERY"}
+{"text": "what are some good sources of plant-based protein?", "label": "QUERY"}
+{"text": "how do I make a budget-friendly meal plan?", "label": "QUERY"}
+{"text": "what's a good bedtime routine for better sleep?", "label": "QUERY"}
+{"text": "how much caffeine is too much in a day?", "label": "QUERY"}
+{"text": "what's a good activity to do with kids on the weekend?", "label": "QUERY"}
+{"text": "how do I clean my yoga mat?", "label": "QUERY"}
+{"text": "what are the best foods for gut health?", "label": "QUERY"}
+{"text": "how do I stay consistent with a morning routine?", "label": "QUERY"}
+{"text": "what kind of music helps with focus?", "label": "QUERY"}
+{"text": "how long does cooked chicken last in the fridge?", "label": "QUERY"}
+{"text": "what's the best way to store fresh herbs?", "label": "QUERY"}
+{"text": "should I take vitamins every day?", "label": "QUERY"}
+{"text": "how do I reduce food waste at home?", "label": "QUERY"}
+{"text": "what's a good activity for a solo evening?", "label": "QUERY"}
+{"text": "how do I create a relaxing atmosphere at home?", "label": "QUERY"}
+{"text": "what are some good habits to build?", "label": "QUERY"}
+{"text": "how do I make my morning coffee healthier?", "label": "QUERY"}
+{"text": "what's a good way to celebrate a small win?", "label": "QUERY"}
+{"text": "how do I find time to read more?", "label": "QUERY"}
+{"text": "what are some easy house plants to keep alive?", "label": "QUERY"}
+{"text": "how do I declutter my closet?", "label": "QUERY"}
+{"text": "what's the best way to freeze leftovers?", "label": "QUERY"}
+{"text": "how often should I clean my kitchen?", "label": "QUERY"}
+{"text": "what's a good way to wind down on a Sunday evening?", "label": "QUERY"}
+{"text": "how do I set realistic fitness goals?", "label": "QUERY"}
+{"text": "what's a good strategy for grocery shopping on a budget?", "label": "QUERY"}
+{"text": "how do I avoid burnout at work?", "label": "QUERY"}
+{"text": "what's the ideal room temperature for sleeping?", "label": "QUERY"}
+{"text": "how do I make friends as an adult?", "label": "QUERY"}
+{"text": "what are some creative date ideas?", "label": "QUERY"}
+{"text": "how do I start a gratitude journal?", "label": "QUERY"}
+{"text": "what's a good way to unplug on weekends?", "label": "QUERY"}
+{"text": "how do I pack a healthy lunchbox?", "label": "QUERY"}
+{"text": "what's the best way to learn a new recipe?", "label": "QUERY"}
+{"text": "how do I stay active when working from home?", "label": "QUERY"}
+{"text": "what's a good way to start eating more mindfully?", "label": "QUERY"}
+{"text": "how do I build a capsule wardrobe?", "label": "QUERY"}
+{"text": "what are some quick self-care ideas?", "label": "QUERY"}
+{"text": "how do I make a shopping list efficiently?", "label": "QUERY"}
+{"text": "what's the best kind of pillow for side sleepers?", "label": "QUERY"}
+{"text": "how do I organize my pantry?", "label": "QUERY"}
+{"text": "what's a good weekend morning routine?", "label": "QUERY"}
+{"text": "how do I keep my house tidy with a busy schedule?", "label": "QUERY"}
+{"text": "wondering what good conversation starters are for a dinner party", "label": "QUERY"}
+{"text": "not sure how to pick a good multivitamin", "label": "QUERY"}
+{"text": "curious about a healthy alternative to soda", "label": "QUERY"}
+{"text": "wondering how many servings of fruit I should eat daily", "label": "QUERY"}
+{"text": "trying to understand the difference between strength training and hypertrophy", "label": "QUERY"}
+{"text": "not sure if I'm eating enough protein", "label": "QUERY"}
+{"text": "thinking about how to spend a mental health day", "label": "QUERY"}
+{"text": "wondering how to stay productive on slow days", "label": "QUERY"}
+{"text": "trying to find a natural remedy for a headache", "label": "QUERY"}
+{"text": "curious how to train for a half marathon", "label": "QUERY"}
+{"text": "wondering what snack to bring on a hike", "label": "QUERY"}
+{"text": "not sure how to stay warm during a winter run", "label": "QUERY"}
+{"text": "thinking about a fun indoor workout for rainy days", "label": "QUERY"}
+{"text": "trying to figure out the right size resistance band", "label": "QUERY"}
+{"text": "curious what foods are best to eat before bed", "label": "QUERY"}
+{"text": "wondering how to build a habit of drinking more water", "label": "QUERY"}
+{"text": "not sure about the best way to track gym progress", "label": "QUERY"}
+{"text": "trying to figure out how to avoid overeating on weekends", "label": "QUERY"}
+{"text": "wondering about a refreshing drink for hot days", "label": "QUERY"}
+{"text": "not sure how to manage my time in the mornings", "label": "QUERY"}
+{"text": "curious about signs of dehydration", "label": "QUERY"}
+{"text": "wondering how to make a charcuterie board", "label": "QUERY"}
+{"text": "thinking about the best way to deal with Sunday scaries", "label": "QUERY"}
+{"text": "curious how long a nap should be to feel refreshed", "label": "QUERY"}
+{"text": "wondering what fun thing to try this month", "label": "QUERY"}
+{"text": "thinking about starting a home garden", "label": "QUERY"}
+{"text": "not sure how to socialize more", "label": "QUERY"}
+{"text": "trying to figure out which running shoes to get", "label": "QUERY"}
+{"text": "curious about the difference between whey and casein protein", "label": "QUERY"}
+{"text": "wondering how to get back into a routine after vacation", "label": "QUERY"}
+{"text": "curious about healthy swaps for common foods", "label": "QUERY"}
+{"text": "wondering how much fiber is in an apple", "label": "QUERY"}
+{"text": "thinking about how to prepare for a long flight", "label": "QUERY"}
+{"text": "not sure how to stop snacking late at night", "label": "QUERY"}
+{"text": "wondering about a good icebreaker game for parties", "label": "QUERY"}
+{"text": "curious how to prevent food from going bad quickly", "label": "QUERY"}
+{"text": "not sure about a healthy way to satisfy a sweet tooth", "label": "QUERY"}
+{"text": "wondering how to ease into a new exercise routine", "label": "QUERY"}
+{"text": "curious about ways to practice gratitude daily", "label": "QUERY"}
+{"text": "not sure how to tell when my sourdough starter is ready", "label": "QUERY"}
+{"text": "thinking about what I need for hosting a dinner party", "label": "QUERY"}
+{"text": "wondering how to pick ripe fruit at the store", "label": "QUERY"}
+{"text": "curious about the difference between free-range and organic eggs", "label": "QUERY"}
+{"text": "not sure how to set up a productive home office", "label": "QUERY"}
+{"text": "wondering about the best ways to cool down after a run", "label": "QUERY"}
+{"text": "trying to figure out how to break a sugar addiction", "label": "QUERY"}
+{"text": "curious about learning to cook from scratch", "label": "QUERY"}
+{"text": "not sure how to calculate my daily calorie needs", "label": "QUERY"}
+{"text": "wondering what the ideal amount of sleep is for adults", "label": "QUERY"}
+{"text": "curious about making overnight chia pudding", "label": "QUERY"}
+{"text": "wondering about healthy on-the-go breakfast options", "label": "QUERY"}
+{"text": "not sure how to keep my energy up throughout the day", "label": "QUERY"}
+{"text": "thinking about what to pack in a gym bag", "label": "QUERY"}
+{"text": "wondering how to improve flexibility over time", "label": "QUERY"}
+{"text": "curious about a good approach to portion control", "label": "QUERY"}
+{"text": "not sure how to prepare healthy meals when traveling", "label": "QUERY"}
+{"text": "wondering about good exercises for improving balance", "label": "QUERY"}
+{"text": "trying to figure out if my workout plan is right for me", "label": "QUERY"}
+{"text": "curious about the best way to stay fit during the holidays", "label": "QUERY"}
+{"text": "wondering how to keep groceries fresh longer", "label": "QUERY"}
+{"text": "what's a good routine for a productive morning?", "label": "QUERY"}
+{"text": "how do I manage stress without overeating?", "label": "QUERY"}
+{"text": "what are the best stretches for desk workers?", "label": "QUERY"}
+{"text": "how do I stay on top of laundry?", "label": "QUERY"}
+{"text": "wondering what I should have for lunch today", "label": "QUERY"}
+{"text": "trying to figure out if the gym is worth it", "label": "QUERY"}
+{"text": "not sure what healthy snacks to buy", "label": "QUERY"}
+{"text": "curious what exercises target the glutes", "label": "QUERY"}
+{"text": "wondering if I need more iron in my diet", "label": "QUERY"}
+{"text": "thinking about what to bring to the cookout", "label": "QUERY"}
+{"text": "not sure which gym to join", "label": "QUERY"}
+{"text": "trying to decide if I should take supplements", "label": "QUERY"}
+{"text": "curious about the best time to do cardio", "label": "QUERY"}
+{"text": "wondering if meal prepping saves money", "label": "QUERY"}
+{"text": "not sure how to start intermittent fasting", "label": "QUERY"}
+{"text": "thinking about what to get at the store", "label": "QUERY"}
+{"text": "curious if cold showers are actually beneficial", "label": "QUERY"}
+{"text": "wondering what shoes to wear for hiking", "label": "QUERY"}
+{"text": "trying to decide on a new hobby to pick up", "label": "QUERY"}
+{"text": "not sure what kind of yoga is best for stress", "label": "QUERY"}
+{"text": "curious about how to improve my sleep quality", "label": "QUERY"}
+{"text": "wondering how to make healthier choices at restaurants", "label": "QUERY"}
+{"text": "trying to figure out a good gift for a fitness enthusiast", "label": "QUERY"}
+{"text": "not sure if I should eat before or after morning workouts", "label": "QUERY"}
+{"text": "curious what the best stretches for runners are", "label": "QUERY"}
+{"text": "wondering if I should try a standing desk", "label": "QUERY"}
+{"text": "thinking about how to organize my grocery trips better", "label": "QUERY"}
+{"text": "not sure what vitamins I might be deficient in", "label": "QUERY"}
+{"text": "curious about good ways to build a morning habit", "label": "QUERY"}
+{"text": "wondering whether creatine is safe to take", "label": "QUERY"}
+{"text": "trying to think of fun outdoor activities for spring", "label": "QUERY"}
+{"text": "not sure how to cook tofu so it actually tastes good", "label": "QUERY"}
+{"text": "curious about the best way to batch cook meals", "label": "QUERY"}
+{"text": "wondering how to stay motivated during winter", "label": "QUERY"}
+{"text": "best smoothie combos?", "label": "QUERY"}
+{"text": "easy stir fry recipe?", "label": "QUERY"}
+{"text": "good stretches for back pain?", "label": "QUERY"}
+{"text": "best shoes for walking?", "label": "QUERY"}
+{"text": "healthy lunch under 500 calories?", "label": "QUERY"}
+{"text": "good bedtime snack?", "label": "QUERY"}
+{"text": "fun couple activities?", "label": "QUERY"}
+{"text": "best way to cook tofu?", "label": "QUERY"}
+{"text": "cheap meal ideas?", "label": "QUERY"}
+{"text": "post-run stretches?", "label": "QUERY"}
+{"text": "what's the deal with collagen supplements?", "label": "QUERY"}
+{"text": "how do I make my own granola?", "label": "QUERY"}
+{"text": "is there a good 20-minute workout I can do?", "label": "QUERY"}
+{"text": "what's the best way to cook vegetables without losing nutrients?", "label": "QUERY"}
+{"text": "any tips for staying consistent with the gym?", "label": "QUERY"}
+{"text": "how do I make infused water?", "label": "QUERY"}
+{"text": "what are some easy ways to be more eco-friendly at home?", "label": "QUERY"}
+{"text": "whats a good way to cool down in summer", "label": "QUERY"}
+{"text": "any tips for eating out while on a diet", "label": "QUERY"}
+{"text": "how do I keep a sourdough starter alive", "label": "QUERY"}
+{"text": "wondering about good places to travel in the fall", "label": "QUERY"}
+{"text": "thinking about what kind of tea to try next", "label": "QUERY"}
+{"text": "curious about the benefits of cold plunges", "label": "QUERY"}
+{"text": "not sure how to make my workouts more effective", "label": "QUERY"}
+{"text": "trying to figure out if I'm getting enough sleep", "label": "QUERY"}
+{"text": "wondering what the best podcasts for wellness are", "label": "QUERY"}
+{"text": "curious if walking after meals helps digestion", "label": "QUERY"}

@@ -33,6 +33,16 @@ dev = [
     "types-requests>=2.31",
 ]
 
+[project.optional-dependencies]
+ml = [
+    "torch>=2.0",
+    "transformers>=4.30",
+    "onnx>=1.14",
+    "onnxscript>=0.1",
+    "onnxruntime>=1.15",
+    "numpy>=1.24",
+]
+
 [tool.mypy]
 python_version = "3.13"
 

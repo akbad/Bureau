@@ -1,0 +1,500 @@
+{"text": "pause the fitness probe", "label": "COMMAND"}
+{"text": "resume meal suggestions", "label": "COMMAND"}
+{"text": "stop sending me music recommendations", "label": "COMMAND"}
+{"text": "start the morning routine", "label": "COMMAND"}
+{"text": "pause all probes for today", "label": "COMMAND"}
+{"text": "resume the wellness check-ins", "label": "COMMAND"}
+{"text": "stop the evening dispatch", "label": "COMMAND"}
+{"text": "start tracking my water intake", "label": "COMMAND"}
+{"text": "pause dispatches until Monday", "label": "COMMAND"}
+{"text": "resume the daily brew", "label": "COMMAND"}
+{"text": "stop all notifications", "label": "COMMAND"}
+{"text": "start the weekly huddle again", "label": "COMMAND"}
+{"text": "pause the morning dispatch", "label": "COMMAND"}
+{"text": "resume fitness tracking", "label": "COMMAND"}
+{"text": "stop the wellness probe", "label": "COMMAND"}
+{"text": "start my evening routine", "label": "COMMAND"}
+{"text": "pause everything for the weekend", "label": "COMMAND"}
+{"text": "resume the meal plan valet", "label": "COMMAND"}
+{"text": "stop sending probes after 9pm", "label": "COMMAND"}
+{"text": "start the hydration reminders", "label": "COMMAND"}
+{"text": "pause probes", "label": "COMMAND"}
+{"text": "resume dispatches", "label": "COMMAND"}
+{"text": "stop the brew", "label": "COMMAND"}
+{"text": "start huddles", "label": "COMMAND"}
+{"text": "pause that fitness thing", "label": "COMMAND"}
+{"text": "resume the check-in probe please", "label": "COMMAND"}
+{"text": "stop bugging me with reminders", "label": "COMMAND"}
+{"text": "start the sleep tracking feature", "label": "COMMAND"}
+{"text": "pause the schedule valet for now", "label": "COMMAND"}
+{"text": "resume everything", "label": "COMMAND"}
+{"text": "stop the morning brew for this week", "label": "COMMAND"}
+{"text": "start sending me workout suggestions", "label": "COMMAND"}
+{"text": "pause all features until I say so", "label": "COMMAND"}
+{"text": "resume my meditation reminders", "label": "COMMAND"}
+{"text": "stop the afternoon dispatch", "label": "COMMAND"}
+{"text": "start the habit tracker", "label": "COMMAND"}
+{"text": "pase the probe", "label": "COMMAND"}
+{"text": "resume the reading brew", "label": "COMMAND"}
+{"text": "yo stop the fitness probe", "label": "COMMAND"}
+{"text": "start meal prep reminders", "label": "COMMAND"}
+{"text": "pause the nutrition check-in", "label": "COMMAND"}
+{"text": "resume weekend dispatches", "label": "COMMAND"}
+{"text": "stop tracking my steps for now", "label": "COMMAND"}
+{"text": "start the daily summary dispatch", "label": "COMMAND"}
+{"text": "pause brews until further notice", "label": "COMMAND"}
+{"text": "resume the workout valet", "label": "COMMAND"}
+{"text": "stop all probes and dispatches", "label": "COMMAND"}
+{"text": "start running the morning huddle", "label": "COMMAND"}
+{"text": "pause the stretching reminders", "label": "COMMAND"}
+{"text": "resume the evening check-in", "label": "COMMAND"}
+{"text": "stop everything", "label": "COMMAND"}
+{"text": "start up the recipe suggestions", "label": "COMMAND"}
+{"text": "pause the mood probe", "label": "COMMAND"}
+{"text": "can you resume the fitness probe", "label": "COMMAND"}
+{"text": "please stop the morning notifications", "label": "COMMAND"}
+{"text": "go ahead and start the weekly recap", "label": "COMMAND"}
+{"text": "pause the energy level probe", "label": "COMMAND"}
+{"text": "resume my daily brews please", "label": "COMMAND"}
+{"text": "stop the productivity dispatch", "label": "COMMAND"}
+{"text": "start tracking my meals again", "label": "COMMAND"}
+{"text": "hold off on all probes today", "label": "COMMAND"}
+{"text": "bring back the morning dispatch", "label": "COMMAND"}
+{"text": "kill the evening probe", "label": "COMMAND"}
+{"text": "kick off the meal planning valet", "label": "COMMAND"}
+{"text": "freeze the fitness schedule", "label": "COMMAND"}
+{"text": "unpause the brew", "label": "COMMAND"}
+{"text": "cut the sleep probe", "label": "COMMAND"}
+{"text": "fire up the workout tracker", "label": "COMMAND"}
+{"text": "set up a morning routine", "label": "COMMAND"}
+{"text": "set up meal tracking", "label": "COMMAND"}
+{"text": "configure the fitness schedule", "label": "COMMAND"}
+{"text": "set up weekly meal planning", "label": "COMMAND"}
+{"text": "create a workout schedule", "label": "COMMAND"}
+{"text": "set up reminders for stretching", "label": "COMMAND"}
+{"text": "set up a bedtime routine", "label": "COMMAND"}
+{"text": "configure the daily dispatch for 8am", "label": "COMMAND"}
+{"text": "set up the hydration probe", "label": "COMMAND"}
+{"text": "create a meditation schedule", "label": "COMMAND"}
+{"text": "set up a fitness plan for the week", "label": "COMMAND"}
+{"text": "configure my notification preferences", "label": "COMMAND"}
+{"text": "set up the evening wind-down routine", "label": "COMMAND"}
+{"text": "create a new brew for productivity tips", "label": "COMMAND"}
+{"text": "set up a running schedule", "label": "COMMAND"}
+{"text": "configure the sleep tracking probe", "label": "COMMAND"}
+{"text": "set up daily check-ins at noon", "label": "COMMAND"}
+{"text": "create a healthy eating dispatch", "label": "COMMAND"}
+{"text": "set up the focus mode schedule", "label": "COMMAND"}
+{"text": "configure a weekend workout routine", "label": "COMMAND"}
+{"text": "set up a morning yoga session", "label": "COMMAND"}
+{"text": "create a weekly review huddle", "label": "COMMAND"}
+{"text": "set up calorie tracking", "label": "COMMAND"}
+{"text": "configure the evening dispatch", "label": "COMMAND"}
+{"text": "set up a study schedule", "label": "COMMAND"}
+{"text": "create a habit tracking probe", "label": "COMMAND"}
+{"text": "set up the grocery list valet", "label": "COMMAND"}
+{"text": "configure my morning brew", "label": "COMMAND"}
+{"text": "set up a stretching routine for after work", "label": "COMMAND"}
+{"text": "create a new valet for laundry reminders", "label": "COMMAND"}
+{"text": "set up a walking schedule", "label": "COMMAND"}
+{"text": "configure my preferred workout days", "label": "COMMAND"}
+{"text": "set up an afternoon break reminder", "label": "COMMAND"}
+{"text": "create a reading list brew", "label": "COMMAND"}
+{"text": "set up weight tracking", "label": "COMMAND"}
+{"text": "configure the wellness probe to run weekly", "label": "COMMAND"}
+{"text": "set up a sleep schedule", "label": "COMMAND"}
+{"text": "create a fitness challenge for this month", "label": "COMMAND"}
+{"text": "set up the journaling probe", "label": "COMMAND"}
+{"text": "configure weekend dispatches differently", "label": "COMMAND"}
+{"text": "set up a plant-based meal plan", "label": "COMMAND"}
+{"text": "create a new dispatch for recipe ideas", "label": "COMMAND"}
+{"text": "set up the supplement reminder", "label": "COMMAND"}
+{"text": "configure my huddle for Sunday evenings", "label": "COMMAND"}
+{"text": "set up posture check reminders", "label": "COMMAND"}
+{"text": "show me my schedule", "label": "COMMAND"}
+{"text": "show my fitness stats", "label": "COMMAND"}
+{"text": "show the meal plan", "label": "COMMAND"}
+{"text": "show me today's agenda", "label": "COMMAND"}
+{"text": "show my progress", "label": "COMMAND"}
+{"text": "show what's pending", "label": "COMMAND"}
+{"text": "show the active features", "label": "COMMAND"}
+{"text": "display my settings", "label": "COMMAND"}
+{"text": "show me the weekly summary", "label": "COMMAND"}
+{"text": "show my workout history", "label": "COMMAND"}
+{"text": "show the current brew", "label": "COMMAND"}
+{"text": "show me all active probes", "label": "COMMAND"}
+{"text": "show what dispatches are scheduled", "label": "COMMAND"}
+{"text": "show my calorie intake for today", "label": "COMMAND"}
+{"text": "show me the fitness probe settings", "label": "COMMAND"}
+{"text": "display my meal plan for this week", "label": "COMMAND"}
+{"text": "show the huddle agenda", "label": "COMMAND"}
+{"text": "show my sleep data", "label": "COMMAND"}
+{"text": "show me my habits", "label": "COMMAND"}
+{"text": "show all my routines", "label": "COMMAND"}
+{"text": "sho me my schedule", "label": "COMMAND"}
+{"text": "show me what I have going on today", "label": "COMMAND"}
+{"text": "show my running stats", "label": "COMMAND"}
+{"text": "show the morning routine", "label": "COMMAND"}
+{"text": "show me my goals", "label": "COMMAND"}
+{"text": "display the dispatch schedule", "label": "COMMAND"}
+{"text": "show me the weekend plan", "label": "COMMAND"}
+{"text": "show my progress this month", "label": "COMMAND"}
+{"text": "show the notification settings", "label": "COMMAND"}
+{"text": "show me everything that's active", "label": "COMMAND"}
+{"text": "show my water intake log", "label": "COMMAND"}
+{"text": "show the valet tasks", "label": "COMMAND"}
+{"text": "show schedule", "label": "COMMAND"}
+{"text": "show stats", "label": "COMMAND"}
+{"text": "display everything", "label": "COMMAND"}
+{"text": "show me my brew preferences", "label": "COMMAND"}
+{"text": "pull up my fitness plan", "label": "COMMAND"}
+{"text": "show the probe history", "label": "COMMAND"}
+{"text": "show me how I did this week", "label": "COMMAND"}
+{"text": "show today's dispatches", "label": "COMMAND"}
+{"text": "show me tomorrow's schedule", "label": "COMMAND"}
+{"text": "show what valets are running", "label": "COMMAND"}
+{"text": "pull up the meal tracking data", "label": "COMMAND"}
+{"text": "show my meditation streak", "label": "COMMAND"}
+{"text": "let me see my schedule", "label": "COMMAND"}
+{"text": "can you show me my stats", "label": "COMMAND"}
+{"text": "please show the active dispatches", "label": "COMMAND"}
+{"text": "show me the whole plan", "label": "COMMAND"}
+{"text": "list all features", "label": "COMMAND"}
+{"text": "list my active brews", "label": "COMMAND"}
+{"text": "adjust the notification frequency", "label": "COMMAND"}
+{"text": "change the workout time to 7am", "label": "COMMAND"}
+{"text": "adjust my calorie goal", "label": "COMMAND"}
+{"text": "change the reminder time", "label": "COMMAND"}
+{"text": "move my workout to evening", "label": "COMMAND"}
+{"text": "reschedule the check-in", "label": "COMMAND"}
+{"text": "adjust the difficulty", "label": "COMMAND"}
+{"text": "change the dispatch time to noon", "label": "COMMAND"}
+{"text": "adjust the probe frequency to twice a week", "label": "COMMAND"}
+{"text": "move the morning routine to 6:30am", "label": "COMMAND"}
+{"text": "change my step goal to 12000", "label": "COMMAND"}
+{"text": "adjust the brew delivery to mornings only", "label": "COMMAND"}
+{"text": "reschedule my huddle to Thursday", "label": "COMMAND"}
+{"text": "change the meal plan to low carb", "label": "COMMAND"}
+{"text": "adjust the sleep target to 8 hours", "label": "COMMAND"}
+{"text": "move the stretching reminder to after lunch", "label": "COMMAND"}
+{"text": "change the workout days to MWF", "label": "COMMAND"}
+{"text": "adjsut the time", "label": "COMMAND"}
+{"text": "change the evening dispatch to 6pm", "label": "COMMAND"}
+{"text": "adjust my water intake goal", "label": "COMMAND"}
+{"text": "reschedule the morning brew to 7:30am", "label": "COMMAND"}
+{"text": "change the probe questions", "label": "COMMAND"}
+{"text": "move the weekly review to Sunday", "label": "COMMAND"}
+{"text": "adjust the meditation duration to 15 minutes", "label": "COMMAND"}
+{"text": "change my preferred workout type to HIIT", "label": "COMMAND"}
+{"text": "adjust how often you send probes", "label": "COMMAND"}
+{"text": "change the difficulty level to intermediate", "label": "COMMAND"}
+{"text": "move the check-in to 3pm", "label": "COMMAND"}
+{"text": "adjust my calorie target up by 200", "label": "COMMAND"}
+{"text": "change the valet schedule", "label": "COMMAND"}
+{"text": "reschedule the fitness probe to mornings", "label": "COMMAND"}
+{"text": "adjust the brew content to focus on nutrition", "label": "COMMAND"}
+{"text": "change the huddle frequency to biweekly", "label": "COMMAND"}
+{"text": "move my bedtime routine earlier", "label": "COMMAND"}
+{"text": "adjust the workout intensity", "label": "COMMAND"}
+{"text": "change the dispatch format to bullet points", "label": "COMMAND"}
+{"text": "shift the morning routine 30 minutes earlier", "label": "COMMAND"}
+{"text": "update my preferred workout time to mornings", "label": "COMMAND"}
+{"text": "tweak the notification settings", "label": "COMMAND"}
+{"text": "modify the meal plan portions", "label": "COMMAND"}
+{"text": "bump up the step goal", "label": "COMMAND"}
+{"text": "dial back the probe frequency", "label": "COMMAND"}
+{"text": "push the evening dispatch to 8pm", "label": "COMMAND"}
+{"text": "change things so I get fewer notifications", "label": "COMMAND"}
+{"text": "adjust the schedule to fit my new work hours", "label": "COMMAND"}
+{"text": "could you change the workout time please", "label": "COMMAND"}
+{"text": "I need you to adjust the reminder frequency", "label": "COMMAND"}
+{"text": "switch the meal plan to Mediterranean", "label": "COMMAND"}
+{"text": "set the dispatch time to 9am", "label": "COMMAND"}
+{"text": "make the probes less frequent", "label": "COMMAND"}
+{"text": "reduce the notification frequency", "label": "COMMAND"}
+{"text": "increase the step goal to 15000", "label": "COMMAND"}
+{"text": "lower the calorie target", "label": "COMMAND"}
+{"text": "enable the music suggestions", "label": "COMMAND"}
+{"text": "disable morning dispatches", "label": "COMMAND"}
+{"text": "turn on the fitness probe", "label": "COMMAND"}
+{"text": "turn off meal tracking", "label": "COMMAND"}
+{"text": "enable weekend mode", "label": "COMMAND"}
+{"text": "disable notifications for today", "label": "COMMAND"}
+{"text": "turn on do not disturb", "label": "COMMAND"}
+{"text": "enable the sleep tracking feature", "label": "COMMAND"}
+{"text": "disable the wellness probe", "label": "COMMAND"}
+{"text": "turn on the hydration reminders", "label": "COMMAND"}
+{"text": "turn off the evening dispatch", "label": "COMMAND"}
+{"text": "enable proactive suggestions", "label": "COMMAND"}
+{"text": "disable the mood check-in", "label": "COMMAND"}
+{"text": "turn on workout reminders", "label": "COMMAND"}
+{"text": "turn off the morning brew", "label": "COMMAND"}
+{"text": "enable the calorie counter", "label": "COMMAND"}
+{"text": "disable all probes", "label": "COMMAND"}
+{"text": "turn on the daily summary", "label": "COMMAND"}
+{"text": "turn off everything except the schedule", "label": "COMMAND"}
+{"text": "enable the recipe suggestions", "label": "COMMAND"}
+{"text": "disable the afternoon reminder", "label": "COMMAND"}
+{"text": "turn on night mode", "label": "COMMAND"}
+{"text": "turn off weekend dispatches", "label": "COMMAND"}
+{"text": "enable the meditation timer", "label": "COMMAND"}
+{"text": "disable the step counter notifications", "label": "COMMAND"}
+{"text": "turn on the habit streak tracker", "label": "COMMAND"}
+{"text": "turn off push notifications", "label": "COMMAND"}
+{"text": "enable the food logging feature", "label": "COMMAND"}
+{"text": "disable the productivity tips", "label": "COMMAND"}
+{"text": "turn on the reading brew", "label": "COMMAND"}
+{"text": "turn off all dispatches", "label": "COMMAND"}
+{"text": "enable focus mode", "label": "COMMAND"}
+{"text": "disable the exercise probe", "label": "COMMAND"}
+{"text": "activate the morning valet", "label": "COMMAND"}
+{"text": "deactivate the lunch reminder", "label": "COMMAND"}
+{"text": "switch on the fitness tracker", "label": "COMMAND"}
+{"text": "switch off the evening check-in", "label": "COMMAND"}
+{"text": "enable quiet hours", "label": "COMMAND"}
+{"text": "disable the weekly summary dispatch", "label": "COMMAND"}
+{"text": "turn on smart suggestions", "label": "COMMAND"}
+{"text": "turn off the bedtime probe", "label": "COMMAND"}
+{"text": "enable the stretching reminders", "label": "COMMAND"}
+{"text": "disable the morning huddle notifications", "label": "COMMAND"}
+{"text": "please enable the workout valet", "label": "COMMAND"}
+{"text": "can you turn off the probes for me", "label": "COMMAND"}
+{"text": "I'd like to enable the nutrition dispatch", "label": "COMMAND"}
+{"text": "turn the brew back on", "label": "COMMAND"}
+{"text": "kill the notifications", "label": "COMMAND"}
+{"text": "be more casual", "label": "COMMAND"}
+{"text": "be less formal", "label": "COMMAND"}
+{"text": "be more proactive", "label": "COMMAND"}
+{"text": "be less pushy", "label": "COMMAND"}
+{"text": "be more concise", "label": "COMMAND"}
+{"text": "be less chatty", "label": "COMMAND"}
+{"text": "be more encouraging", "label": "COMMAND"}
+{"text": "be less frequent with suggestions", "label": "COMMAND"}
+{"text": "be more detailed in your dispatches", "label": "COMMAND"}
+{"text": "be less repetitive", "label": "COMMAND"}
+{"text": "be more direct", "label": "COMMAND"}
+{"text": "be less wordy", "label": "COMMAND"}
+{"text": "be more supportive", "label": "COMMAND"}
+{"text": "be less formal in your messages", "label": "COMMAND"}
+{"text": "be more specific with suggestions", "label": "COMMAND"}
+{"text": "be less generic", "label": "COMMAND"}
+{"text": "be more fun", "label": "COMMAND"}
+{"text": "be less serious", "label": "COMMAND"}
+{"text": "be more brief", "label": "COMMAND"}
+{"text": "be less naggy", "label": "COMMAND"}
+{"text": "be more motivating", "label": "COMMAND"}
+{"text": "be less robotic", "label": "COMMAND"}
+{"text": "be more conversational", "label": "COMMAND"}
+{"text": "be less intense", "label": "COMMAND"}
+{"text": "be more creative with the brews", "label": "COMMAND"}
+{"text": "be less predictable", "label": "COMMAND"}
+{"text": "be more friendly", "label": "COMMAND"}
+{"text": "be less aggressive with reminders", "label": "COMMAND"}
+{"text": "be more empathetic", "label": "COMMAND"}
+{"text": "be less clinical", "label": "COMMAND"}
+{"text": "be more playful", "label": "COMMAND"}
+{"text": "be less demanding", "label": "COMMAND"}
+{"text": "be more patient with me", "label": "COMMAND"}
+{"text": "be less judgmental", "label": "COMMAND"}
+{"text": "be more natural", "label": "COMMAND"}
+{"text": "be less structured", "label": "COMMAND"}
+{"text": "tone it down a bit", "label": "COMMAND"}
+{"text": "lighten up", "label": "COMMAND"}
+{"text": "keep it short", "label": "COMMAND"}
+{"text": "talk to me like a friend", "label": "COMMAND"}
+{"text": "be more chill", "label": "COMMAND"}
+{"text": "be less annoying", "label": "COMMAND"}
+{"text": "be more human", "label": "COMMAND"}
+{"text": "be less preachy", "label": "COMMAND"}
+{"text": "please be more gentle", "label": "COMMAND"}
+{"text": "could you be less verbose", "label": "COMMAND"}
+{"text": "I want you to be more laid back", "label": "COMMAND"}
+{"text": "be less overbearing", "label": "COMMAND"}
+{"text": "be more positive", "label": "COMMAND"}
+{"text": "be less dry", "label": "COMMAND"}
+{"text": "be more energetic", "label": "COMMAND"}
+{"text": "chill with the suggestions", "label": "COMMAND"}
+{"text": "ease up on the check-ins", "label": "COMMAND"}
+{"text": "give me a workout", "label": "COMMAND"}
+{"text": "make me a meal plan", "label": "COMMAND"}
+{"text": "send me a summary", "label": "COMMAND"}
+{"text": "remind me at 5pm", "label": "COMMAND"}
+{"text": "wake me up at 7", "label": "COMMAND"}
+{"text": "plan my meals for the week", "label": "COMMAND"}
+{"text": "track my runs", "label": "COMMAND"}
+{"text": "log that I went swimming", "label": "COMMAND"}
+{"text": "add yoga to my routine", "label": "COMMAND"}
+{"text": "remove the evening check-in", "label": "COMMAND"}
+{"text": "put the probes on hold", "label": "COMMAND"}
+{"text": "get me a recipe for dinner", "label": "COMMAND"}
+{"text": "schedule a huddle for this evening", "label": "COMMAND"}
+{"text": "book my morning workout", "label": "COMMAND"}
+{"text": "log 2 liters of water", "label": "COMMAND"}
+{"text": "record that I did 30 push-ups", "label": "COMMAND"}
+{"text": "plan a HIIT session for tomorrow", "label": "COMMAND"}
+{"text": "suggest a healthy snack", "label": "COMMAND"}
+{"text": "remind me to stretch every hour", "label": "COMMAND"}
+{"text": "build me a weekly workout plan", "label": "COMMAND"}
+{"text": "find me a quick breakfast recipe", "label": "COMMAND"}
+{"text": "add a 10pm bedtime to my schedule", "label": "COMMAND"}
+{"text": "drop the music dispatch", "label": "COMMAND"}
+{"text": "throw in some ab exercises", "label": "COMMAND"}
+{"text": "set my alarm for 6am", "label": "COMMAND"}
+{"text": "mark today's workout as done", "label": "COMMAND"}
+{"text": "add running to Tuesday and Thursday", "label": "COMMAND"}
+{"text": "clear my schedule for tomorrow afternoon", "label": "COMMAND"}
+{"text": "reset my fitness goals", "label": "COMMAND"}
+{"text": "give me something to read", "label": "COMMAND"}
+{"text": "compile my weekly report", "label": "COMMAND"}
+{"text": "log breakfast as oatmeal and fruit", "label": "COMMAND"}
+{"text": "prep my meals for next week", "label": "COMMAND"}
+{"text": "draft a workout for upper body", "label": "COMMAND"}
+{"text": "organize my morning tasks", "label": "COMMAND"}
+{"text": "remind me to take vitamins at 9am", "label": "COMMAND"}
+{"text": "queue up a motivational dispatch", "label": "COMMAND"}
+{"text": "note that I skipped my workout today", "label": "COMMAND"}
+{"text": "block off time for meditation at noon", "label": "COMMAND"}
+{"text": "swap tomorrow's workout for a rest day", "label": "COMMAND"}
+{"text": "assign a leg day workout for Wednesday", "label": "COMMAND"}
+{"text": "snooze the next probe for an hour", "label": "COMMAND"}
+{"text": "delay the dispatch by 30 minutes", "label": "COMMAND"}
+{"text": "repeat the last meal plan", "label": "COMMAND"}
+{"text": "cancel the afternoon huddle", "label": "COMMAND"}
+{"text": "regenerate my workout for today", "label": "COMMAND"}
+{"text": "skip tomorrow's check-in", "label": "COMMAND"}
+{"text": "redo my meal plan without dairy", "label": "COMMAND"}
+{"text": "save this workout to my favorites", "label": "COMMAND"}
+{"text": "archive last week's data", "label": "COMMAND"}
+{"text": "export my fitness stats", "label": "COMMAND"}
+{"text": "refresh the brew content", "label": "COMMAND"}
+{"text": "summarize my week for me", "label": "COMMAND"}
+{"text": "make my morning routine shorter", "label": "COMMAND"}
+{"text": "extend the meditation session to 20 minutes", "label": "COMMAND"}
+{"text": "double the workout volume", "label": "COMMAND"}
+{"text": "cut the rest periods in half", "label": "COMMAND"}
+{"text": "only give me plant-based recipes", "label": "COMMAND"}
+{"text": "randomize my workout order", "label": "COMMAND"}
+{"text": "lock in this schedule for the month", "label": "COMMAND"}
+{"text": "notify me when my streak hits 30 days", "label": "COMMAND"}
+{"text": "send the dispatch to my email instead", "label": "COMMAND"}
+{"text": "forward me the meal plan as a PDF", "label": "COMMAND"}
+{"text": "pin the workout schedule to the top", "label": "COMMAND"}
+{"text": "pause everything until Monday", "label": "COMMAND"}
+{"text": "only send me dispatches in the morning", "label": "COMMAND"}
+{"text": "switch to a vegetarian meal plan", "label": "COMMAND"}
+{"text": "clear my schedule for tomorrow", "label": "COMMAND"}
+{"text": "pause the fitness probe and show me my weekly summary", "label": "COMMAND"}
+{"text": "stop the probes and disable the evening dispatch", "label": "COMMAND"}
+{"text": "set up a morning routine and enable the hydration probe", "label": "COMMAND"}
+{"text": "show my stats and adjust the calorie goal", "label": "COMMAND"}
+{"text": "change my meal plan to keto and update the grocery valet", "label": "COMMAND"}
+{"text": "resume dispatches but keep probes paused", "label": "COMMAND"}
+{"text": "turn off all notifications and pause everything", "label": "COMMAND"}
+{"text": "enable the fitness probe and set it to check in daily", "label": "COMMAND"}
+{"text": "show my progress and then pause the tracker", "label": "COMMAND"}
+{"text": "adjust the schedule and move the huddle to Friday", "label": "COMMAND"}
+{"text": "create a workout plan and set reminders for each session", "label": "COMMAND"}
+{"text": "disable the morning dispatch and switch to evening only", "label": "COMMAND"}
+{"text": "start tracking sleep and set up a bedtime routine", "label": "COMMAND"}
+{"text": "be more concise and reduce the dispatch length", "label": "COMMAND"}
+{"text": "pause probes during work hours and resume at 6pm", "label": "COMMAND"}
+{"text": "show the meal plan then swap Thursday's dinner", "label": "COMMAND"}
+{"text": "turn on the fitness valet and configure it for strength training", "label": "COMMAND"}
+{"text": "reset all my goals and start fresh", "label": "COMMAND"}
+{"text": "change my schedule so I work out in the mornings instead", "label": "COMMAND"}
+{"text": "stop the brews and give me dispatches instead", "label": "COMMAND"}
+{"text": "could you pause the probes please", "label": "COMMAND"}
+{"text": "can you show me the schedule", "label": "COMMAND"}
+{"text": "would you mind adjusting the time", "label": "COMMAND"}
+{"text": "please pause the fitness probe", "label": "COMMAND"}
+{"text": "could you set up a morning routine for me", "label": "COMMAND"}
+{"text": "would you show me my stats", "label": "COMMAND"}
+{"text": "can you change the workout time", "label": "COMMAND"}
+{"text": "please turn off notifications", "label": "COMMAND"}
+{"text": "I'd like to see my stats", "label": "COMMAND"}
+{"text": "I want to change my routine", "label": "COMMAND"}
+{"text": "I need you to pause that", "label": "COMMAND"}
+{"text": "I'd like you to set up meal tracking", "label": "COMMAND"}
+{"text": "I want to see my progress", "label": "COMMAND"}
+{"text": "I need the probes turned off", "label": "COMMAND"}
+{"text": "I'd appreciate it if you could adjust the schedule", "label": "COMMAND"}
+{"text": "it would be great if you could show me the plan", "label": "COMMAND"}
+{"text": "mind showing me the dispatch schedule", "label": "COMMAND"}
+{"text": "could you possibly reduce the notifications", "label": "COMMAND"}
+{"text": "I'd love to see a weekly summary", "label": "COMMAND"}
+{"text": "if you could start the sleep tracker that'd be great", "label": "COMMAND"}
+{"text": "do me a favor and pause the evening probe", "label": "COMMAND"}
+{"text": "help me set up a fitness routine", "label": "COMMAND"}
+{"text": "I want you to be more casual", "label": "COMMAND"}
+{"text": "I need the morning dispatch adjusted", "label": "COMMAND"}
+{"text": "would it be possible to change the workout days", "label": "COMMAND"}
+{"text": "pause", "label": "COMMAND"}
+{"text": "resume", "label": "COMMAND"}
+{"text": "stop", "label": "COMMAND"}
+{"text": "less notifications", "label": "COMMAND"}
+{"text": "more casual", "label": "COMMAND"}
+{"text": "enable fitness", "label": "COMMAND"}
+{"text": "disable probes", "label": "COMMAND"}
+{"text": "pause probes today", "label": "COMMAND"}
+{"text": "start tracking", "label": "COMMAND"}
+{"text": "adjust frequency", "label": "COMMAND"}
+{"text": "show progress", "label": "COMMAND"}
+{"text": "change time", "label": "COMMAND"}
+{"text": "turn on sleep", "label": "COMMAND"}
+{"text": "turn off brew", "label": "COMMAND"}
+{"text": "less wordy", "label": "COMMAND"}
+{"text": "show plan", "label": "COMMAND"}
+{"text": "resume all", "label": "COMMAND"}
+{"text": "stop dispatches", "label": "COMMAND"}
+{"text": "shorter messages", "label": "COMMAND"}
+{"text": "fewer probes", "label": "COMMAND"}
+{"text": "show meals", "label": "COMMAND"}
+{"text": "setup routine", "label": "COMMAND"}
+{"text": "confgure the fitness probe for mornings", "label": "COMMAND"}
+{"text": "enbale the workout tracker", "label": "COMMAND"}
+{"text": "disble the evening dispatch", "label": "COMMAND"}
+{"text": "trun off notifications", "label": "COMMAND"}
+{"text": "show me wat I have today", "label": "COMMAND"}
+{"text": "adjsut my goals", "label": "COMMAND"}
+{"text": "chagne the schedule", "label": "COMMAND"}
+{"text": "strat the morning routine", "label": "COMMAND"}
+{"text": "plz pause the probes", "label": "COMMAND"}
+{"text": "gimme a workout plan", "label": "COMMAND"}
+{"text": "yo show me my stats real quick", "label": "COMMAND"}
+{"text": "hey set up a meditation thing", "label": "COMMAND"}
+{"text": "dude pause the fitness stuff", "label": "COMMAND"}
+{"text": "just turn everything off", "label": "COMMAND"}
+{"text": "lemme see the schedule", "label": "COMMAND"}
+{"text": "hook me up with a meal plan", "label": "COMMAND"}
+{"text": "nah turn that off", "label": "COMMAND"}
+{"text": "bring up my stats", "label": "COMMAND"}
+{"text": "hit me with the daily brew", "label": "COMMAND"}
+{"text": "shut off the reminders", "label": "COMMAND"}
+{"text": "pop up my schedule", "label": "COMMAND"}
+{"text": "throw together a quick workout", "label": "COMMAND"}
+{"text": "lay out the week for me", "label": "COMMAND"}
+{"text": "whip up a grocery list", "label": "COMMAND"}
+{"text": "set the probe to weekly instead of daily", "label": "COMMAND"}
+{"text": "make the dispatches shorter", "label": "COMMAND"}
+{"text": "limit probes to weekdays only", "label": "COMMAND"}
+{"text": "restrict notifications to business hours", "label": "COMMAND"}
+{"text": "scale back the check-ins", "label": "COMMAND"}
+{"text": "keep dispatches under 3 sentences", "label": "COMMAND"}
+{"text": "only send brews on weekends", "label": "COMMAND"}
+{"text": "switch from daily to weekly huddles", "label": "COMMAND"}
+{"text": "focus the brew on mindfulness topics", "label": "COMMAND"}
+{"text": "prioritize fitness over nutrition in dispatches", "label": "COMMAND"}
+{"text": "consolidate all notifications into one daily digest", "label": "COMMAND"}
+{"text": "group my probes into a single morning check-in", "label": "COMMAND"}
+{"text": "spread out my workout sessions evenly across the week", "label": "COMMAND"}
+{"text": "alternate between cardio and strength in my schedule", "label": "COMMAND"}
+{"text": "cap notifications at 5 per day", "label": "COMMAND"}
+{"text": "set a 2-hour quiet period after each huddle", "label": "COMMAND"}
+{"text": "auto-skip probes on holidays", "label": "COMMAND"}
+{"text": "default to metric units in my stats", "label": "COMMAND"}
+{"text": "use imperial for weight and metric for distance", "label": "COMMAND"}
+{"text": "sync the schedule with my calendar", "label": "COMMAND"}
+{"text": "integrate the meal plan with my grocery app", "label": "COMMAND"}
+{"text": "link my fitness data to the progress tracker", "label": "COMMAND"}
+{"text": "connect the sleep probe to my smartwatch", "label": "COMMAND"}
+{"text": "back up my data", "label": "COMMAND"}

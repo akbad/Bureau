@@ -18,12 +18,12 @@ class TestUnifiedClassifier:
     def test_normal_text_falls_through_to_model(self):
         env = MessageEnvelope(text="what should I eat for dinner?", has_attachment=False)
         result = classify_message(env, active_feature=None)
-        assert result.classification == MessageClass.CONVERSE  # model fallback
+        assert result.classification == MessageClass.QUERY  # model classifies as QUERY
 
     def test_command_text_gets_fuzzy_upgraded(self):
         env = MessageEnvelope(text="pause the fitness probe", has_attachment=False)
         result = classify_message(env, active_feature=None)
-        # Model returns CONVERSE (no model file), but fuzzy finds "pause" -> COMMAND
+        # Fuzzy matcher finds "pause" -> COMMAND
         assert result.classification == MessageClass.COMMAND
 
     def test_envelope_updated_in_place(self):

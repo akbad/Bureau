@@ -1,0 +1,500 @@
+{"text": "yes", "label": "REPLY"}
+{"text": "yep", "label": "REPLY"}
+{"text": "sure", "label": "REPLY"}
+{"text": "ok", "label": "REPLY"}
+{"text": "okay", "label": "REPLY"}
+{"text": "sounds good", "label": "REPLY"}
+{"text": "let's do it", "label": "REPLY"}
+{"text": "why not", "label": "REPLY"}
+{"text": "I'm in", "label": "REPLY"}
+{"text": "absolutely", "label": "REPLY"}
+{"text": "definitely", "label": "REPLY"}
+{"text": "of course", "label": "REPLY"}
+{"text": "go ahead", "label": "REPLY"}
+{"text": "please", "label": "REPLY"}
+{"text": "yeah", "label": "REPLY"}
+{"text": "ya", "label": "REPLY"}
+{"text": "yea", "label": "REPLY"}
+{"text": "mhm", "label": "REPLY"}
+{"text": "uh huh", "label": "REPLY"}
+{"text": "Yes!", "label": "REPLY"}
+{"text": "Yep!", "label": "REPLY"}
+{"text": "Sure thing", "label": "REPLY"}
+{"text": "Ok!", "label": "REPLY"}
+{"text": "Sounds good!", "label": "REPLY"}
+{"text": "Let's do it!", "label": "REPLY"}
+{"text": "YES", "label": "REPLY"}
+{"text": "SURE", "label": "REPLY"}
+{"text": "yup", "label": "REPLY"}
+{"text": "Yup!", "label": "REPLY"}
+{"text": "for sure", "label": "REPLY"}
+{"text": "For sure!", "label": "REPLY"}
+{"text": "totally", "label": "REPLY"}
+{"text": "Totally!", "label": "REPLY"}
+{"text": "bet", "label": "REPLY"}
+{"text": "Bet", "label": "REPLY"}
+{"text": "down", "label": "REPLY"}
+{"text": "I'm down", "label": "REPLY"}
+{"text": "im down", "label": "REPLY"}
+{"text": "yeah sure", "label": "REPLY"}
+{"text": "yeah ok", "label": "REPLY"}
+{"text": "yes please", "label": "REPLY"}
+{"text": "Yes please!", "label": "REPLY"}
+{"text": "yeah let's do it", "label": "REPLY"}
+{"text": "sure why not", "label": "REPLY"}
+{"text": "yea sounds good", "label": "REPLY"}
+{"text": "k", "label": "REPLY"}
+{"text": "kk", "label": "REPLY"}
+{"text": "ye", "label": "REPLY"}
+{"text": "ya sure", "label": "REPLY"}
+{"text": "yeah definitely", "label": "REPLY"}
+{"text": "absolutely!", "label": "REPLY"}
+{"text": "ABSOLUTELY", "label": "REPLY"}
+{"text": "def", "label": "REPLY"}
+{"text": "Def!", "label": "REPLY"}
+{"text": "ofc", "label": "REPLY"}
+{"text": "of course!", "label": "REPLY"}
+{"text": "go for it", "label": "REPLY"}
+{"text": "Go for it!", "label": "REPLY"}
+{"text": "do it", "label": "REPLY"}
+{"text": "yesss", "label": "REPLY"}
+{"text": "yessss", "label": "REPLY"}
+{"text": "Yesss!", "label": "REPLY"}
+{"text": "yeah totally", "label": "REPLY"}
+{"text": "alright", "label": "REPLY"}
+{"text": "aight", "label": "REPLY"}
+{"text": "Alright!", "label": "REPLY"}
+{"text": "all good", "label": "REPLY"}
+{"text": "works for me", "label": "REPLY"}
+{"text": "that works", "label": "REPLY"}
+{"text": "no", "label": "REPLY"}
+{"text": "nah", "label": "REPLY"}
+{"text": "nope", "label": "REPLY"}
+{"text": "not now", "label": "REPLY"}
+{"text": "maybe later", "label": "REPLY"}
+{"text": "I'll pass", "label": "REPLY"}
+{"text": "not today", "label": "REPLY"}
+{"text": "skip it", "label": "REPLY"}
+{"text": "no thanks", "label": "REPLY"}
+{"text": "I'm good", "label": "REPLY"}
+{"text": "not interested", "label": "REPLY"}
+{"text": "pass", "label": "REPLY"}
+{"text": "No.", "label": "REPLY"}
+{"text": "Nah", "label": "REPLY"}
+{"text": "Nope!", "label": "REPLY"}
+{"text": "Not now", "label": "REPLY"}
+{"text": "Maybe later.", "label": "REPLY"}
+{"text": "i'll pass", "label": "REPLY"}
+{"text": "not rn", "label": "REPLY"}
+{"text": "NO", "label": "REPLY"}
+{"text": "nah I'm good", "label": "REPLY"}
+{"text": "no thx", "label": "REPLY"}
+{"text": "no thanks!", "label": "REPLY"}
+{"text": "hard pass", "label": "REPLY"}
+{"text": "Hard pass", "label": "REPLY"}
+{"text": "not feeling it", "label": "REPLY"}
+{"text": "Not feeling it", "label": "REPLY"}
+{"text": "skip", "label": "REPLY"}
+{"text": "Skip", "label": "REPLY"}
+{"text": "not really", "label": "REPLY"}
+{"text": "nah not today", "label": "REPLY"}
+{"text": "nah maybe tomorrow", "label": "REPLY"}
+{"text": "no way", "label": "REPLY"}
+{"text": "No way", "label": "REPLY"}
+{"text": "i don't think so", "label": "REPLY"}
+{"text": "not for me", "label": "REPLY"}
+{"text": "I'm not into that", "label": "REPLY"}
+{"text": "next time", "label": "REPLY"}
+{"text": "Next time", "label": "REPLY"}
+{"text": "another time", "label": "REPLY"}
+{"text": "not right now", "label": "REPLY"}
+{"text": "nahhh", "label": "REPLY"}
+{"text": "nopee", "label": "REPLY"}
+{"text": "nah im good", "label": "REPLY"}
+{"text": "skip that one", "label": "REPLY"}
+{"text": "no not that", "label": "REPLY"}
+{"text": "don't want that", "label": "REPLY"}
+{"text": "rather not", "label": "REPLY"}
+{"text": "I'd rather not", "label": "REPLY"}
+{"text": "not a fan", "label": "REPLY"}
+{"text": "not into it", "label": "REPLY"}
+{"text": "pass on that", "label": "REPLY"}
+{"text": "I'll skip", "label": "REPLY"}
+{"text": "love it", "label": "REPLY"}
+{"text": "nice", "label": "REPLY"}
+{"text": "cool", "label": "REPLY"}
+{"text": "awesome", "label": "REPLY"}
+{"text": "great", "label": "REPLY"}
+{"text": "perfect", "label": "REPLY"}
+{"text": "sweet", "label": "REPLY"}
+{"text": "haha", "label": "REPLY"}
+{"text": "lol", "label": "REPLY"}
+{"text": "wow", "label": "REPLY"}
+{"text": "oh nice", "label": "REPLY"}
+{"text": "that's great", "label": "REPLY"}
+{"text": "amazing", "label": "REPLY"}
+{"text": "brilliant", "label": "REPLY"}
+{"text": "fantastic", "label": "REPLY"}
+{"text": "Love it!", "label": "REPLY"}
+{"text": "Nice!", "label": "REPLY"}
+{"text": "Cool!", "label": "REPLY"}
+{"text": "Awesome!", "label": "REPLY"}
+{"text": "Great!", "label": "REPLY"}
+{"text": "Perfect!", "label": "REPLY"}
+{"text": "Sweet!", "label": "REPLY"}
+{"text": "LOVE IT", "label": "REPLY"}
+{"text": "NICE", "label": "REPLY"}
+{"text": "AWESOME", "label": "REPLY"}
+{"text": "oh wow", "label": "REPLY"}
+{"text": "Oh wow!", "label": "REPLY"}
+{"text": "ooh nice", "label": "REPLY"}
+{"text": "Ooh nice!", "label": "REPLY"}
+{"text": "hell yeah", "label": "REPLY"}
+{"text": "Hell yeah!", "label": "REPLY"}
+{"text": "hahaha", "label": "REPLY"}
+{"text": "lmao", "label": "REPLY"}
+{"text": "LOL", "label": "REPLY"}
+{"text": "that's awesome", "label": "REPLY"}
+{"text": "That's awesome!", "label": "REPLY"}
+{"text": "so cool", "label": "REPLY"}
+{"text": "So cool!", "label": "REPLY"}
+{"text": "omg yes", "label": "REPLY"}
+{"text": "oh hell yes", "label": "REPLY"}
+{"text": "incredible", "label": "REPLY"}
+{"text": "excellent", "label": "REPLY"}
+{"text": "Excellent!", "label": "REPLY"}
+{"text": "beautiful", "label": "REPLY"}
+{"text": "lovely", "label": "REPLY"}
+{"text": "that's perfect", "label": "REPLY"}
+{"text": "That's perfect!", "label": "REPLY"}
+{"text": "yay", "label": "REPLY"}
+{"text": "Yay!", "label": "REPLY"}
+{"text": "woo", "label": "REPLY"}
+{"text": "woohoo", "label": "REPLY"}
+{"text": "sick", "label": "REPLY"}
+{"text": "Sick!", "label": "REPLY"}
+{"text": "dope", "label": "REPLY"}
+{"text": "rad", "label": "REPLY"}
+{"text": "that's dope", "label": "REPLY"}
+{"text": "oh that's nice", "label": "REPLY"}
+{"text": "haha nice", "label": "REPLY"}
+{"text": "lol nice", "label": "REPLY"}
+{"text": "oh love that", "label": "REPLY"}
+{"text": "ooh I like that", "label": "REPLY"}
+{"text": "niiiice", "label": "REPLY"}
+{"text": "amazinggg", "label": "REPLY"}
+{"text": "perf", "label": "REPLY"}
+{"text": "Perf!", "label": "REPLY"}
+{"text": "got it", "label": "REPLY"}
+{"text": "understood", "label": "REPLY"}
+{"text": "noted", "label": "REPLY"}
+{"text": "thanks", "label": "REPLY"}
+{"text": "thank you", "label": "REPLY"}
+{"text": "appreciate it", "label": "REPLY"}
+{"text": "will do", "label": "REPLY"}
+{"text": "roger", "label": "REPLY"}
+{"text": "copy", "label": "REPLY"}
+{"text": "makes sense", "label": "REPLY"}
+{"text": "fair enough", "label": "REPLY"}
+{"text": "right", "label": "REPLY"}
+{"text": "Got it!", "label": "REPLY"}
+{"text": "Understood", "label": "REPLY"}
+{"text": "Noted!", "label": "REPLY"}
+{"text": "Thanks!", "label": "REPLY"}
+{"text": "Thank you!", "label": "REPLY"}
+{"text": "Appreciate it!", "label": "REPLY"}
+{"text": "Will do!", "label": "REPLY"}
+{"text": "Roger that", "label": "REPLY"}
+{"text": "Copy that", "label": "REPLY"}
+{"text": "Makes sense", "label": "REPLY"}
+{"text": "Fair enough", "label": "REPLY"}
+{"text": "Right", "label": "REPLY"}
+{"text": "thx", "label": "REPLY"}
+{"text": "ty", "label": "REPLY"}
+{"text": "thx!", "label": "REPLY"}
+{"text": "ty!", "label": "REPLY"}
+{"text": "thanks so much", "label": "REPLY"}
+{"text": "THANKS", "label": "REPLY"}
+{"text": "thank u", "label": "REPLY"}
+{"text": "ok got it", "label": "REPLY"}
+{"text": "ok thanks", "label": "REPLY"}
+{"text": "ok cool", "label": "REPLY"}
+{"text": "gotcha", "label": "REPLY"}
+{"text": "Gotcha", "label": "REPLY"}
+{"text": "good to know", "label": "REPLY"}
+{"text": "Good to know", "label": "REPLY"}
+{"text": "i see", "label": "REPLY"}
+{"text": "I see", "label": "REPLY"}
+{"text": "ah ok", "label": "REPLY"}
+{"text": "oh ok", "label": "REPLY"}
+{"text": "ah got it", "label": "REPLY"}
+{"text": "oh got it", "label": "REPLY"}
+{"text": "right right", "label": "REPLY"}
+{"text": "ah makes sense", "label": "REPLY"}
+{"text": "oh I see", "label": "REPLY"}
+{"text": "word", "label": "REPLY"}
+{"text": "Word", "label": "REPLY"}
+{"text": "say less", "label": "REPLY"}
+{"text": "heard", "label": "REPLY"}
+{"text": "thanks a lot", "label": "REPLY"}
+{"text": "much appreciated", "label": "REPLY"}
+{"text": "roger roger", "label": "REPLY"}
+{"text": "10-4", "label": "REPLY"}
+{"text": "acknowledged", "label": "REPLY"}
+{"text": "duly noted", "label": "REPLY"}
+{"text": "hmm", "label": "REPLY"}
+{"text": "I guess", "label": "REPLY"}
+{"text": "maybe", "label": "REPLY"}
+{"text": "we'll see", "label": "REPLY"}
+{"text": "not sure", "label": "REPLY"}
+{"text": "I'll think about it", "label": "REPLY"}
+{"text": "possibly", "label": "REPLY"}
+{"text": "let me think", "label": "REPLY"}
+{"text": "idk", "label": "REPLY"}
+{"text": "dunno", "label": "REPLY"}
+{"text": "Hmm", "label": "REPLY"}
+{"text": "I guess.", "label": "REPLY"}
+{"text": "Maybe.", "label": "REPLY"}
+{"text": "We'll see.", "label": "REPLY"}
+{"text": "Not sure.", "label": "REPLY"}
+{"text": "I'll think about it.", "label": "REPLY"}
+{"text": "Possibly.", "label": "REPLY"}
+{"text": "Let me think.", "label": "REPLY"}
+{"text": "IDK", "label": "REPLY"}
+{"text": "hmmm", "label": "REPLY"}
+{"text": "hmmmm", "label": "REPLY"}
+{"text": "i guess so", "label": "REPLY"}
+{"text": "I guess so", "label": "REPLY"}
+{"text": "maybe yeah", "label": "REPLY"}
+{"text": "i suppose", "label": "REPLY"}
+{"text": "I suppose", "label": "REPLY"}
+{"text": "could be", "label": "REPLY"}
+{"text": "perhaps", "label": "REPLY"}
+{"text": "Perhaps", "label": "REPLY"}
+{"text": "not entirely sure", "label": "REPLY"}
+{"text": "i mean maybe", "label": "REPLY"}
+{"text": "yeah maybe", "label": "REPLY"}
+{"text": "ehh maybe", "label": "REPLY"}
+{"text": "i'll consider it", "label": "REPLY"}
+{"text": "let me sleep on it", "label": "REPLY"}
+{"text": "i need to think", "label": "REPLY"}
+{"text": "undecided", "label": "REPLY"}
+{"text": "on the fence", "label": "REPLY"}
+{"text": "not convinced", "label": "REPLY"}
+{"text": "i'm torn", "label": "REPLY"}
+{"text": "50/50", "label": "REPLY"}
+{"text": "leaning towards no", "label": "REPLY"}
+{"text": "leaning towards yes", "label": "REPLY"}
+{"text": "we'll see how I feel", "label": "REPLY"}
+{"text": "i might", "label": "REPLY"}
+{"text": "depends", "label": "REPLY"}
+{"text": "Depends", "label": "REPLY"}
+{"text": "whatever", "label": "REPLY"}
+{"text": "fine", "label": "REPLY"}
+{"text": "sure whatever", "label": "REPLY"}
+{"text": "doesn't matter", "label": "REPLY"}
+{"text": "I don't care", "label": "REPLY"}
+{"text": "up to you", "label": "REPLY"}
+{"text": "you pick", "label": "REPLY"}
+{"text": "meh", "label": "REPLY"}
+{"text": "eh", "label": "REPLY"}
+{"text": "Whatever.", "label": "REPLY"}
+{"text": "Fine.", "label": "REPLY"}
+{"text": "Sure whatever", "label": "REPLY"}
+{"text": "Doesn't matter", "label": "REPLY"}
+{"text": "i don't care", "label": "REPLY"}
+{"text": "Up to you", "label": "REPLY"}
+{"text": "You pick", "label": "REPLY"}
+{"text": "Meh", "label": "REPLY"}
+{"text": "Eh", "label": "REPLY"}
+{"text": "don't mind", "label": "REPLY"}
+{"text": "I don't mind", "label": "REPLY"}
+{"text": "either way", "label": "REPLY"}
+{"text": "either is fine", "label": "REPLY"}
+{"text": "your call", "label": "REPLY"}
+{"text": "Your call", "label": "REPLY"}
+{"text": "you decide", "label": "REPLY"}
+{"text": "You decide", "label": "REPLY"}
+{"text": "no preference", "label": "REPLY"}
+{"text": "idc", "label": "REPLY"}
+{"text": "w/e", "label": "REPLY"}
+{"text": "both are fine", "label": "REPLY"}
+{"text": "any of those work", "label": "REPLY"}
+{"text": "whatevs", "label": "REPLY"}
+{"text": "it's all the same to me", "label": "REPLY"}
+{"text": "dealer's choice", "label": "REPLY"}
+{"text": "u choose", "label": "REPLY"}
+{"text": "surprise me", "label": "REPLY"}
+{"text": "Surprise me", "label": "REPLY"}
+{"text": "i really don't care", "label": "REPLY"}
+{"text": "literally whatever", "label": "REPLY"}
+{"text": "fine by me", "label": "REPLY"}
+{"text": "Fine by me", "label": "REPLY"}
+{"text": "no strong opinion", "label": "REPLY"}
+{"text": "👍", "label": "REPLY"}
+{"text": "❤️", "label": "REPLY"}
+{"text": "😂", "label": "REPLY"}
+{"text": "🙌", "label": "REPLY"}
+{"text": "👏", "label": "REPLY"}
+{"text": "🤷", "label": "REPLY"}
+{"text": "😊", "label": "REPLY"}
+{"text": "🔥", "label": "REPLY"}
+{"text": "💯", "label": "REPLY"}
+{"text": "✅", "label": "REPLY"}
+{"text": "😍", "label": "REPLY"}
+{"text": "🎉", "label": "REPLY"}
+{"text": "🙏", "label": "REPLY"}
+{"text": "💪", "label": "REPLY"}
+{"text": "✨", "label": "REPLY"}
+{"text": "😎", "label": "REPLY"}
+{"text": "🤩", "label": "REPLY"}
+{"text": "👌", "label": "REPLY"}
+{"text": "😉", "label": "REPLY"}
+{"text": "💚", "label": "REPLY"}
+{"text": "👍👍", "label": "REPLY"}
+{"text": "❌", "label": "REPLY"}
+{"text": "😁", "label": "REPLY"}
+{"text": "🤤", "label": "REPLY"}
+{"text": "😋", "label": "REPLY"}
+{"text": "🌟", "label": "REPLY"}
+{"text": "🫡", "label": "REPLY"}
+{"text": "🙌🔥", "label": "REPLY"}
+{"text": "😅", "label": "REPLY"}
+{"text": "🤔", "label": "REPLY"}
+{"text": "that recipe looks good", "label": "REPLY"}
+{"text": "I'll try that workout", "label": "REPLY"}
+{"text": "good idea", "label": "REPLY"}
+{"text": "yeah that works", "label": "REPLY"}
+{"text": "sounds perfect", "label": "REPLY"}
+{"text": "let's go with that one", "label": "REPLY"}
+{"text": "the second option", "label": "REPLY"}
+{"text": "first one", "label": "REPLY"}
+{"text": "That recipe looks good", "label": "REPLY"}
+{"text": "I'll try that workout!", "label": "REPLY"}
+{"text": "Good idea!", "label": "REPLY"}
+{"text": "Yeah that works", "label": "REPLY"}
+{"text": "Sounds perfect!", "label": "REPLY"}
+{"text": "Let's go with that one", "label": "REPLY"}
+{"text": "The second option", "label": "REPLY"}
+{"text": "First one", "label": "REPLY"}
+{"text": "that sounds yummy", "label": "REPLY"}
+{"text": "I like that song", "label": "REPLY"}
+{"text": "great suggestion", "label": "REPLY"}
+{"text": "Great suggestion!", "label": "REPLY"}
+{"text": "i'll do that one", "label": "REPLY"}
+{"text": "the last one", "label": "REPLY"}
+{"text": "option 2", "label": "REPLY"}
+{"text": "option 1", "label": "REPLY"}
+{"text": "yeah the first one", "label": "REPLY"}
+{"text": "third option please", "label": "REPLY"}
+{"text": "second one sounds better", "label": "REPLY"}
+{"text": "I prefer the first", "label": "REPLY"}
+{"text": "that meal sounds great", "label": "REPLY"}
+{"text": "ooh that looks tasty", "label": "REPLY"}
+{"text": "that playlist is fire", "label": "REPLY"}
+{"text": "I'll give it a shot", "label": "REPLY"}
+{"text": "yeah I like that", "label": "REPLY"}
+{"text": "that one for sure", "label": "REPLY"}
+{"text": "the healthy option", "label": "REPLY"}
+{"text": "go with the salad", "label": "REPLY"}
+{"text": "I'll take the smoothie", "label": "REPLY"}
+{"text": "that stretch sounds nice", "label": "REPLY"}
+{"text": "I needed that reminder", "label": "REPLY"}
+{"text": "good call", "label": "REPLY"}
+{"text": "Good call!", "label": "REPLY"}
+{"text": "smart", "label": "REPLY"}
+{"text": "yeah good point", "label": "REPLY"}
+{"text": "true", "label": "REPLY"}
+{"text": "True", "label": "REPLY"}
+{"text": "so true", "label": "REPLY"}
+{"text": "facts", "label": "REPLY"}
+{"text": "you're right", "label": "REPLY"}
+{"text": "You're right", "label": "REPLY"}
+{"text": "that's fair", "label": "REPLY"}
+{"text": "valid", "label": "REPLY"}
+{"text": "solid advice", "label": "REPLY"}
+{"text": "i like that idea", "label": "REPLY"}
+{"text": "ooh yes please", "label": "REPLY"}
+{"text": "yea that one", "label": "REPLY"}
+{"text": "def the second one", "label": "REPLY"}
+{"text": "let's try that", "label": "REPLY"}
+{"text": "let's go with that", "label": "REPLY"}
+{"text": "i trust you", "label": "REPLY"}
+{"text": "I trust your pick", "label": "REPLY"}
+{"text": "down for that", "label": "REPLY"}
+{"text": "im into it", "label": "REPLY"}
+{"text": "sold", "label": "REPLY"}
+{"text": "Sold!", "label": "REPLY"}
+{"text": "done deal", "label": "REPLY"}
+{"text": "say no more", "label": "REPLY"}
+{"text": "you had me at tacos", "label": "REPLY"}
+{"text": "sign me up", "label": "REPLY"}
+{"text": "count me in", "label": "REPLY"}
+{"text": "on it", "label": "REPLY"}
+{"text": "On it!", "label": "REPLY"}
+{"text": "bet let's go", "label": "REPLY"}
+{"text": "haha yes", "label": "REPLY"}
+{"text": "lol sure", "label": "REPLY"}
+{"text": "haha ok", "label": "REPLY"}
+{"text": "lol ok", "label": "REPLY"}
+{"text": "ha good one", "label": "REPLY"}
+{"text": "lmao sure", "label": "REPLY"}
+{"text": "haha why not", "label": "REPLY"}
+{"text": "sure I guess", "label": "REPLY"}
+{"text": "yeah I guess", "label": "REPLY"}
+{"text": "fine sure", "label": "REPLY"}
+{"text": "ok fine", "label": "REPLY"}
+{"text": "Ok fine.", "label": "REPLY"}
+{"text": "ugh fine", "label": "REPLY"}
+{"text": "Ugh fine", "label": "REPLY"}
+{"text": "if you say so", "label": "REPLY"}
+{"text": "If you say so", "label": "REPLY"}
+{"text": "I trust it", "label": "REPLY"}
+{"text": "couldn't agree more", "label": "REPLY"}
+{"text": "spot on", "label": "REPLY"}
+{"text": "exactly", "label": "REPLY"}
+{"text": "Exactly!", "label": "REPLY"}
+{"text": "precisely", "label": "REPLY"}
+{"text": "correct", "label": "REPLY"}
+{"text": "Correct", "label": "REPLY"}
+{"text": "same", "label": "REPLY"}
+{"text": "Same", "label": "REPLY"}
+{"text": "big same", "label": "REPLY"}
+{"text": "mood", "label": "REPLY"}
+{"text": "relatable", "label": "REPLY"}
+{"text": "no cap", "label": "REPLY"}
+{"text": "fr", "label": "REPLY"}
+{"text": "fr fr", "label": "REPLY"}
+{"text": "real talk", "label": "REPLY"}
+{"text": "preach", "label": "REPLY"}
+{"text": "this", "label": "REPLY"}
+{"text": "THIS", "label": "REPLY"}
+{"text": "^^", "label": "REPLY"}
+{"text": "+1", "label": "REPLY"}
+{"text": "100%", "label": "REPLY"}
+{"text": "all for it", "label": "REPLY"}
+{"text": "can't wait", "label": "REPLY"}
+{"text": "Can't wait!", "label": "REPLY"}
+{"text": "looking forward to it", "label": "REPLY"}
+{"text": "excited", "label": "REPLY"}
+{"text": "pumped", "label": "REPLY"}
+{"text": "Pumped!", "label": "REPLY"}
+{"text": "stoked", "label": "REPLY"}
+{"text": "hyped", "label": "REPLY"}
+{"text": "less go", "label": "REPLY"}
+{"text": "let's goooo", "label": "REPLY"}
+{"text": "LETS GO", "label": "REPLY"}
+{"text": "lfg", "label": "REPLY"}
+{"text": "LFG", "label": "REPLY"}
+{"text": "sounds like a plan", "label": "REPLY"}
+{"text": "Sounds like a plan!", "label": "REPLY"}
+{"text": "I'm game", "label": "REPLY"}
+{"text": "im game", "label": "REPLY"}
+{"text": "that works for me", "label": "REPLY"}
+{"text": "perfect thanks", "label": "REPLY"}
+{"text": "great thanks", "label": "REPLY"}
+{"text": "cool cool", "label": "REPLY"}
+{"text": "nice nice", "label": "REPLY"}
+{"text": "noted thanks", "label": "REPLY"}
+{"text": "will check it out", "label": "REPLY"}
+{"text": "I'll look into it", "label": "REPLY"}
