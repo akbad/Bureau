@@ -41,7 +41,12 @@
 >
 > The design rationale block is implemented as a **comment block**, *distinct* from any language-level docstrings.
 
-- **"Why, not what"** on every non-obvious branch, conditional, or control-flow decision
+- **Docstrings for all functions, classes/structs, etc.** with complete yet concise explanations, ideally in list form.
+
+    - Use bullets, numbered list elements and *nesting* of list elements as necessary to ensure easy readability/parseability and ease of mental model acquisition.
+    - Wrap parameter names in backticks (`` ` ``) when referring to them in the docstring (i.e., as in Google Style) 
+
+- **"Why, not what"** on *every* <ins>non-obvious</ins> branch, conditional, or control-flow decision
 
     - Explain the *reasoning* behind the decision, not what the code literally does
 
