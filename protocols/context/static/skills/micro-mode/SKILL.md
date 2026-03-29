@@ -523,8 +523,48 @@ You **must**:
 >     - if the node's status becomes `cancelled`, remove it from all other nodes' `deps` lists in which it appears
 >
 > 4. resume the [execution loop](#mandatory-execution-loop) 
->   
+>  
 > **Never** defend the rejected implementation.
+
+#### Flaw detection protocol (explain keys)
+
+> Applies when the agent discovers a flaw or improvement opportunity while formulating an [explain key](#explain-keys) response.
+
+##### When it triggers
+
+During the process of formulating an explanation along any axis, the agent may identify:
+
+- A flaw in the current micro edit (correctness, efficiency, idiom violation, missed edge case)
+- A possible improvement to the current micro edit
+- An issue with the broader plan (a downstream node's approach is suboptimal given what this explanation revealed, or a missing node that should exist)
+
+##### How it presents
+
+The explanation is emitted first, cleanly and completely. Then, **separated by a clear visual break**, the flaw/improvement is presented in a distinct block:
+
+```md
+───────────────────────────────────
+⚠️ Finding: <one-line summary>
+
+- What: <description of the flaw or improvement>
+- Impact: <what breaks, degrades, or is left on the table>
+- Suggested fix: <concrete alternative — not a vague gesture>
+- Scope: <"this edit" | "DAG node <id>" | "new node needed">
+
+Options:
+  (1) Apply fix → [describe what changes]
+  (2) Dismiss → continue with current edit as-is
+───────────────────────────────────
+```
+
+Multiple findings are presented as separate blocks, each with its own options.
+
+##### Resolution
+
+- If the user picks **(1)**: the fix flows into the existing [DAG change protocol](#dag-change-protocol) — the agent updates the DAG, logs the change to the user per that protocol's format, and the user remains at the same pause point
+- If the user picks **(2)**: nothing changes — the user can advance with `>` / `.` or continue exploring with more explain keys
+
+Flaw detection does not create a parallel change-tracking mechanism. It is a *discovery* mechanism; the [DAG change protocol](#dag-change-protocol) is the *execution* mechanism.
 
 ## Compatibility with other Bureau-configured workflows
 
