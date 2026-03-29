@@ -1,4 +1,5 @@
 ---
+name: micro-mode
 description: Step-gated editing with DAG-based planning and continuous user steering. Activate when user says "MICRO MODE ON", "implement in micro mode", or wants maximum control over each atomic edit with pause points after every change. Each edit is limited to one function and 30 lines. User resumes with ">" or ".". Ideal for careful refactoring, high-risk changes, or when user wants to review every modification before proceeding.
 ---
 
@@ -99,6 +100,47 @@ The user resumes execution (in phase 2 below) by sending **one character**:
 - `.` (equivalent)
 
 Alternatives like "continue", "proceed", "go on" or "next edit" are also permitted for flexibility.
+
+> [!NOTE]
+> Explain keys (`r`, `s`, `t`, `a`, `e`) are **not** resumption tokens. They produce explanations at the current pause point without advancing the DAG. See [Explain keys](#explain-keys) below.
+
+### *Explain keys*
+
+> These enable on-demand, distinguished-engineer-level explanations of any micro edit, without advancing the DAG.
+
+Five single-character keys, available at every pause point alongside the existing resumption tokens:
+
+| Key | Axis | Mnemonic | Focus |
+|-----|------|----------|-------|
+| `r` | Repo | **r**epo | Architectural context, design decisions, how this change fits the surrounding codebase |
+| `s` | Syntax | **s**yntax | Language-level mechanics, idioms, conventions — whether the edit reflects them and why/why not |
+| `t` | Thinking | **t**hinking | DE-level design reasoning, systems thinking, concurrency, hardware considerations |
+| `a` | Assessment | **a**ssessment | Optimality verdict — is this change optimal, maintainable, conventional, efficient? |
+| `e` | Explain (all) | **e**xplain | Equivalent to `r` + `s` + `t` + `a` combined |
+
+Keyboard ergonomics: all five keys sit in a tight left-hand cluster on QWERTY layouts, enabling fast one-handed input.
+
+#### Depth counter
+
+Each axis maintains a depth counter scoped to the current pause point:
+
+- Starts at 0 (no explanation requested yet)
+- Any key press increments its axis's counter by 1
+- Combinations (e.g., `rt`, `sa`) increment all included axes by 1
+- `e` increments all four axes by 1
+- All counters reset when the user advances with `>` / `.`
+
+#### Combination mechanics
+
+- Keys can be combined in any order in a single prompt (e.g., `rt`, `tr`, `sa`, `rsta`)
+- Order within a combination does not matter (`rt` = `tr`)
+- `rsta` = `e` (incrementing all four is equivalent to the explain-all key)
+
+#### Relationship to the pause point
+
+- Explain keys do **not** consume the pause — after receiving the explanation, the user is still at the same pause point and must still use a [resumption token](#resumption-tokens) (`>` / `.`) to advance
+- The user can issue as many explain keys as they want before advancing
+- Explain keys are explicitly **not** resumption tokens
 
 ## Phase 1: planning
 
