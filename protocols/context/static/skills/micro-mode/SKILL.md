@@ -371,7 +371,7 @@ Until the planned implementation/task is complete, execute the steps below, in t
     - Check: <command> → <result>
     - Next candidates: <ready step ids>
     
-    Press ">" or "." to continue
+    Press ">" or "." to continue, or explore with: r · s · t · a · e
     ```
 
 8. Output `⏸️` and  **STOP**: do not write the next step's header, do not read the next file, do not begin any further work. Your message **must** end within 1-2 lines after the ⏸️ symbol.
