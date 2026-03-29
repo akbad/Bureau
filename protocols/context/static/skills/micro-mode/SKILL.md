@@ -246,50 +246,6 @@ When multiple steps are ready (deps satisfied), prefer executing based on the fo
 
   **`API → IMPL → FIX → TEST → DOC`**
 
-## Explain keys: axis directives
-
-> [!IMPORTANT]
->
-> These directives define the **purpose, voice, and depth-progression behavior** of each [explain key](#explain-keys) axis. They are non-negotiable quality standards.
-
-### `r` — Repo
-
-Explain the change in the context of the surrounding codebase. Where does this code sit in the architecture? What modules, types, or contracts does it interact with? What design decisions in the repo led to this code looking the way it does — and how does the micro edit honor, extend, or intentionally break those decisions?
-
-Each deeper pass should widen the aperture: from the immediate function, to the module, to cross-module interactions, to system-level architectural patterns — revealing context that the previous pass took for granted.
-
-### `s` — Syntax
-
-Break down the language-level mechanics of the change. What constructs, idioms, and conventions does it use — and are they the right ones? If the edit is idiomatic for the language, say so and explain what makes it idiomatic. If it departs from convention, explain why the departure is justified (or flag it if it isn't). Cover type signatures, control flow, error handling patterns, and any language-specific subtleties (ownership, lifetimes, goroutine semantics, decorator behavior, etc.) that a reader unfamiliar with this language's idioms would miss.
-
-Each deeper pass should become more granular and more foundational: from "what this construct does in context" down to "why this language feature exists and what it compiles/evaluates to."
-
-### `t` — Thinking
-
-Explain the design reasoning behind the change the way a veteran distinguished engineer would explain it to a peer — not dumbed down, not padded. State the tradeoff that was made, name the alternatives that were not chosen, and explain why this path wins. If systems-level concerns are relevant — concurrency, memory layout, cache behavior, ordering guarantees, failure modes, hardware constraints — they are mandatory, not optional color. This is the axis where "it works" is insufficient; the explanation must address whether it works *for the right reasons* and *under adversarial conditions*.
-
-Each deeper pass should surface reasoning and constraints that the previous pass took for granted — peeling back assumptions until you reach first principles.
-
-### `a` — Assessment
-
-Deliver a frank verdict on the change's optimality, maintainability, conventionality, and efficiency. Would a distinguished engineer reviewing this change in critical detail and with an eye on the big picture approve it without comment, request modifications, or reject it? Be specific: if optimal, state what makes it so and what would have to change in requirements for it to stop being optimal. If not optimal, name the concrete improvement — not a vague gesture at "could be better," but the specific alternative and why it wins.
-
-Each deeper pass should tighten the lens: from the overall verdict, to specific dimensions (performance, readability, maintainability, robustness), to quantitative or formal reasoning where applicable.
-
-### `e` — Explain (all)
-
-Equivalent to `r` + `s` + `t` + `a`. Produce a unified explanation that weaves all four axes together where they naturally intersect, rather than presenting four siloed sections. The axes should reinforce each other: architectural context should inform the assessment, syntax should support the design reasoning, and the verdict should be grounded in all three.
-
-### Cross-axis directive
-
-> Applies to **all** axes, at **all** depths, for **all** combinations.
-
-**Quality bar:** Produce an explanation that would thoroughly pass a veteran distinguished engineer's discerning bullshit radar. No filler. No hedge words used to avoid committing to a position. No "generally speaking" or "it depends" without immediately specifying what it depends *on*. Every sentence must advance the reader's understanding or it does not belong.
-
-**Depth progression:** Each subsequent explanation at a given depth must reveal information not present in any previous explanation at this pause point. Never restate what the step header or step footer already communicated. Never restate what a previous explanation at this pause point already covered — build on it.
-
-**Weaving:** When multiple axes are requested together (via combination keys or `e`), weave them into a cohesive explanation rather than emitting labeled sections. The axes are lenses on the same change, not independent reports.
-
 ## Phase 2: execution
 
 ### Mandatory execution loop
@@ -400,6 +356,30 @@ After all DAG nodes are marked `done`:
 > The `Check` line in each step footer is **informational during the loop**: it documents what *would* verify that step, but the agent does not run it mid-loop. Verification is batched here to preserve the fast edit cadence.
 >
 > The user may, of course, run checks manually between any two steps. If they report a failure, the [course-correction protocol](#course-correction-protocol-contingent-on-user-input) applies.
+
+### Explain keys: axis directives
+
+> [!IMPORTANT]
+>
+> These directives define the **purpose, voice, and depth-progression behavior** of each [explain key](#explain-keys) axis. They are non-negotiable quality standards.
+
+| Axis | Directive |
+|------|-----------|
+| `r` — **Repo** | Explain the change in the context of the surrounding codebase. Where does this code sit in the architecture? What modules, types, or contracts does it interact with? What design decisions in the repo led to this code looking the way it does — and how does the micro edit honor, extend, or intentionally break those decisions?<br/><br/>*Depth progression:* Each deeper pass should widen the aperture: from the immediate function, to the module, to cross-module interactions, to system-level architectural patterns — revealing context that the previous pass took for granted. |
+| `s` — **Syntax** | Break down the language-level mechanics of the change. What constructs, idioms, and conventions does it use — and are they the right ones? If the edit is idiomatic for the language, say so and explain what makes it idiomatic. If it departs from convention, explain why the departure is justified (or flag it if it isn't). Cover type signatures, control flow, error handling patterns, and any language-specific subtleties (ownership, lifetimes, goroutine semantics, decorator behavior, etc.) that a reader unfamiliar with this language's idioms would miss.<br/><br/>*Depth progression:* Each deeper pass should become more granular and more foundational: from "what this construct does in context" down to "why this language feature exists and what it compiles/evaluates to." |
+| `t` — **Thinking** | Explain the design reasoning behind the change the way a veteran distinguished engineer would explain it to a peer — not dumbed down, not padded. State the tradeoff that was made, name the alternatives that were not chosen, and explain why this path wins. If systems-level concerns are relevant — concurrency, memory layout, cache behavior, ordering guarantees, failure modes, hardware constraints — they are mandatory, not optional color. This is the axis where "it works" is insufficient; the explanation must address whether it works *for the right reasons* and *under adversarial conditions*.<br/><br/>*Depth progression:* Each deeper pass should surface reasoning and constraints that the previous pass took for granted — peeling back assumptions until you reach first principles. |
+| `a` — **Assessment** | Deliver a frank verdict on the change's optimality, maintainability, conventionality, and efficiency. Would a distinguished engineer reviewing this change in critical detail and with an eye on the big picture approve it without comment, request modifications, or reject it? Be specific: if optimal, state what makes it so and what would have to change in requirements for it to stop being optimal. If not optimal, name the concrete improvement — not a vague gesture at "could be better," but the specific alternative and why it wins.<br/><br/>*Depth progression:* Each deeper pass should tighten the lens: from the overall verdict, to specific dimensions (performance, readability, maintainability, robustness), to quantitative or formal reasoning where applicable. |
+| `e` — **Explain (all)** | Equivalent to `r` + `s` + `t` + `a`. Produce a unified explanation that weaves all four axes together where they naturally intersect, rather than presenting four siloed sections. The axes should reinforce each other: architectural context should inform the assessment, syntax should support the design reasoning, and the verdict should be grounded in all three. |
+
+#### Cross-axis directive
+
+> Applies to **all** axes, at **all** depths, for **all** combinations.
+
+**Quality bar:** Produce an explanation that would thoroughly pass a veteran distinguished engineer's discerning bullshit radar. No filler. No hedge words used to avoid committing to a position. No "generally speaking" or "it depends" without immediately specifying what it depends *on*. Every sentence must advance the reader's understanding or it does not belong.
+
+**Depth progression:** Each subsequent explanation at a given depth must reveal information not present in any previous explanation at this pause point. Never restate what the step header or step footer already communicated. Never restate what a previous explanation at this pause point already covered — build on it.
+
+**Weaving:** When multiple axes are requested together (via combination keys or `e`), weave them into a cohesive explanation rather than emitting labeled sections. The axes are lenses on the same change, not independent reports.
 
 ### Phase 2 protocols
 
