@@ -1,3 +1,4 @@
+<!-- DEPRECATED: Content migrated to ops/ spoke files. See docs/plans/2026-03-29-context-hub-spoke-design.md -->
 # *Handoff guidelines:* how and when to delegate to subagents
 
 > **Purpose**: a concise guide for when and how to delegate work vs. when to ask the user for guidance.

@@ -1,3 +1,4 @@
+<!-- DEPRECATED: Content migrated to ops/ spoke files. See docs/plans/2026-03-29-context-hub-spoke-design.md -->
 # Tools: quick decision guide
 
 > [!NOTE]
@@ -130,9 +131,9 @@
 
 ## Dossier (work-stream state)
 
-- For **saving conversation state**: `uv run python -m operations.dossiers fold`
-- For **resuming a work-stream**: `uv run python -m operations.dossiers unfold <hash>`
-- For **task coordination**: `uv run python -m operations.dossiers tasks <slug> <subcommand>`
+- For **saving conversation state**: `bureau-dossiers fold`
+- For **resuming a work-stream**: `bureau-dossiers unfold <hash>`
+- For **task coordination**: `bureau-dossiers tasks <slug> <subcommand>`
 
 > [!NOTE]
 > Dossiers track **active work-stream state** (tasks, decisions, context).
