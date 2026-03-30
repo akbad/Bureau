@@ -1,6 +1,6 @@
 ---
 name: micro-mode
-description: Step-gated editing with DAG-based planning and continuous user steering. Activate when user says "MICRO MODE ON", "implement in micro mode", or wants maximum control over each atomic edit with pause points after every change. Each edit is limited to one function and 30 lines. User resumes with ">" or ".". Ideal for careful refactoring, high-risk changes, or when user wants to review every modification before proceeding.
+description: Step-gated editing with DAG-based planning and continuous user steering. Activate when user says "MICRO MODE ON", "implement in micro mode", or wants maximum control over each atomic edit with pause points after every change. Each edit is limited to one function and 30 lines, with shortcut keys for continuing onwards, asking for explanations of various types, and more. Ideal for careful refactoring, high-risk changes, or when user wants to review every modification before proceeding.
 ---
 
 # Micro Mode editing protocol
@@ -20,8 +20,8 @@ description: Step-gated editing with DAG-based planning and continuous user stee
 When the user says anything like:
 
 - "MICRO MODE ON"
-- complete this task in micro mode
-- implement in micro mode
+- "complete this task in micro mode"
+- "implement in micro mode"
 
 *follow this Micro Mode protocol* until you are told anything like:
 
@@ -42,7 +42,7 @@ DAG stored: [location, or "chat only"]
 ═══════════════════════════════════════
 ```
 
-If there are no steps/nodes remaining and the DAG is persisted to a memory tool (Neo4j-based graph memory or Qdrant), delete the DAG from memory.
+If there are no steps/nodes remaining, delete the DAG from memory and any instances of it persisted to external memory tools.
 
 ### Partial completion (pausing for later)
 
@@ -102,23 +102,24 @@ The user resumes execution (in phase 2 below) by sending **one character**:
 Alternatives like "continue", "proceed", "go on" or "next edit" are also permitted for flexibility.
 
 > [!NOTE]
-> Explain keys (`r`, `s`, `t`, `a`, `e`) are **not** resumption tokens. They produce explanations at the current pause point without advancing the DAG. See [Explain keys](#explain-keys) below.
+> Any other shortcuts defined in this protocol (e.g., *explain keys*) are **not** resumption tokens (and hence do *not* advance the DAG).
 
 ### *Explain keys*
 
-> These enable on-demand, distinguished-engineer-level explanations of any micro edit, without advancing the DAG.
+> These enable on-demand, *distinguished engineer-level* explanations of any micro edit, without advancing the DAG.
 
-Five single-character keys, available at every pause point alongside the existing resumption tokens:
+Six single-character keys, available at every pause point alongside the existing resumption tokens:
 
 | Key | Axis | Mnemonic | Focus |
 |-----|------|----------|-------|
 | `r` | Repo | **r**epo | Architectural context, design decisions, how this change fits the surrounding codebase |
-| `s` | Syntax | **s**yntax | Language-level mechanics, idioms, conventions — whether the edit reflects them and why/why not |
+| `s` | Syntax | **s**yntax | Language-level mechanics, idioms, conventions, etc. and whether the edit reflects them and why/why not |
 | `t` | Thinking | **t**hinking | DE-level design reasoning, systems thinking, concurrency, hardware considerations |
-| `a` | Assessment | **a**ssessment | Optimality verdict — is this change optimal, maintainable, conventional, efficient? |
+| `a` | Assessment | **a**ssessment | Optimality verdict: is this change optimal, maintainable, conventional, efficient? |
 | `e` | Explain (all) | **e**xplain | Equivalent to `r` + `s` + `t` + `a` combined |
+| `h` | Help | **h**elp | Reprints the first-footer legend (key descriptions and usage hints) |
 
-Keyboard ergonomics: all five keys sit in a tight left-hand cluster on QWERTY layouts, enabling fast one-handed input.
+Keyboard ergonomics: `r`, `s`, `t`, `a`, `e` sit in a tight left-hand cluster on QWERTY layouts, enabling fast one-handed input.
 
 #### Depth counter
 
@@ -133,14 +134,16 @@ Each axis maintains a depth counter scoped to the current pause point:
 #### Combination mechanics
 
 - Keys can be combined in any order in a single prompt (e.g., `rt`, `tr`, `sa`, `rsta`)
-- Order within a combination does not matter (`rt` = `tr`)
 - `rsta` = `e` (incrementing all four is equivalent to the explain-all key)
 
-#### Relationship to the pause point
-
-- Explain keys do **not** consume the pause — after receiving the explanation, the user is still at the same pause point and must still use a [resumption token](#resumption-tokens) (`>` / `.`) to advance
-- The user can issue as many explain keys as they want before advancing
-- Explain keys are explicitly **not** resumption tokens
+> [!NOTE]
+> 
+> #### Relationship to the pause point
+> 
+> Explain keys are **not** resumption tokens:
+>     
+> - After receiving the explanation, the user is still at the same pause point and must still use a [resumption token](#resumption-tokens) (`>` / `.`) to advance
+> - The user can issue as many explain keys as they want before advancing
 
 ## Phase 1: planning
 
@@ -283,7 +286,7 @@ Until the planned implementation/task is complete, execute the steps below, in t
         - <the function/code's current behavior (and invariants, if any)>
         ```
 
-    3. ***Only if* the `goal` and `diff` were updated:** \
+    3. ***Only if* the `goal` and `diff` were updated:**
 
         - Output to the user:
 
@@ -294,19 +297,13 @@ Until the planned implementation/task is complete, execute the steps below, in t
         - *Don't* print the goal and diff here; you'll do that in the next step, in the *step header*. 
         - Ensure there is an empty line separating the `ATTENTION` output above and the *step header*.
         
-4. Emit the *step header* in the *exact* format below:
+4. Emit the *step header* in the *exact* format below (as Markdown/GitHub-flavoured Markdown):
 
     ```md
-    - Step <id>: <file>::<function>
-    - Signature: <exact function signature, as currently in file>
-    - Type: <API|IMPL|FIX|TEST|DOC>
-    - Risk: <low|medium|high>
-    
-    <diff of changes>
-
-    - Goal: <one sentence>
-    - Why now: <deps satisfied>
-    - Summary: <summary of the changes, 6 bullet points maximum>
+    - **Step `<id>`:** `<file>::<function>`
+    - **Signature:** `<exact function signature, as currently in file>`
+    - **Type:** **<API|IMPL|FIX|TEST|DOC>**
+    - **Risk:** **<low|medium|high>**
     ```
 
 5. Apply the *micro edit* based on the node's diff
@@ -314,21 +311,78 @@ Until the planned implementation/task is complete, execute the steps below, in t
 
     > Make sure not to forget the [status update](#status-update-protocol) and [DAG storage](#dag-persistence-protocol) protocols as appropriate.
 
-7. Emit the *step footer* in the *exact* format below:
+7. Emit the *appropriate step/explanation footer* from the variants below in the *exact* format given (as Markdown/GitHub-flavoured Markdown):
 
     > Note the `check` bullet is only required if there actually *is* a command we could use to verify this particular step's changes were correct.
 
-    ```md
-    - Changed: <file>::<function> (±<N> lines, starting at line <i> in the updated file)
-    - Exact diff:
+    - For the **first step footer in the session**, use this expanded format:
 
-        <output diff of the changes you made here>
+        ```md
+        - **Changed:** `<file>::<function>` (±<N> lines, starting at line <i> in the updated file)
+        - **Goal:** <one sentence>
+        - **Why now:** <deps satisfied>
+        - **Summary:** <summary of the changes, 6 bullet points maximum>
+        - **Check:** `<command>` → `<result>`
+        - **Next candidates:** `<ready step ids>`
 
-    - Check: <command> → <result>
-    - Next candidates: <ready step ids>
-    
-    Press ">" or "." to continue, or explore with: r · s · t · a · e
-    ```
+        ──────────────────────────────────────────────────────────────────────────────
+        To choose the next action, send a prompt or use any of these shortcuts:
+        
+        - Continue to the next edit: press > or .
+
+        - Explore this edit and/or ask for explanations by pressing:
+
+            r │ repo/architecture context
+            s │ syntax/idioms breakdown
+            t │ design thinking/reasoning
+            a │ optimality assessment
+            e │ all of the above
+            
+            - Combine keys (e.g., "rt") to blend multiple aspects in one explanation. 
+            - "e" produces an explanation covering all these aspects.
+            - Re-use these keys as follow-up prompts after explanations to go deeper.
+
+        - See the plan overview: press ?
+        ──────────────────────────────────────────────────────────────────────────────
+        ```
+
+        > Note that if `h` (or `help`) is pressed at any time, the `To choose the next action` section above (i.e. including and delimited by the `─` lines) should be re-shown to the user.
+
+    - For **all subsequent step footers**, use this compact format:
+
+        ```md
+        - **Changed:** `<file>::<function>` (±<N> lines, starting at line <i> in the updated file)
+        - **Goal:** <one sentence>
+        - **Why now:** <deps satisfied>
+        - **Summary:** <summary of the changes, 6 bullet points maximum>
+        - **Check:** `<command>` → `<result>`
+        - **Next candidates:** `<ready step ids>`
+
+        ──────────────────────────
+        Next action: shortcut keys
+        ──────────┬───────────────
+        *next edit* │ >  .
+        *explore*   │ r s t a e
+        *view plan* │ ?
+        *help/info* │ h
+        ──────────┴───────────────
+        ```
+
+    - **After any explanation/deep dive** (whether triggered via the [*explain keys*](#explain-keys) or a custom prompt), output this *explanation footer*:
+
+        ```md
+        ──────────────────────────
+        **Still at step `<id>`.**
+
+        Next action: shortcut keys
+        ──────────┬───────────────
+        *next edit* │ >  .
+        *explore*   │ r s t a e
+        *view plan* │ ?
+        *help/info* │ h
+        ──────────┴───────────────
+        ```
+
 
 8. Output `⏸️` and  **STOP**: do not write the next step's header, do not read the next file, do not begin any further work. Your message **must** end within 1-2 lines after the ⏸️ symbol.
 
@@ -365,21 +419,41 @@ After all DAG nodes are marked `done`:
 
 | Axis | Directive |
 |------|-----------|
-| `r` — **Repo** | Explain the change in the context of the surrounding codebase. Where does this code sit in the architecture? What modules, types, or contracts does it interact with? What design decisions in the repo led to this code looking the way it does — and how does the micro edit honor, extend, or intentionally break those decisions?<br/><br/>*Depth progression:* Each deeper pass should widen the aperture: from the immediate function, to the module, to cross-module interactions, to system-level architectural patterns — revealing context that the previous pass took for granted. |
-| `s` — **Syntax** | Break down the language-level mechanics of the change. What constructs, idioms, and conventions does it use — and are they the right ones? If the edit is idiomatic for the language, say so and explain what makes it idiomatic. If it departs from convention, explain why the departure is justified (or flag it if it isn't). Cover type signatures, control flow, error handling patterns, and any language-specific subtleties (ownership, lifetimes, goroutine semantics, decorator behavior, etc.) that a reader unfamiliar with this language's idioms would miss.<br/><br/>*Depth progression:* Each deeper pass should become more granular and more foundational: from "what this construct does in context" down to "why this language feature exists and what it compiles/evaluates to." |
-| `t` — **Thinking** | Explain the design reasoning behind the change the way a veteran distinguished engineer would explain it to a peer — not dumbed down, not padded. State the tradeoff that was made, name the alternatives that were not chosen, and explain why this path wins. If systems-level concerns are relevant — concurrency, memory layout, cache behavior, ordering guarantees, failure modes, hardware constraints — they are mandatory, not optional color. This is the axis where "it works" is insufficient; the explanation must address whether it works *for the right reasons* and *under adversarial conditions*.<br/><br/>*Depth progression:* Each deeper pass should surface reasoning and constraints that the previous pass took for granted — peeling back assumptions until you reach first principles. |
-| `a` — **Assessment** | Deliver a frank verdict on the change's optimality, maintainability, conventionality, and efficiency. Would a distinguished engineer reviewing this change in critical detail and with an eye on the big picture approve it without comment, request modifications, or reject it? Be specific: if optimal, state what makes it so and what would have to change in requirements for it to stop being optimal. If not optimal, name the concrete improvement — not a vague gesture at "could be better," but the specific alternative and why it wins.<br/><br/>*Depth progression:* Each deeper pass should tighten the lens: from the overall verdict, to specific dimensions (performance, readability, maintainability, robustness), to quantitative or formal reasoning where applicable. |
-| `e` — **Explain (all)** | Equivalent to `r` + `s` + `t` + `a`. Produce a unified explanation that weaves all four axes together where they naturally intersect, rather than presenting four siloed sections. The axes should reinforce each other: architectural context should inform the assessment, syntax should support the design reasoning, and the verdict should be grounded in all three. |
+| `r` (*repo*) | Explain the change in the context of the surrounding codebase. Where does this code sit in the architecture? What modules, types, or contracts does it interact with? What design decisions in the repo led to this code looking the way it does, and how does the micro edit honor, extend, or intentionally break those decisions?<br/><br/>*Depth progression:* Each deeper pass should widen the aperture: from the immediate function to the module to cross-module interactions to system-level architectural patterns, revealing context that the previous pass took for granted. |
+| `s` (*syntax*) | Break down the language-level mechanics of the change. What constructs, idioms, and conventions does it use, and are they the right ones? If the edit is idiomatic for the language, say so and explain what makes it idiomatic. If it departs from convention, explain why the departure is justified (or flag it if it isn't). Cover type signatures, control flow, error handling patterns, and any language-specific subtleties (ownership, lifetimes, goroutine semantics, decorator behavior, etc.) that a reader unfamiliar with this language's idioms would miss.<br/><br/>*Depth progression:* Each deeper pass should become more granular and more foundational: from "what this construct does in context" down to "why this language feature exists and what it compiles/evaluates to." |
+| `t` (*thinking*) | Explain the design reasoning behind the change the way a veteran distinguished engineer would explain it to a peer; not dumbed down, not padded. State the tradeoff that was made, name the alternatives that were not chosen, and explain why this path wins. If systems-level concerns (e.g., concurrency, memory layout, cache behavior, ordering guarantees, failure modes, hardware constraints) are relevant, they are *mandatory* to discuss. The explanation must address whether it works *for the right reasons* and *under adversarial conditions*.<br/><br/>*Depth progression:* Each deeper pass should surface reasoning and constraints that the previous pass took for granted, peeling back assumptions until you reach first principles. |
+| `a` (*assessment*) | Deliver a frank verdict on the change's optimality, maintainability, conventionality, and efficiency. Would a distinguished engineer reviewing this change in critical detail and with an eye on the big picture approve it without comment, request modifications, or reject it? Be specific: if optimal, state what makes it so and what would have to change in requirements for it to stop being optimal. If not optimal, name the concrete improvement: a specific alternative and why it wins.<br/><br/>*Depth progression:* Each deeper pass should tighten the lens: from the overall verdict, to specific dimensions (performance, readability, maintainability, robustness), to quantitative or formal reasoning where applicable. |
+| `e` (*explain (i.e., all of the above)*) | Produce a unified explanation that weaves all four axes together where they naturally intersect, rather than presenting four siloed sections. The axes should reinforce each other: architectural context should inform the assessment, syntax should support the design reasoning, and the verdict should be grounded in all three. |
 
-#### Cross-axis directive
+#### Cross-axis directives
 
-> Applies to **all** axes, at **all** depths, for **all** combinations.
+These apply to **all** axes, at **all** depths, for **all** combinations:
 
-**Quality bar:** Produce an explanation that would thoroughly pass a veteran distinguished engineer's discerning bullshit radar. No filler. No hedge words used to avoid committing to a position. No "generally speaking" or "it depends" without immediately specifying what it depends *on*. Every sentence must advance the reader's understanding or it does not belong.
+1. **Quality bar** 
+    
+    - Produce an explanation that would thoroughly pass a veteran distinguished engineer's discerning bullshit radar.
+    - Every sentence must advance the reader's understanding or it does not belong. 
+    <p><p/>
+    
+    > **No:**
+    >
+    > - filler or hedge words used to avoid committing to a position
+    > - "generally speaking" or "it depends" without *immediately* specifying what it depends *on*. 
 
-**Depth progression:** Each subsequent explanation at a given depth must reveal information not present in any previous explanation at this pause point. Never restate what the step header or step footer already communicated. Never restate what a previous explanation at this pause point already covered — build on it.
+2. **Depth progression** 
 
-**Weaving:** When multiple axes are requested together (via combination keys or `e`), weave them into a cohesive explanation rather than emitting labeled sections. The axes are lenses on the same change, not independent reports.
+    Each subsequent explanation at a given depth **must:**
+
+    - reveal *new* information not present in any previous explanations at this pause point.
+    - build on, and **never** restate (unless the user asks), information in:
+  
+        - previous explanations at this pause point
+        - the step header
+        - the step footer
+
+3. **Weaving** 
+
+    When multiple axes are requested together (via combination keys or `e`), weave them into a *cohesive, comprehensive explanation* (rather than emitting labeled sections or independent reports).
 
 ### Phase 2 protocols
 
@@ -442,11 +516,11 @@ You must:
 > 
 > 1. Ensure the DAG is updated (if not already) to:
 >   
->   - change the node's `status` as one of `ready|planned|blocked`
+>     - change the node's `status` as one of `ready|planned|blocked`
 >       
->       - if set to `blocked` (i.e. due to a newly-surfaced tradeoff/choice), add notes for this to `tradeoffs`
+>         - if set to `blocked` (i.e. due to a newly-surfaced tradeoff/choice), add notes for this to `tradeoffs`
 >
->   - update `diff` and `goal` to contain the remaining changes needed
+>     - update `diff` and `goal` to contain the remaining changes needed
 >
 > 2. ***Only if* `status` was set to `blocked`**:
 > 
@@ -455,8 +529,8 @@ You must:
 >
 > 3. Briefly note that the current task must be left unfinished, citing:
 >
->   - the task's ID
->   - the remaining changes needed
+>     - the task's ID
+>     - the remaining changes needed
 
 #### Course-correction protocol (contingent on user input)
 
@@ -510,39 +584,42 @@ You **must**:
 
 > Applies when the agent discovers a flaw or improvement opportunity while formulating an [explain key](#explain-keys) response.
 
-##### When it triggers
+- **When this triggers:**
 
-During the process of formulating an explanation along any axis, the agent may identify:
+    During the process of formulating an explanation along any axis, the agent may identify:
 
-- A flaw in the current micro edit (correctness, efficiency, idiom violation, missed edge case)
-- A possible improvement to the current micro edit
-- An issue with the broader plan (a downstream node's approach is suboptimal given what this explanation revealed, or a missing node that should exist)
+    - A flaw in the current micro edit (correctness, efficiency, idiom violation, missed edge case)
+    - A possible improvement to the current micro edit
+    - An issue with the broader plan (a downstream node's approach is suboptimal given what this explanation revealed, or a missing node that should exist)
 
-##### How it presents
+- **How it presents:**
 
-The explanation is emitted first, cleanly and completely. Then, **separated by a clear visual break**, the flaw/improvement is presented in a distinct block:
+    1. The explanation is emitted first, cleanly and completely. 
+    2. Then, **separated by a clear visual break**, the flaw/improvement is presented in a distinct block:
 
-```md
-───────────────────────────────────
-⚠️ Finding: <one-line summary>
+        ```md
+        ───────────────────────────────────
+        ⚠️ Finding: <one-line summary>
 
-- What: <description of the flaw or improvement>
-- Impact: <what breaks, degrades, or is left on the table>
-- Suggested fix: <concrete alternative — not a vague gesture>
-- Scope: <"this edit" | "DAG node <id>" | "new node needed">
+        - What: <description of the flaw or improvement>
+        - Impact: <what breaks, degrades, or is left on the table>
+        - Suggested fix: <concrete alternative>
+        - Scope: <"this edit" | "DAG node <id>" | "new node needed">
 
-Options:
-  (1) Apply fix → [describe what changes]
-  (2) Dismiss → continue with current edit as-is
-───────────────────────────────────
-```
+        Options:
+        (1) Apply fix → [describe what changes]
+        (2) Dismiss → continue with current edit as-is
+        ───────────────────────────────────
+        ```
 
-Multiple findings are presented as separate blocks, each with its own options.
+> [!NOTE]
+> 
+> Multiple findings are presented as *separate blocks*, each with their own options.
 
 ##### Resolution
 
-- If the user picks **(1)**: the fix flows into the existing [DAG change protocol](#dag-change-protocol) — the agent updates the DAG, logs the change to the user per that protocol's format, and the user remains at the same pause point
-- If the user picks **(2)**: nothing changes — the user can advance with `>` / `.` or continue exploring with more explain keys
+- If the user picks **(1)**, the fix flows into the existing [DAG change protocol](#dag-change-protocol): the agent updates the DAG, logs the change to the user per that protocol's format, and the user remains at the same pause point
+- If the user picks **(2)**, nothing changes: the user can advance with `>` / `.` or continue exploring with more explain keys
 
 Flaw detection does not create a parallel change-tracking mechanism. It is a *discovery* mechanism; the [DAG change protocol](#dag-change-protocol) is the *execution* mechanism.
 
@@ -564,4 +641,4 @@ Micro Mode operates **within** a single agent session. If you need to delegate:
 2. **Delegate** via `clink` or `Task` tool
 3. **Resume** micro mode after delegation completes
 
-Do not attempt to run micro mode across multiple agents simultaneously.
+Do *not* attempt to run micro mode across multiple agents simultaneously.
