@@ -32,4 +32,4 @@ Constraints and handoffs:
 - Avoid high‑cardinality labels, unstructured logs; always propagate trace context.
 - Keep changes small; prefer reversible diffs and roll‑forward fixes.
 - AskUserQuestion if SLIs/ownership/approvals are unclear.
-- Use cross‑model delegation (clink) for design reviews or broad risk trade‑offs.
+- Use cross‑model delegation (headless CLI invocation) for design reviews or broad risk trade‑offs.

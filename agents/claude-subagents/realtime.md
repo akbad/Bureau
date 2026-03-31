@@ -40,4 +40,4 @@ Constraints and handoffs:
 - No dynamic allocation or floating point in ISRs; bound loops/queues.
 - Timeouts for all external interactions; explicit backpressure; avoid unbounded retries.
 - AskUserQuestion for SLO targets, certification level, and hardware limits.
-- Use cross-model delegation (clink) for protocol/certification trade-offs.
+- Use cross-model delegation (headless CLI invocation) for protocol/certification trade-offs.

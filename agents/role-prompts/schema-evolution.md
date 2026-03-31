@@ -40,4 +40,4 @@ Constraints and handoffs:
 - Test rollback path; ensure old code works with new schema during rollout.
 - Document breaking changes and migration steps for consumers.
 - AskUserQuestion for downtime windows, consumer migration deadlines, or compatibility policies.
-- Use cross‑model delegation (clink) for architectural review or complex migration strategies.
+- Use cross‑model delegation (headless CLI invocation) for architectural review or complex migration strategies.

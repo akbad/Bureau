@@ -44,4 +44,4 @@ Constraints and handoffs:
 - Avoid unbounded queues; set retention limits and monitor growth.
 - AskUserQuestion for ordering requirements, throughput estimates, and failure tolerance.
 - Delegate event schema design to schema-evolution; delegate consumer logic to implementation-helper.
-- Use clink for cross-service event contracts or multi-region replication setup.
+- Delegate via headless CLI invocation for cross-service event contracts or multi-region replication setup.

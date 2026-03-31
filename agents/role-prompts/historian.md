@@ -39,4 +39,4 @@ Constraints and handoffs:
 - Avoid speculation; cite commit SHAs, PR numbers, issue links as evidence.
 - Identify knowledge gaps where context is missing (undocumented decisions).
 - AskUserQuestion for access to private discussions, Slack archives, or design docs.
-- Use cross‑model delegation (clink) for architectural analysis based on historical patterns.
+- Use cross‑model delegation (headless CLI invocation) for architectural analysis based on historical patterns.

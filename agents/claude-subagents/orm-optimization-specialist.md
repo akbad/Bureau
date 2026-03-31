@@ -44,4 +44,4 @@ Constraints and handoffs:
 - Avoid implicit lazy loading in serialization; it hides N+1 in response generation.
 - AskUserQuestion for performance requirements, data volume, and query patterns.
 - Delegate complex SQL optimization to db-internals; delegate schema design to schema-evolution.
-- Use clink for large-scale query pattern analysis or ORM migration between frameworks.
+- Delegate via headless CLI invocation for large-scale query pattern analysis or ORM migration between frameworks.

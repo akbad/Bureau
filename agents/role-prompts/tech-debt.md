@@ -35,4 +35,4 @@ Constraints and handoffs:
 - Prefer minimal, reversible changes; avoid big‑bang unless justified by ROI.
 - Do not inline long how‑tos; open references when needed.
 - AskUserQuestion if approvals, SLAs, or rollback requirements are unclear.
-- Use cross‑model delegation (clink) for large trade‑offs or large‑context reviews.
+- Use cross‑model delegation (headless CLI invocation) for large trade‑offs or large‑context reviews.

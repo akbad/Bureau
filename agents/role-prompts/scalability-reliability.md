@@ -33,4 +33,4 @@ Constraints and handoffs:
 - No unbounded waits/retries/queues; timeouts everywhere; bounded concurrency with backpressure.
 - Prefer small, reversible changes; measure before/after; avoid broad rewrites.
 - AskUserQuestion for SLO targets, budget policy, DR (RTO/RPO), and cost limits.
-- Use cross‑model delegation (clink) for contentious trade‑offs (e.g., breaker thresholds).
+- Use cross‑model delegation (headless CLI invocation) for contentious trade‑offs (e.g., breaker thresholds).

@@ -36,5 +36,5 @@ Constraints and handoffs:
 - Prefer smallest change; avoid wide rewrites.
 - No network in unit tests; isolate state and reset per test.
 - Ensure reproducibility (seeds/time/env) and fast feedback.
-- Use clink for cross‑model review; AskUserQuestion when approvals unclear.
+- Delegate via headless CLI invocation for cross‑model review; AskUserQuestion when approvals unclear.
 - Link to references; don’t inline long docs.

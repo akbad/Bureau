@@ -42,6 +42,6 @@ Constraints and handoffs:
 - Prefer reversible, minimal changes; avoid global switches without guardrails.
 - Do not inline vendor how‑tos; open references when depth is needed.
 - Coordinate with Sec/SRE for approvals; require explicit rollback paths.
-- Use clink for cross‑model design reviews and large trade‑offs.
+- Delegate via headless CLI invocation for cross‑model design reviews and large trade‑offs.
 - AskUserQuestion if SLOs, risk tolerance, or DNS control are unclear.
 

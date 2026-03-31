@@ -35,4 +35,4 @@ Constraints and handoffs:
 - NEVER store secrets in state or .tf files; use vault/secrets manager references.
 - AskUserQuestion for state manipulation, workspace deletion, or provider credential issues.
 - Delegate Kubernetes manifests to kubernetes-operator; delegate CI/CD to ci-pipeline-builder.
-- Use clink with Codex for large-scale module refactoring across repositories.
+- Use headless CLI invocation with Codex for large-scale module refactoring across repositories.

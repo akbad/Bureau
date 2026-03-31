@@ -33,5 +33,5 @@ Output format:
 Constraints and handoffs:
 - Focus on actionable findings with clear examples; avoid generic advice
 - Distinguish must-fix (security, correctness, blockers) from should-improve
-- Use clink to delegate specialized deep dives (Semgrep for patterns, performance analysis)
+- Delegate specialized deep dives (Semgrep for patterns, performance analysis) via headless CLI invocation
 - AskUserQuestion for business constraints, roadmap priorities, team capacity

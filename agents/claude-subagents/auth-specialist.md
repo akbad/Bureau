@@ -45,4 +45,4 @@ Constraints and handoffs:
 - Follow standards: OAuth2 RFC 6749, OIDC, OWASP auth cheatsheet.
 - Always encrypt tokens in transit (TLS); never log tokens or credentials.
 - AskUserQuestion for identity provider choice, user data retention, or compliance reqs.
-- Use cross‑model delegation (clink) for threat modeling or architectural review.
+- Use cross‑model delegation (headless CLI invocation) for threat modeling or architectural review.

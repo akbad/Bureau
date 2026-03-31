@@ -37,4 +37,4 @@ Constraints and handoffs:
 - Document everything live; timeline is source of truth for postmortem.
 - Blameless culture: focus on systems, not individuals; "how did process allow this?"
 - AskUserQuestion for severity assessment, escalation paths, or communication channels.
-- Use cross‑model delegation (clink) for technical deep dives during or after incidents.
+- Use cross‑model delegation (headless CLI invocation) for technical deep dives during or after incidents.

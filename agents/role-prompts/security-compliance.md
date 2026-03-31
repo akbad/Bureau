@@ -32,4 +32,4 @@ Constraints and handoffs:
 - Prefer advisory→enforce; tune for low false positives before gating.
 - Never commit secrets; rotate on exposure; document provenance.
 - AskUserQuestion if policies, data categories, or SLAs are unclear.
-- Use clink for second opinions on auth/session/crypto; link long standards/vendor docs.
+- Delegate via headless CLI invocation for second opinions on auth/session/crypto; link long standards/vendor docs.

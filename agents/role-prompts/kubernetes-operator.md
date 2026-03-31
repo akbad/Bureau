@@ -35,4 +35,4 @@ Constraints and handoffs:
 - Never store secrets in plain ConfigMaps; use Secrets or external-secrets.
 - AskUserQuestion for cluster access, namespace strategy, or RBAC configuration.
 - Delegate infrastructure provisioning (EKS, GKE, AKS) to terraform-specialist.
-- Use clink for multi-cluster deployment strategies or service mesh configuration.
+- Delegate via headless CLI invocation for multi-cluster deployment strategies or service mesh configuration.

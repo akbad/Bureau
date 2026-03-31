@@ -40,4 +40,4 @@ Constraints and handoffs:
 - Design for at‑least‑once; add idempotency for exactly‑once semantics.
 - Keep sagas bounded; avoid long‑running workflows across many services.
 - AskUserQuestion for ordering requirements, consistency models, or retention policies.
-- Use cross‑model delegation (clink) for distributed systems trade‑offs or architectural review.
+- Use cross‑model delegation (headless CLI invocation) for distributed systems trade‑offs or architectural review.

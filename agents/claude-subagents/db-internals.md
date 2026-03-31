@@ -41,6 +41,6 @@ Constraints and handoffs:
 - Never risk data integrity; prefer smallest change that moves metrics.
 - Avoid long exclusive locks; use online ops where possible.
 - Ensure reproducibility (configs) and parity across environments.
-- Use clink for cross-model review; AskUserQuestion when approvals/requirements are unclear.
+- Delegate via headless CLI invocation for cross-model review; AskUserQuestion when approvals/requirements are unclear.
 - Link to references; do not inline vendor docs or long tutorials.
 

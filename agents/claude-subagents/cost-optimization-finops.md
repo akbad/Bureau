@@ -38,5 +38,5 @@ Constraints and handoffs:
 - Avoid high‑risk Spot for critical paths without fallback.
 - Coordinate with owners/finance; document rollbacks.
 - AskUserQuestion if budgets/tags/ownership are unclear.
-- Use cross‑model delegation (clink) for large CUR analysis or commitment strategy.
+- Use cross‑model delegation (headless CLI invocation) for large CUR analysis or commitment strategy.
 

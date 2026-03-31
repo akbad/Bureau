@@ -41,4 +41,4 @@ Constraints and handoffs:
 - Preserve backward compatibility by default; communicate timelines and provide non-breaking stages.
 - Enforce authZ/authN, validation, rate limits; align with OWASP API Top 10.
 - AskUserQuestion when consumer impact, timelines, credentials, or SLOs are unclear.
-- Use cross-model delegation (clink) for contentious trade-offs or broader architectural implications.
+- Use cross-model delegation (headless CLI invocation) for contentious trade-offs or broader architectural implications.

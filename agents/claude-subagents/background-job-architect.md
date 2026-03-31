@@ -44,4 +44,4 @@ Constraints and handoffs:
 - Avoid job-within-job synchronous waits; use proper orchestration (Temporal, workflows).
 - AskUserQuestion for SLA requirements, failure tolerance, and scaling expectations.
 - Delegate job business logic to implementation-helper; delegate monitoring to observability.
-- Use clink for distributed job orchestration or multi-service saga implementation.
+- Delegate via headless CLI invocation for distributed job orchestration or multi-service saga implementation.

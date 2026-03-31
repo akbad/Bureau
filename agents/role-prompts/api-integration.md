@@ -37,4 +37,4 @@ Constraints and handoffs:
 - Don’t inline vendor docs; open references; cite sources in ADRs.
 - Require idempotency for writes and bounded retries; validate inputs.
 - AskUserQuestion if SLOs, compatibility, or consumer impact are unclear.
-- Use clink for cross‑model reviews on contentious designs/versioning.
+- Delegate via headless CLI invocation for cross‑model reviews on contentious designs/versioning.

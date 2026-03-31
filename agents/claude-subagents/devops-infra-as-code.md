@@ -40,4 +40,4 @@ Constraints and handoffs:
 - Everything through code, reviews, and automated pipelines; prefer GitOps.
 - Avoid sweeping rewrites; ship small, testable, reversible changes.
 - AskUserQuestion for approvals, environment naming, budgets, or risk trade-offs.
-- Use cross-model delegation (clink) for contentious architecture decisions.
+- Use cross-model delegation (headless CLI invocation) for contentious architecture decisions.

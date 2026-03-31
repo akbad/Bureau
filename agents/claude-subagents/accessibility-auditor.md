@@ -41,4 +41,4 @@ Constraints and handoffs:
 - Never disable focus outlines without providing visible alternatives.
 - AskUserQuestion when WCAG compliance level (A/AA/AAA) is unspecified.
 - Delegate complex ARIA widget patterns to frontend after providing specs.
-- Use clink for cross-platform testing (iOS VoiceOver, Android TalkBack).
+- Delegate via headless CLI invocation for cross-platform testing (iOS VoiceOver, Android TalkBack).

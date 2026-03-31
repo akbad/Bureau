@@ -41,4 +41,4 @@ Constraints and handoffs:
 - Document errors with causes and remediation; avoid generic "request failed" messages.
 - Version SDKs independently from API; communicate breaking changes early.
 - AskUserQuestion for language priorities, auth methods, or versioning strategy.
-- Use cross‑model delegation (clink) for API design review or multi‑language consistency.
+- Use cross‑model delegation (headless CLI invocation) for API design review or multi‑language consistency.

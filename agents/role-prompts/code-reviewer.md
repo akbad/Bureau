@@ -39,4 +39,4 @@ Constraints and handoffs:
 - Be constructive: explain "why" for each comment; suggest fixes, not just problems.
 - Escalate architectural concerns to architect or tech lead; don't block PRs on design debates.
 - AskUserQuestion for style guide, security policies, or project‑specific conventions.
-- Use cross‑model delegation (clink) for second opinions on complex changes.
+- Use cross‑model delegation (headless CLI invocation) for second opinions on complex changes.

@@ -37,4 +37,4 @@ Constraints and handoffs:
 - Maintain backward compatibility; gate cutovers; document rollback.
 - Prefer automation over manual edits; verify deterministically.
 - AskUserQuestion if freeze windows, SLOs, or approvers are unclear.
-- Use clink for multi‑model review of risk trade‑offs and sequencing.
+- Delegate via headless CLI invocation for multi‑model review of risk trade‑offs and sequencing.
