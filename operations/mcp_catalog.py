@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import PurePath
 from typing import Any, Mapping
 
 from .config_templating import expand_placeholders
@@ -49,20 +50,29 @@ def _apply_allowed_methods(
             continue
 
         command = client_cfg.get("command")
-        if not isinstance(command, list) or "mcp-filter" not in command:
+        if not isinstance(command, list):
             continue
 
-        # Strip any existing -a <method> pairs and append desired ones.
+        uses_mcp_filter = any(PurePath(str(part)).name == "mcp-filter" for part in command)
+        if not uses_mcp_filter:
+            continue
+
+        # Strip any existing --include <method> pairs and reinsert them before
+        # the stdio upstream separator so mcp-filter still parses them as its
+        # own options rather than forwarding them to the upstream server.
         rebuilt: list[str] = []
         i = 0
         while i < len(command):
-            if command[i] == "-a":
+            if command[i] == "--include":
                 i += 2
                 continue
             rebuilt.append(str(command[i]))
             i += 1
+
+        separator_index = rebuilt.index("--") if "--" in rebuilt else len(rebuilt)
         for method in normalized_methods:
-            rebuilt.extend(["-a", method])
+            rebuilt[separator_index:separator_index] = ["--include", method]
+            separator_index += 2
         client_cfg["command"] = rebuilt
 
 

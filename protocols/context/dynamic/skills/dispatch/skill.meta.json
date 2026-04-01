@@ -1,0 +1,61 @@
+{
+  "name": "dispatch",
+  "version": "0.1.0",
+  "description": "Activate when you identify 2+ independent work units that could execute in parallel. Triggers include phrases like \"do these in parallel\", \"split this into subagents\", \"dispatch these tasks\", or self-recognition that a workload decomposes into units with no shared mutable state. Also activates when you are about to spawn multiple subagents for concurrent execution.",
+  "keywords": [
+    "parallel",
+    "dispatch",
+    "subagent",
+    "concurrent",
+    "fan-out",
+    "delegation",
+    "independence",
+    "reconciliation",
+    "merge",
+    "blast-radius"
+  ],
+  "domains": [
+    "orchestration",
+    "parallelism",
+    "multi-agent",
+    "delegation"
+  ],
+  "triggers": {
+    "user_phrases": [
+      "do these in parallel",
+      "split this into subagents",
+      "dispatch these tasks",
+      "parallelize this",
+      "fan out"
+    ],
+    "conditions": [
+      "Agent identifies 2+ independent work units with no shared mutable state",
+      "Agent is about to spawn multiple subagents for concurrent execution"
+    ]
+  },
+  "activation_mode": "auto",
+  "companion_files": [
+    "independence-checklist.md",
+    "reconciliation-patterns.md",
+    "prompt-calibration.md"
+  ],
+  "hook_points": [
+    {
+      "transition": "Phase 2 -> Phase 3",
+      "verification": "Independence matrix complete: all pairs resolved",
+      "type": "pre-phase"
+    },
+    {
+      "transition": "Phase 3 -> Phase 4",
+      "verification": "Reconciliation plan exists for every work unit",
+      "type": "pre-phase"
+    },
+    {
+      "transition": "Phase 5 -> Complete",
+      "verification": "All acceptance criteria met; merged deliverable passes checks",
+      "type": "post-phase"
+    }
+  ],
+  "created": "2026-03-31T00:00:00Z",
+  "updated": "2026-03-31T00:00:00Z"
+}

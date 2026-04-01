@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
-# 
+#
 # Bureau one-shot bootstrap/startup script
 # > Run once: ./open-bureau
 # > Idempotent (safe to re-run; won't duplicate or kill running resources)
+#
+# Options:
+#   --concierge, -c                Enable ML classifier setup (install deps + train model)
+#                                  Persisted via `concierge.enabled: true` in config
+#   -u, --update-protocols         Re-copy Bureau-managed protocol files (backs up modified ones)
+#   -f, --force                    Overwrite protocol files without backup (implies -u)
+#   -b, --bare                     Remove all protocol files and hooks
 #
 # For configuration details, see docs/CONFIGURATION.md
 
@@ -12,12 +19,60 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 1
 
+# Parse open-bureau-specific flags (before passing $@ to subscripts)
+CONCIERGE=false
+PROTO_UPDATE=false
+PROTO_FORCE=false
+PROTO_BARE=false
+PASSTHROUGH_ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --concierge|-c)          CONCIERGE=true ;;
+        --update-protocols|-u)   PROTO_UPDATE=true ;;
+        --force|-f)              PROTO_FORCE=true; PROTO_UPDATE=true ;;
+        --bare|-b)               PROTO_BARE=true ;;
+        *) PASSTHROUGH_ARGS+=("$arg") ;;
+    esac
+done
+set -- "${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}"
+
+# Validate protocol mode conflicts
+if [[ "$PROTO_UPDATE" == true && "$PROTO_BARE" == true ]]; then
+    echo "ERROR: --update-protocols/--force and --bare are contradictory" >&2
+    exit 1
+fi
+
 # Check dependencies, install correct Python version packages and set up env
 bin/ensure-prereqs
 
 # Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/logging.sh"
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
+
+# Check config for concierge.enabled if not set via CLI flag
+if [[ "$CONCIERGE" == false ]]; then
+    concierge_cfg=$(_get_config concierge.enabled 2>/dev/null || echo "false")
+    if [[ "$concierge_cfg" == "true" || "$concierge_cfg" == "True" ]]; then
+        CONCIERGE=true
+    fi
+fi
+
+# Check config for protocols.* if no CLI flags were set
+# CLI flags take full precedence — config is only consulted when no flags are present
+if [[ "$PROTO_UPDATE" == false && "$PROTO_BARE" == false ]]; then
+    proto_bare_cfg=$(_get_config protocols.bare 2>/dev/null || echo "false")
+    proto_update_cfg=$(_get_config protocols.update 2>/dev/null || echo "false")
+    proto_force_cfg=$(_get_config protocols.force 2>/dev/null || echo "false")
+
+    if [[ "$proto_bare_cfg" == "true" || "$proto_bare_cfg" == "True" ]]; then
+        PROTO_BARE=true
+    elif [[ "$proto_force_cfg" == "true" || "$proto_force_cfg" == "True" ]]; then
+        PROTO_FORCE=true
+        PROTO_UPDATE=true
+    elif [[ "$proto_update_cfg" == "true" || "$proto_update_cfg" == "True" ]]; then
+        PROTO_UPDATE=true
+    fi
+fi
 
 log_banner "Bureau bootstrap & startup"
 log_empty_line
@@ -45,22 +100,47 @@ log_action "Setting up agents and agent launchers/slash commands..."
 log_empty_line
 agents/scripts/set-up-agents.sh
 
+# Run configs setup:
+#   - Generate coding CLIs' context/config files (w/ device-specific abs paths)
+#   - Symlinks them to the appropriate user-scoped locations for each agent
+log_empty_line
+log_action "Setting up config files..."
+log_empty_line
+
+# build protocol mode flags for passthrough
+PROTO_ARGS=()
+if [[ "$PROTO_BARE" == true ]]; then
+    PROTO_ARGS+=("--bare")
+elif [[ "$PROTO_FORCE" == true ]]; then
+    PROTO_ARGS+=("--force")
+elif [[ "$PROTO_UPDATE" == true ]]; then
+    PROTO_ARGS+=("--update")
+fi
+protocols/scripts/set-up-protocols.sh "${PROTO_ARGS[@]+"${PROTO_ARGS[@]}"}"
+
 # Run tools setup & startup, passing along CLI options received
 #   - Configures MCPs for each supported coding CLI
 #   - Launches MCPs servers and backing containers (for those run as local HTTP servers)
 log_action "Setting up tools..."
 log_empty_line
-tools/scripts/set-up-tools.sh "$@"
 
-# Run configs setup:
-#   - Generate coding CLIs' context/config files (w/ device-specific abs paths) 
-#   - Symlinks them to the appropriate user-scoped locations for each agent
-log_empty_line
-log_action "Setting up config files..."
-log_empty_line
-protocols/scripts/set-up-protocols.sh
+TOOLS_ARGS=("${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}")
+if [[ "$PROTO_BARE" == true ]]; then
+    TOOLS_ARGS+=("--bare")
+fi
+tools/scripts/set-up-tools.sh "${TOOLS_ARGS[@]+"${TOOLS_ARGS[@]}"}"
+
+# Concierge classifier: install ML deps + train/update model (opt-in)
+if [[ "$CONCIERGE" == true ]]; then
+    log_empty_line
+    log_action "Setting up concierge classifier..."
+    log_empty_line
+    bin/ensure-classifier-model
+else
+    log_empty_line
+    log_info "Concierge classifier skipped (enable with --concierge or set concierge.enabled: true in config)"
+fi
 
 log_empty_line
 log_banner "All steps complete: Bureau is configured and ready for use!"
 log_empty_line
-

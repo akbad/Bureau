@@ -152,10 +152,7 @@ $ open-bureau  # in this repo's bin/
 > - They guide agents to read *Bureau's custom context files* that teach them to **<ins>autonomously</ins> use Bureau's functionality** *without* explicitly being prompted to by the user.
 > - This **<ins>minimizes the learning curve</ins>, letting you get to work as fast as possible.**
 
-7. Generates:
-
-    - PAL MCP config files for each enabled CLI and symlinks into the PAL MCP config dir (`~/.pal/cli_clients/`)
-    - the **`close-bureau` script allowing easy shutdown** of *all* daemons/containers launched by Bureau *(placed in the `bureau/bin/` directory)*
+7. Generates the **`close-bureau` script allowing easy shutdown** of *all* daemons/containers launched by Bureau *(placed in the `bureau/bin/` directory)*
 
 ### Install plugins *(Claude Code only)*
 
@@ -219,7 +216,7 @@ $ claude
 <summary><strong>Codex</strong></summary>
 
 1. Ask: "What must-read files were you given?"
-2. Should reference delegation rules and clink
+2. Should reference delegation rules and agent roles
 3. Run `ls -ld ~/.agents/skills/superpowers`: it should be a symlink to `~/.codex/superpowers/skills`
 4. Run `codex-explainer` *(custom launch wrapper set up by Bureau)* from the command line to see if it launches Codex with the [`explainer`](../agents/role-prompts/explainer.md) agent active in the *main conversation*
     
@@ -237,6 +234,47 @@ $ claude
 2. Press Tab to cycle through agents: Bureau agents should appear
 
 </details>
+
+## Telegram bot setup (optional)
+
+The Concierge can run as a personal Telegram bot, receiving messages and responding via the full classification + feature pipeline.
+
+### 1. Create a bot via BotFather
+
+1. Open [@BotFather](https://t.me/BotFather) in Telegram
+2. Send `/newbot` and follow the prompts
+3. Copy the bot token (format: `123456:ABC-DEF...`)
+
+### 2. Get your Telegram user ID
+
+Send a message to [@userinfobot](https://t.me/userinfobot) in Telegram — it replies with your numeric user ID. This is used to restrict the bot to only respond to you.
+
+### 3. Set environment variables
+
+Add to your shell profile (`~/.zshrc`/`~/.bashrc`):
+
+```bash
+export BUREAU_TELEGRAM_TOKEN="your-bot-token-here"
+export BUREAU_TELEGRAM_USER_ID="your-numeric-user-id"  # fallback if no wizard config
+```
+
+### 4. Install the telegram dependency
+
+```bash
+uv pip install -e ".[telegram]"
+```
+
+### 5. Start the bot
+
+```bash
+bin/start-concierge-bot
+# or: uv run concierge-bot
+```
+
+The bot uses long-polling (no webhooks or public server needed). It runs until you stop it with Ctrl+C.
+
+> [!NOTE]
+> The bot token is **never** stored in config files — it is always read from the `BUREAU_TELEGRAM_TOKEN` environment variable at startup.
 
 ## Stopping servers
 
@@ -274,7 +312,7 @@ The new `local.yml` will be:
 | Enabled CLI agents | All 4 [supported CLIs](#supported-cli-coding-agents) | Set `agents` list in `local.yml` |
 | Bureau workspace path | `~/code` | Set `path_to.workspace` in `local.yml` |
 | Memory retention | 30d–365d, depending on the backend | Set `retention_period_for.*` in `local.yml` |
-| [Role prompts](../agents/role-prompts/) and models for PAL `clink` to use with coding CLIs | All role prompts; Sonnet for Claude Code; gpt-5.2-codex with medium reasoning effort for Codex | Set `pal.*` settings in `local.yml` *(see [`defaults.yml`](../defaults.yml) for quick examples)* | 
+| [Role prompts](../agents/role-prompts/) | All role prompts enabled by default | Set `roles.*` settings in `local.yml` *(see [`defaults.yml`](../defaults.yml) for quick examples)* |
 
 ### Simple power user configuration example
 
@@ -282,13 +320,6 @@ The new `local.yml` will be:
 # bureau/local.yml (create if it doesn't exist)
 auto_approved:
   mcps: true
-
-pal:
-  claude: 
-    model: opus
-  codex:
-    model: gpt-5.2-codex
-    effort: xhigh
 ```
 
 ## Troubleshooting

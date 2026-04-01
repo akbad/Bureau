@@ -99,5 +99,5 @@ class LockFile:
             raise LockError(f"Could not acquire lock: {self.path}")
         return self
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: object) -> None:
         self.release()

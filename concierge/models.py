@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any
 
 
 def _utcnow() -> datetime:
@@ -132,7 +133,9 @@ class SessionState:
             ]
 
     def record_suite(self, suite: Suite, *, max_history: int = 5) -> None:
-        """Append *suite* to recent history, trimming to *max_history*."""
+        """Record *suite* as the current suite and append to recent history."""
+        self.current_suite = suite
+        self.suite_since = _utcnow()
         self.recent_suites.append(suite)
         if len(self.recent_suites) > max_history:
             self.recent_suites = self.recent_suites[-max_history:]
@@ -146,7 +149,7 @@ class FeatureCandidate:
     domain: str
     score_inputs: dict[str, float]
     content: str | None = None
-    metadata: dict | None = None
+    metadata: dict[str, Any] | None = None
     lottery_promoted: bool = False
 
     def __hash__(self) -> int:
@@ -174,4 +177,4 @@ class QueueItem:
     queued_at: datetime = field(default_factory=_utcnow)
     state: QueueItemState = QueueItemState.QUEUED
     priority: float = 0.0
-    context_snapshot: dict | None = None
+    context_snapshot: dict[str, Any] | None = None

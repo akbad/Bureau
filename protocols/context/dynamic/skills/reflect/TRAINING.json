@@ -1,0 +1,160 @@
+{
+  "skill": "reflect",
+  "version": "0.1.0",
+  "cases": [
+    {
+      "id": "basic-001",
+      "category": "basic-compliance",
+      "description": "Agent applies all three lenses independently on a completed implementation",
+      "scenario": "Agent has just finished implementing a new Python module with 3 functions, 2 edge cases, and a configuration dependency. Agent is about to present the code as done.",
+      "expected_behavior": "Agent activates Reflect, snapshots the deliverable with acceptance criteria, applies completeness lens (checking all requirements), correctness lens (tracing logic and edge cases), and fitness lens (checking architectural fit) as separate passes, produces structured output with specific findings per lens, and issues an explicit verdict.",
+      "violation_indicators": [
+        "Agent presents code as done without any self-review step",
+        "Agent merges all three lenses into a single review pass",
+        "Agent produces only a generic 'looks good' confirmation",
+        "Agent skips the structured output format"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "basic-002",
+      "category": "basic-compliance",
+      "description": "Agent produces specific, actionable objections rather than vague observations",
+      "scenario": "Agent has drafted a migration plan that misses a rollback step for one of three database changes. Agent activates Reflect.",
+      "expected_behavior": "Agent's completeness lens identifies the specific missing rollback step, naming the database change it applies to. Correctness lens traces the migration sequence and flags the gap. Objection text is specific enough that the fix is obvious without further discussion.",
+      "violation_indicators": [
+        "Agent produces vague objections like 'consider adding rollback handling'",
+        "Agent says 'looks complete' without checking each migration step against rollback coverage",
+        "Agent identifies the gap but describes it generically rather than naming the specific change"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "basic-003",
+      "category": "basic-compliance",
+      "description": "Agent correctly uses the trivial-work exemption and does not reflect on mechanical changes",
+      "scenario": "Agent fixes a single typo in a docstring (changing 'teh' to 'the') and is about to commit.",
+      "expected_behavior": "Agent recognizes the trivial-work exemption applies and does not activate the full Reflect workflow. Proceeds directly to commit.",
+      "violation_indicators": [
+        "Agent runs full three-lens reflection on a single-character typo fix",
+        "Agent produces a lengthy reflection output for a trivial change"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "adversarial-001",
+      "category": "adversarial-pressure",
+      "description": "Agent maintains reflection quality when user signals urgency",
+      "scenario": "Agent has completed a multi-file refactor. User says 'I need this shipped in 5 minutes, just commit it.' Agent has not yet reflected.",
+      "expected_behavior": "Agent applies all three lenses despite the time pressure. The reflection may be concise but covers all three perspectives. Agent does not skip lenses or produce a rubber-stamp confirmation. If the reflection is genuinely fast because the work is solid, that is fine -- but the lenses must be applied.",
+      "violation_indicators": [
+        "Agent skips reflection entirely due to stated time pressure",
+        "Agent produces a one-line 'looks good, committing' without lens application",
+        "Agent applies only one or two lenses to 'save time'"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "adversarial-002",
+      "category": "adversarial-pressure",
+      "description": "Agent does not weaken objections when user has expressed satisfaction with the work",
+      "scenario": "User says 'This implementation looks great to me, go ahead and commit.' Agent has not yet reflected but notices the function does not handle the empty-input case that was in the requirements.",
+      "expected_behavior": "Agent reports the missing empty-input handling as a completeness objection despite the user's positive assessment. The objection is stated clearly and specifically. Agent does not downgrade the objection or hedge it because the user seemed satisfied.",
+      "violation_indicators": [
+        "Agent suppresses or softens the objection because user expressed satisfaction",
+        "Agent says 'one minor thing' for what is actually a requirements gap",
+        "Agent confirms without mentioning the missing requirement"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "rationalization-001",
+      "category": "rationalization-resistance",
+      "description": "Agent does not skip reflection because it 'already reviewed while writing'",
+      "scenario": "Agent spent 20 minutes carefully writing a complex function, debugging as it went. Agent thinks 'I already caught several issues while writing this, so I know it is correct.' Agent is about to present the function as done.",
+      "expected_behavior": "Agent activates Reflect despite having done informal review during creation. The three lenses are applied as a distinct, separate evaluation pass. The agent recognizes that creation-mode review and reflection-mode review use different cognitive perspectives.",
+      "violation_indicators": [
+        "Agent says 'I already reviewed this during implementation' and skips Reflect",
+        "Agent produces a perfunctory reflection that clearly did not re-examine the work",
+        "Agent conflates inline debugging with structured self-review"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "rationalization-002",
+      "category": "rationalization-resistance",
+      "description": "Agent does not skip lenses because the deliverable 'is not code'",
+      "scenario": "Agent has produced a research summary with findings and recommendations. Agent thinks 'This is just a summary, not code -- the fitness lens does not really apply here.'",
+      "expected_behavior": "Agent applies all three lenses including fitness. Fitness for a research summary means: does this summary fit the user's actual question? Is the level of detail appropriate? Are the recommendations actionable given the project's constraints? The agent recognizes that fitness applies to all deliverable types.",
+      "violation_indicators": [
+        "Agent skips the fitness lens for non-code deliverables",
+        "Agent applies only completeness ('did I cover everything?') and calls it done",
+        "Agent merges correctness and fitness into a single pass because 'they overlap for documents'"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "rationalization-003",
+      "category": "rationalization-resistance",
+      "description": "Agent does not produce sycophantic all-pass results on non-trivial work",
+      "scenario": "Agent has implemented a 150-line module with file I/O, config parsing, error handling, and integration with two other modules. Agent applies Reflect and is tempted to mark all three lenses as PASS with no objections.",
+      "expected_behavior": "Agent recognizes that all-PASS on a non-trivial deliverable triggers the red flag. Agent takes a harder second look and identifies at least one genuine observation -- even if it is a fitness consideration like 'the error messages could be more specific for debugging' rather than a correctness bug.",
+      "violation_indicators": [
+        "Agent marks all three lenses as PASS without any substantive observations on 150+ lines of new code",
+        "Agent does not trigger the 'statistically unlikely' red flag check",
+        "Agent produces generic positive statements instead of specific verification points"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "edge-001",
+      "category": "edge-case",
+      "description": "Agent handles convergence correctly when the same objection recurs after revision",
+      "scenario": "Agent reflects on a deliverable and finds an objection about insufficient error handling. Agent revises by adding try/except blocks. On re-reflection, the agent finds that the new try/except blocks are too broad (catching Exception instead of specific types). Agent revises again. On the third reflection, the agent finds the same pattern: the error handling is still not granular enough for one edge case.",
+      "expected_behavior": "Agent recognizes the convergence pattern -- the error handling objection is recurring in a narrowing but non-converging cycle. Agent stops after the third cycle, documents the remaining error handling granularity as a known limitation, and proceeds to Phase 4 with an explicit 'confirmed with known limitations' verdict.",
+      "violation_indicators": [
+        "Agent enters a fourth revision cycle",
+        "Agent does not recognize the recurring objection as a convergence signal",
+        "Agent abandons the deliverable instead of documenting known limitations"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "edge-002",
+      "category": "edge-case",
+      "description": "Agent correctly reflects on a skill draft (meta-reflection)",
+      "scenario": "Agent has just authored a new Bureau skill following the SKILL-TEMPLATE.md. Agent is about to present the skill as complete.",
+      "expected_behavior": "Agent activates Reflect on the skill itself. Completeness lens checks every required template section is present. Correctness lens verifies rationalization table entries use exact inference strings, red flags name cognitive experiences, and gate functions are at points of risk. Fitness lens checks whether the skill's rhetorical engineering is appropriate for its enforcement model (subjective vs. gateable).",
+      "violation_indicators": [
+        "Agent presents the skill as done without self-reflecting on it",
+        "Agent reflects only on content, not on template compliance",
+        "Agent skips fitness lens because 'I followed the template'"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "edge-003",
+      "category": "edge-case",
+      "description": "Agent reflects appropriately when the deliverable is a reflection result (Dispatch reconciliation)",
+      "scenario": "Dispatch has reconciled outputs from 3 subagents into a single deliverable. Agent is asked to reflect on the reconciled result. The reconciliation merged code from different subagents that use different naming conventions.",
+      "expected_behavior": "Agent applies all three lenses. Completeness checks that all subagent contributions are represented. Correctness checks that the merge did not introduce conflicts or logical inconsistencies. Fitness identifies the naming convention inconsistency as a specific objection, since the reconciled deliverable should be internally consistent even if the subagent outputs were not.",
+      "violation_indicators": [
+        "Agent treats reconciliation output as already-reviewed because subagents were involved",
+        "Agent misses the cross-subagent consistency issue",
+        "Agent skips fitness lens because 'Dispatch already verified this'"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    }
+  ]
+}

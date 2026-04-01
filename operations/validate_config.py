@@ -510,6 +510,29 @@ def _validate_healthcheck(
             )
 
 
+def _validate_npm_runtime(
+    entry: dict[str, Any], path: str, result: ValidationResult,
+) -> None:
+    """Validate npm_runtime sub-structure if present and already type-checked as dict."""
+    from .mcp_validation_rules import NPM_RUNTIME_ALLOWED_KEYS
+
+    npm_runtime = entry.get("npm_runtime")
+    if not isinstance(npm_runtime, dict):
+        return
+
+    npm_path = f"{path}.npm_runtime"
+    for key in sorted(set(npm_runtime.keys()) - NPM_RUNTIME_ALLOWED_KEYS):
+        result.warnings.append(f"{npm_path}: unknown key '{key}'")
+
+    for field_name in ("packages", "binaries"):
+        if field_name not in npm_runtime:
+            result.errors.append(f"{npm_path}: missing required key '{field_name}'")
+            continue
+        value = npm_runtime[field_name]
+        if error := _check_type(value, "list[str]"):
+            result.errors.append(f"{npm_path}.{field_name}: {error}")
+
+
 def _validate_entry_schema(
     name: str,
     entry: Any,
@@ -646,6 +669,8 @@ def _validate_mcp_client_configs(config: Mapping[str, Any]) -> ValidationResult:
             entry, f"mcp.client_configs.{name}", CLIENT_CONFIG_TYPE_RULES,
         )
         result.errors.extend(t.errors)
+
+        _validate_npm_runtime(entry, f"mcp.client_configs.{name}", result)
 
         clients = entry.get("clients", {})
         if not isinstance(clients, dict):

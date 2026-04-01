@@ -11,9 +11,11 @@ dependencies = [
 ]
 
 [project.scripts]
+bureau-dossiers = "operations.dossiers.cli:main"
 get-config = "operations.config_cli:main"
 sweep = "operations.cleanup.core:main"
 validate-config = "operations.validate_config:main"
+concierge-bot = "concierge.bridge.telegram:main"
 
 [tool.uv]
 package = true
@@ -42,9 +44,52 @@ ml = [
     "onnxruntime>=1.15",
     "numpy>=1.24",
 ]
+telegram = [
+    "python-telegram-bot[rate-limiter]>=22.0",
+]
 
 [tool.mypy]
 python_version = "3.13"
+packages = ["concierge"]
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+# ML optional dependencies lack type stubs
+[[tool.mypy.overrides]]
+module = [
+    "torch.*",
+    "transformers.*",
+    "onnxruntime.*",
+    "numpy.*",
+]
+ignore_missing_imports = true
+
+# python-telegram-bot: optional dependency, no type stubs
+[[tool.mypy.overrides]]
+module = "telegram.*"
+ignore_missing_imports = true
+
+# operations/ is checked transitively via imports; not yet strict-ready
+[[tool.mypy.overrides]]
+module = "operations.*"
+follow_imports = "silent"
+
+# Tests: enforce type correctness but relax annotation requirements on fixtures/helpers
+[[tool.mypy.overrides]]
+module = "concierge.tests.*"
+disallow_untyped_defs = false
+disallow_untyped_decorators = false
+disallow_untyped_calls = false
+strict_equality = false
+disallow_any_generics = false
+
+# ML training script: heavily uses untyped third-party APIs (torch, transformers)
+[[tool.mypy.overrides]]
+module = "concierge.classifier.train"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_subclassing_any = false
 
 [tool.pytest.ini_options]
 testpaths = [

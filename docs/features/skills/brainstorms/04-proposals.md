@@ -1,188 +1,618 @@
-# Bureau skill system: proposals
+# Bureau skill system proposals
 
-- **Date**: 2026-03-30
-- **Authors**: 3 synthesis agents (architect, skills designer, meta-system designer)
-- **Inputs**: 3 collation reports from 9 research agents covering Superpowers analysis, Bureau inspiration docs, and the 2026 research landscape
+- **Date**: `2026-03-30`
+- **Authors**: 3 synthesis agents
 
-## Part A: Architectural additions (5 proposals)
+    - architect
+    - skills designer
+    - meta-system designer
 
-### 1. Skill lifecycle governance (SkillForge-Lite)
+- **Inputs**: 3 collation reports from 9 research agents
 
-Triage-and-governance layer preventing skill proliferation. Three scripts: `discover-skills.py` (index builder), `triage-skill-request.py` (duplicate detection with confidence routing: USE_EXISTING >= 80%, IMPROVE_EXISTING 50-79%, CREATE_NEW < 50%, COMPOSE, CLARIFY), `validate-skill.py` (pre-admission quality gate). Plus `skill.meta.json` sidecar per skill for keywords, domains, triggers, version.
+    - Superpowers analysis
+    - Bureau inspiration docs
+    - 2026 research landscape
 
-**Why first**: Foundation for everything else. Without governance, self-improvement produces noise (SkillsBench: self-generated skills = zero benefit).
+## Architectural additions
 
-**Builds on**: `operations/skills_catalog.py`, `generate-skills-config.py`, `defaults.yml` skills config.
+> [!IMPORTANT]
+>
+> <ins>Priority order matters</ins> because governance and measurement are prerequisites for most downstream automation.
 
-### 2. Golden datasets and category-level measurement
+- **1. Skill lifecycle governance (`SkillForge-Lite`)**
 
-`TRAINING.json` sidecar per skill with curated test cases categorized by type (basic-compliance, adversarial-pressure, rationalization-resistance, edge-case, regression). promptfoo integration for automated evaluation. Category-level regression gates (never aggregate averages — "When Better Prompts Hurt" paper).
+    - **Add** a triage-and-governance layer that prevents skill proliferation.
+    - **Include** 3 scripts.
 
-**Why second**: The golden dataset is the bottleneck, not the optimization algorithm. Measurement enables everything else.
+        - `discover-skills.py` builds the index.
+        - `triage-skill-request.py` routes by duplicate-detection confidence.
+        - `validate-skill.py` runs the pre-admission quality gate.
 
-**Key metric**: Per-category scores, never overall averages. A skill improving one dimension while degrading another is caught.
+    - **Add** a `skill.meta.json` sidecar per skill.
 
-### 3. Session-extracted skill candidates (AutoSkill-Lite)
+        - `keywords`
+        - `domains`
+        - `triggers`
+        - `version`
 
-Post-session extraction pipeline mining fold dossiers, Qdrant memories, and claude-mem for reusable patterns. Produces candidate skill drafts in a staging directory. **Never auto-deploys** — candidates enter triage (proposal 1) and must pass measurement (proposal 2) before human-approved promotion.
+    - **Set routing thresholds**.
 
-**Sources**: Fold dossiers, Qdrant, claude-mem (all existing).
-**Builds on**: `concierge/hooks/post_session.py`, `concierge/llm.py`, `concierge/distillation/compress.py`.
+        - `USE_EXISTING`: `>= 80%`
+        - `IMPROVE_EXISTING`: `50-79%`
+        - `CREATE_NEW`: `< 50%`
+        - Additional routes: `COMPOSE`, `CLARIFY`
 
-### 4. Skill template with rhetorical engineering
+    - **Why first**: it is the foundation for everything else.
+    - **Key rationale**: self-improvement without governance produces noise.
+    - **Builds on**.
 
-Canonical `SKILL-TEMPLATE.md` encoding Superpowers' highest-impact compliance techniques: rationalization tables, red flag lists (naming the cognitive experience before violation), redundant mandate placement at multiple entry points, gate functions at point of risk, anti-sycophancy interrupts, `IMMUTABLE` section markers for safety-critical content, and the DONE/DONE_WITH_CONCERNS/NEEDS_CONTEXT/BLOCKED escalation protocol.
+        - `operations/skills_catalog.py`
+        - `generate-skills-config.py`
+        - `defaults.yml` skills config
 
-**Why**: Superpowers' persuasion-informed design doubled compliance (33% to 72%). The template systematizes these battle-tested patterns.
+- **2. Golden datasets and category-level measurement**
 
-### 5. Procedural memory tier (skill-aware memory)
+    - **Add** a `TRAINING.json` sidecar per skill with curated test cases.
 
-Extend Qdrant with a `skill-execution-traces` collection capturing per-skill execution data: phases reached, gates passed/failed, rationalizations encountered, tools used, outcomes. Skill-aware fold/unfold preserves active skill state across sessions. Feeds extraction (proposal 3) and measurement (proposal 2).
+        - `basic-compliance`
+        - `adversarial-pressure`
+        - `rationalization-resistance`
+        - `edge-case`
+        - `regression`
 
-**Builds on**: Qdrant (already running), Memory MCP, fold/unfold dossiers.
+    - **Integrate** `promptfoo` for automated evaluation.
+    - **Gate** regressions at the category level.
+    - **Never rely** on aggregate averages.
+    - **Why second**: the golden dataset is the bottleneck, not the optimization algorithm.
+    - **Key metric**: track per-category scores only.
+    - **Failure mode caught**: a skill that improves one dimension while degrading another.
 
-### Dependency graph
+- **3. Session-extracted skill candidates (`AutoSkill-Lite`)**
 
-```
-1 (Governance)  ──────────────────────────────┐
-    │                                          │
-    ├──> 4 (Skill Template)                    │
-    │        │                                 │
-    │        v                                 v
-    ├──> 2 (Golden Datasets + Measurement) <── 5 (Procedural Memory)
-    │        │                                 │
-    │        v                                 │
-    └──> 3 (Session Extraction) <──────────────┘
-```
+    - **Add** a post-session extraction pipeline that mines reusable patterns.
+    - **Pull from** existing sources.
 
----
+        - fold dossiers
+        - Qdrant memories
+        - claude-mem
 
-## Part B: Concrete new skills (8 proposals)
+    - **Produce** candidate skill drafts in a staging directory.
+    - **Route** every candidate through proposal 1.
+    - **Require** proposal 2 before promotion.
+    - **Require** human approval before deployment.
+    - **Builds on**.
 
-Priority-ordered. Each has a clear self-invocation trigger.
+        - `concierge/hooks/post_session.py`
+        - `concierge/llm.py`
+        - `concierge/distillation/compress.py`
 
-### 1. TDD (test-driven development)
+> [!NOTE]
+>
+> `AutoSkill-Lite` never auto-deploys candidates.
 
-**Trigger**: Agent is about to implement a feature, fix a bug, or add functionality.
-**Workflow**: RED (write one failing test, verify it fails for the right reason) → GREEN (minimal implementation, all tests pass) → REFACTOR (improve with tests green, revert on any failure). Repeat.
-**Why**: Replaces Superpowers dependency. Highest-impact rigid skill. The rationalization table (10+ entries from Superpowers' 6 RED-GREEN-REFACTOR iterations) is the core defense.
-**Companion files**: `rationalization-table.md`, `testing-anti-patterns.md`, `test-design-guide.md`.
+- **4. Skill template with rhetorical engineering**
 
-### 2. Research
+    - **Add** a canonical `SKILL-TEMPLATE.md`.
+    - **Encode** Superpowers' highest-impact compliance techniques.
 
-**Trigger**: Agent needs to make a consequential technology choice and is relying on training data rather than current sources. Or user asks to investigate/compare/evaluate.
-**Workflow**: Scope into 3-5 sub-questions → multi-source sweep (Context7, Brave/Tavily, Grep/Serena, Qdrant) → triangulate with confidence scoring (HIGH/MEDIUM/LOW) → anti-hallucination gate → deliver with citations, store in Qdrant.
-**Why**: Owner's top priority (5 inspiration slots in brainstorm). Fills the most dangerous gap: unverified claims entering memory.
-**Companion files**: `source-priority.md`, `anti-hallucination-gates.md`.
+        - rationalization tables
+        - red-flag lists
+        - redundant mandate placement
+        - gate functions at the point of risk
+        - anti-sycophancy interrupts
+        - `IMMUTABLE` section markers
+        - `DONE` / `DONE_WITH_CONCERNS` / `NEEDS_CONTEXT` / `BLOCKED` escalation
 
-### 3. Reflect
+    - **Why**: Superpowers' persuasion-informed design doubled compliance.
+    - **Target gain**: systematize battle-tested compliance patterns.
 
-**Trigger**: Agent considers a deliverable "done" (implementation, plan, review, research).
-**Workflow**: Snapshot deliverable → apply three lenses (completeness, correctness, fitness) → generate specific objections → revise or confirm → track convergence (stop if same objections repeat).
-**Why**: Operationalizes Reflexion pattern (production-ready, immediate value, lowest barrier). Prevents the common failure of presenting unreviewed work as final.
-**Companion files**: `anti-sycophancy-gates.md`.
+- **5. Procedural memory tier**
 
-### 4. Pressure test
+    - **Extend** Qdrant with a `skill-execution-traces` collection.
+    - **Capture** per-skill execution data.
 
-**Trigger**: Agent is about to finalize a plan, architecture decision, or skill draft.
-**Workflow**: Frame artifact → apply 4 combined pressures (time, sunk cost, authority, scope creep) → surface rationalizations with rebuttals → verdict (SURVIVES / SURVIVES_WITH_PATCHES / RETHINK) → log to memory.
-**Why**: Generalizes Superpowers' adversarial skill testing into a reusable pattern. Combined pressures expose fragility that individual pressures miss.
-**Companion files**: `pressure-catalog.md`, `rationalization-library.md`.
+        - phases reached
+        - gates passed or failed
+        - rationalizations encountered
+        - tools used
+        - outcomes
 
-### 5. Dispatch
+    - **Preserve** active skill state across `fold` and `unfold`.
+    - **Feed** proposal 3.
+    - **Feed** proposal 2.
+    - **Builds on**.
 
-**Trigger**: Agent identifies 2+ independent work units with no shared mutable state.
-**Workflow**: Decompose and verify independence → calibrate subagent prompts (task, skills, acceptance criteria, SUBAGENT-STOP, model recommendation) → define reconciliation plan → execute → reconcile and verify.
-**Why**: Owner's second priority. Unlocks parallel execution with structural safeguards against conflicts.
-**Companion files**: `independence-checklist.md`, `model-dispatch-guide.md`, `reconciliation-patterns.md`.
+        - Qdrant
+        - Memory MCP
+        - fold and unfold dossiers
 
-### 6. Distill
+### Dependencies
 
-**Trigger**: End of session where agent solved a non-trivial problem using a repeatable approach not captured by existing skills.
-**Workflow**: Identify candidate pattern → triage against skill index (USE_EXISTING/IMPROVE_EXISTING/CREATE_NEW) → draft SKILL.md following template → pressure-test the draft → store as candidate for human review.
-**Why**: The meta-skill that makes Bureau self-improving. Depends on pressure-test and governance infrastructure.
-**Companion files**: `skill-template.md`, `triage-decision-tree.md`.
+- **Governance (1)** enables downstream structure.
 
-### 7. Schema evolution
+    - feeds **Skill template (4)**
+    - feeds **Golden datasets and measurement (2)**
+    - feeds **Session extraction (3)**
 
-**Trigger**: Agent is about to modify a database schema, API contract, config format, or data model.
-**Workflow**: Map blast radius (all consumers) → classify change (ADDITIVE/TRANSFORM/DESTRUCTIVE) → design multi-phase migration path → generate safety artifacts (migration + rollback + integrity check) → execute with verification gates between phases.
-**Why**: Cleared the self-invocation bar in role evaluation. Models natively write unsafe single-phase migrations. This forces expand/migrate/contract.
-**Companion files**: `migration-patterns.md`, `rollback-checklist.md`.
+- **Skill template (4)** strengthens **Golden datasets and measurement (2)**.
+- **Procedural memory (5)** feeds downstream learning.
 
-### 8. Incident response
+    - feeds **Golden datasets and measurement (2)**
+    - feeds **Session extraction (3)**
 
-**Trigger**: Production incident, system outage, data corruption, cascading failure.
-**Workflow**: Stabilize first (gate: do not investigate until confirmed stable) → reconstruct timeline (FACT vs INFERENCE) → isolate root cause (5 Whys with rationalization check) → propose remediation (immediate + systemic) → draft blameless postmortem.
-**Why**: Cleared the role evaluation bar. The stabilize-first gate is the critical differentiator — prevents investigating while the system burns.
-**Companion files**: `stabilization-playbook.md`, `postmortem-template.md`.
+## Concrete new skills
 
----
+> [!IMPORTANT]
+>
+> These proposals are ordered by expected impact and by how cleanly they self-invoke.
 
-## Part C: Skill lifecycle meta-system
+- **1. TDD**
+
+    - **Trigger**: the agent is about to implement a feature, fix a bug, or add functionality.
+    - **Workflow**.
+
+        - `RED`: write one failing test and verify it fails for the right reason.
+        - `GREEN`: add the minimal implementation and get all tests passing.
+        - `REFACTOR`: improve while tests stay green and revert on any failure.
+        - repeat the loop
+
+    - **Why**.
+
+        - it replaces the Superpowers dependency.
+        - it is the highest-impact rigid skill.
+
+    - **Core defense**: the rationalization table from Superpowers' 6 `RED-GREEN-REFACTOR` iterations.
+    - **Companion files**.
+
+        - `rationalization-table.md`
+        - `testing-anti-patterns.md`
+        - `test-design-guide.md`
+
+- **2. Research**
+
+    - **Triggers**.
+
+        - the agent must make a consequential technology choice using current sources.
+        - the user asks to investigate, compare, or evaluate.
+
+    - **Workflow**.
+
+        - scope into 3-5 sub-questions
+        - run a multi-source sweep
+
+            - Context7
+            - Brave or Tavily
+            - Grep or Serena
+            - Qdrant
+
+        - triangulate with `HIGH` / `MEDIUM` / `LOW` confidence
+        - pass an anti-hallucination gate
+        - deliver with citations
+        - store the result in Qdrant
+
+    - **Why**: it fills the most dangerous gap.
+    - **Risk addressed**: unverified claims entering memory.
+    - **Companion files**.
+
+        - `source-priority.md`
+        - `anti-hallucination-gates.md`
+
+- **3. Reflect**
+
+    - **Trigger**: the agent considers a deliverable done.
+    - **Applicable deliverables**.
+
+        - implementation
+        - plan
+        - review
+        - research
+
+    - **Workflow**.
+
+        - snapshot the deliverable
+        - apply 3 lenses
+
+            - completeness
+            - correctness
+            - fitness
+
+        - generate specific objections
+        - revise or confirm
+        - stop if the same objections repeat
+
+    - **Why**.
+
+        - it operationalizes the Reflexion pattern.
+        - it is production-ready and immediately useful.
+
+    - **Failure mode addressed**: presenting unreviewed work as final.
+    - **Companion files**.
+
+        - `anti-sycophancy-gates.md`
+
+- **4. Pressure test**
+
+    - **Trigger**: the agent is about to finalize a plan, architecture decision, or skill draft.
+    - **Workflow**.
+
+        - frame the artifact
+        - apply 4 combined pressures
+
+            - time
+            - sunk cost
+            - authority
+            - scope creep
+
+        - surface rationalizations with rebuttals
+        - produce a verdict
+
+            - `SURVIVES`
+            - `SURVIVES_WITH_PATCHES`
+            - `RETHINK`
+
+        - log the result to memory
+
+    - **Why**: it generalizes Superpowers' adversarial skill testing.
+    - **Key insight**: combined pressures expose fragility better than isolated pressures.
+    - **Companion files**.
+
+        - `pressure-catalog.md`
+        - `rationalization-library.md`
+
+- **5. Dispatch**
+
+    - **Trigger**: the agent identifies 2 or more independent work units with no shared mutable state.
+    - **Workflow**.
+
+        - decompose and verify independence
+        - calibrate subagent prompts
+
+            - task
+            - skills
+            - acceptance criteria
+            - `SUBAGENT-STOP`
+            - model recommendation
+
+        - define a reconciliation plan
+        - execute
+        - reconcile and verify
+
+    - **Why**.
+
+        - it is the owner's second priority.
+        - it unlocks parallel execution with structural safeguards.
+
+    - **Companion files**.
+
+        - `independence-checklist.md`
+        - `model-dispatch-guide.md`
+        - `reconciliation-patterns.md`
+
+- **6. Distill**
+
+    - **Trigger**: the session ends after solving a non-trivial problem with a repeatable approach.
+    - **Workflow**.
+
+        - identify the candidate pattern
+        - triage against the skill index
+
+            - `USE_EXISTING`
+            - `IMPROVE_EXISTING`
+            - `CREATE_NEW`
+
+        - draft `SKILL.md` from the template
+        - pressure-test the draft
+        - store it as a candidate for human review
+
+    - **Why**: it is the meta-skill for Bureau self-improvement.
+    - **Dependency**: it depends on pressure test and governance.
+    - **Companion files**.
+
+        - `skill-template.md`
+        - `triage-decision-tree.md`
+
+- **7. Schema evolution**
+
+    - **Trigger**: the agent is about to modify a schema or contract.
+    - **Typical surfaces**.
+
+        - database schema
+        - API contract
+        - config format
+        - data model
+
+    - **Workflow**.
+
+        - map the blast radius across all consumers
+        - classify the change
+
+            - `ADDITIVE`
+            - `TRANSFORM`
+            - `DESTRUCTIVE`
+
+        - design a multi-phase migration path
+        - generate safety artifacts
+
+            - migration
+            - rollback
+            - integrity check
+
+        - execute with verification gates between phases
+
+    - **Why**: it cleared the self-invocation bar in role evaluation.
+    - **Failure mode addressed**: unsafe single-phase migrations.
+    - **Guardrail**: force `expand` / `migrate` / `contract`.
+    - **Companion files**.
+
+        - `migration-patterns.md`
+        - `rollback-checklist.md`
+
+- **8. Incident response**
+
+    - **Trigger**: a production incident or cascading failure occurs.
+    - **Workflow**.
+
+        - stabilize first
+        - confirm the system is stable before investigation
+        - reconstruct the timeline
+
+            - `FACT`
+            - `INFERENCE`
+
+        - isolate the root cause with `5 Whys`
+        - check rationalizations during root-cause analysis
+        - propose remediation
+
+            - immediate
+            - systemic
+
+        - draft a blameless postmortem
+
+    - **Why**: it cleared the role evaluation bar.
+    - **Critical differentiator**: the stabilize-first gate.
+    - **Failure mode addressed**: investigating while the system is still burning.
+    - **Companion files**.
+
+        - `stabilization-playbook.md`
+        - `postmortem-template.md`
+
+## Skill lifecycle meta-system
 
 ### Creation pipeline
 
-1. **Triage** (`triage_skill_request.py`): keyword-based duplicate detection against `skill-index.json`. Routes to USE_EXISTING, IMPROVE_EXISTING, CREATE_NEW, COMPOSE, or CLARIFY.
-2. **Scaffold** (`scaffold_skill.py`): generates directory with SKILL.md (from template), `skill.meta.json`, `TRAINING.json`, `CHANGELOG.md`.
-3. **RED-GREEN-REFACTOR**: TDD for skills. RED = observe agent failure without skill. GREEN = minimal skill addressing failures. REFACTOR = pressure test with multi-pressure scenarios, plug rationalization loopholes. Loop until no new rationalizations emerge (Superpowers needed 6 iterations for TDD).
+- **1. Triage**
+
+    - Run `triage_skill_request.py`.
+    - Do keyword-based duplicate detection against `skill-index.json`.
+    - Route to 1 of 5 outcomes.
+
+        - `USE_EXISTING`
+        - `IMPROVE_EXISTING`
+        - `CREATE_NEW`
+        - `COMPOSE`
+        - `CLARIFY`
+
+- **2. Scaffold**
+
+    - Run `scaffold_skill.py`.
+    - Generate the skill directory.
+
+        - `SKILL.md` from the template
+        - `skill.meta.json`
+        - `TRAINING.json`
+        - `CHANGELOG.md`
+
+- **3. RED-GREEN-REFACTOR**
+
+    - Use TDD for skills.
+    - **`RED`**: observe agent failure without the skill.
+    - **`GREEN`**: add the minimal skill that addresses the failure.
+    - **`REFACTOR`**: pressure-test with multi-pressure scenarios.
+    - Continue until no new rationalizations emerge.
+    - **Evidence point**: Superpowers needed 6 iterations for TDD.
 
 ### Quality measurement
 
-- `TRAINING.json` per skill: categorized test cases (basic-compliance, adversarial-pressure, rationalization-resistance, edge-case, regression).
-- Three grader types: code-based (structural checks), LLM-as-judge (behavioral assessment), human review (promotion gates).
-- promptfoo integration: `generate_promptfoo_config.py` → `run_skill_evals.sh` → `check_regression.py` with **category-level tracking** (never overall averages).
-- CI gating: PRs modifying skills must pass eval suite.
+- **`TRAINING.json` per skill**.
+
+    - categorized test cases
+
+        - `basic-compliance`
+        - `adversarial-pressure`
+        - `rationalization-resistance`
+        - `edge-case`
+        - `regression`
+
+- **Three grader types**.
+
+    - code-based structural checks
+    - LLM-as-judge behavioral assessment
+    - human review for promotion gates
+
+- **`promptfoo` integration**.
+
+    - `generate_promptfoo_config.py`
+    - `run_skill_evals.sh`
+    - `check_regression.py`
+
+- **Tracking rules**.
+
+    - use category-level tracking only
+    - never use overall averages
+
+- **CI gate**: skill-modifying PRs must pass the eval suite.
 
 ### Self-improvement loop
 
-**Observe** (automated): `extract_improvement_candidates.py` mines Qdrant/dossiers/claude-mem for skill-relevant patterns (failures despite following skill, uncovered rationalizations, skipped phases).
+- **Observe**
 
-**Propose** (human + LLM): Review candidates, add failing test cases (RED), draft skill modification (GREEN), pressure test (REFACTOR). Reflexion mode for drafting (max 3 iterations).
+    - Run `extract_improvement_candidates.py`.
+    - Mine Qdrant, dossiers, and claude-mem for skill-relevant patterns.
+    - Look for:
 
-**Eval** (automated): Run skill evals, verify no category-level regression.
+        - failures despite following the skill
+        - uncovered rationalizations
+        - skipped phases
 
-**Approve** (human): Git diff review, explicit sign-off.
+- **Propose**
 
-**Deploy** (automated): Commit, PR, merge. `set-up-skills.sh` propagates via symlinks.
+    - Review candidates.
+    - Add failing test cases for `RED`.
+    - Draft the skill modification for `GREEN`.
+    - Pressure-test the change for `REFACTOR`.
+    - Use Reflexion mode for drafting.
+    - Cap Reflexion at 3 iterations.
 
-**Cadence**: Monthly, or when 5+ candidates accumulate for a single skill.
+- **Eval**
+
+    - Run skill evals.
+    - Verify no category-level regression.
+
+- **Approve**
+
+    - Review the Git diff.
+    - Require explicit human sign-off.
+
+- **Deploy**
+
+    - commit
+    - PR
+    - merge
+    - propagate through `set-up-skills.sh`
+
+- **Cadence**
+
+    - monthly
+    - earlier if 5 or more candidates accumulate for one skill
 
 ### Versioning and safety
 
-- Semver in `skill.meta.json`: PATCH (no behavior change), MINOR (new rationalizations/red flags, requires eval), MAJOR (workflow restructure, requires full eval + human review).
-- Git-based: skills are text files in the repo. `git revert` for rollback.
-- `IMMUTABLE` section markers: safety-critical content that cannot be modified during improvement. CI lint enforces.
-- Rollback triggers: post-deploy regression, operator report, zero invocations for 30 days post-major-bump.
+- **Semver in `skill.meta.json`**.
+
+    - `PATCH`: no behavior change
+    - `MINOR`: new rationalizations or red flags and requires eval
+    - `MAJOR`: workflow restructure and requires full eval plus human review
+
+- **Rollback model**.
+
+    - use Git-based rollback
+    - use `git revert` for recovery
+
+- **Safety controls**.
+
+    - `IMMUTABLE` section markers for safety-critical content
+    - CI lint enforcement
+
+- **Rollback triggers**.
+
+    - post-deploy regression
+    - operator report
+    - zero invocations for 30 days after a major bump
 
 ### Skill discovery
 
-- Progressive disclosure (existing): metadata at startup, full load on activation.
-- Keyword indexing (starting point): `skill-index.json` with keyword/domain matching.
-- Activation modes per skill: `auto` (exact trigger match), `suggest` (above keyword threshold), `manual` (below threshold).
-- Future: embedding-based retrieval via Qdrant when skill count exceeds 20.
+- **Current mode**: progressive disclosure.
+
+    - load metadata at startup
+    - load full content on activation
+
+- **Starting point**: keyword indexing.
+
+    - `skill-index.json`
+    - keyword matching
+    - domain matching
+
+- **Activation modes per skill**.
+
+    - `auto`: exact trigger match
+    - `suggest`: above keyword threshold
+    - `manual`: below threshold
+
+- **Future step**: add embedding-based retrieval via Qdrant when skill count exceeds 20.
 
 ### Skill retirement
 
-- **Triggers**: declining quality scores, zero invocations for 60 days, model capability surpassing the skill (quarterly review running TRAINING.json without skill).
-- **Process**: deprecate (1 month, move to `disabled`) → archive (move to `_archived/`) → delete (3 months later, git preserves history).
+- **Retirement triggers**.
+
+    - declining quality scores
+    - zero invocations for 60 days
+    - model capability surpassing the skill
+
+- **Quarterly review input**: run `TRAINING.json` without the skill.
+- **Retirement process**.
+
+    - deprecate for 1 month and move to `disabled`
+    - archive by moving to `_archived/`
+    - delete after 3 more months
+    - rely on Git for long-term history
 
 ### Implementation roadmap
 
-| Phase | Weeks | What |
-|-------|-------|------|
-| 1. Foundation | 1-2 | `skill.meta.json` sidecars, `generate-skill-index.py`, `scaffold_skill.py` with template |
-| 2. Quality measurement | 3-4 | `TRAINING.json` format, golden test cases for pilot skill, promptfoo integration, regression gates |
-| 3. Triage and governance | 5-6 | `triage_skill_request.py`, `lint_immutable.py`, convert first 2-3 role prompts via RED-GREEN-REFACTOR |
-| 4. Improvement loop | 7-8 | `extract_improvement_candidates.py`, `CANDIDATES.md` sidecar, first refinement cycle |
-| 5. Scale | ongoing | Convert remaining roles, first quarterly review, evaluate embedding retrieval |
+- **Phase 1: Foundation**
+
+    - **Weeks**: `1-2`
+    - **Work**.
+
+        - `skill.meta.json` sidecars
+        - `generate-skill-index.py`
+        - `scaffold_skill.py` with the template
+
+- **Phase 2: Quality measurement**
+
+    - **Weeks**: `3-4`
+    - **Work**.
+
+        - `TRAINING.json` format
+        - golden test cases for the pilot skill
+        - `promptfoo` integration
+        - regression gates
+
+- **Phase 3: Triage and governance**
+
+    - **Weeks**: `5-6`
+    - **Work**.
+
+        - `triage_skill_request.py`
+        - `lint_immutable.py`
+        - convert the first 2-3 role prompts with `RED-GREEN-REFACTOR`
+
+- **Phase 4: Improvement loop**
+
+    - **Weeks**: `7-8`
+    - **Work**.
+
+        - `extract_improvement_candidates.py`
+        - `CANDIDATES.md` sidecar
+        - first refinement cycle
+
+- **Phase 5: Scale**
+
+    - **Weeks**: ongoing
+    - **Work**.
+
+        - convert the remaining roles
+        - run the first quarterly review
+        - evaluate embedding retrieval
 
 ### Deferred capabilities
 
-| Capability | Trigger to revisit |
-|------------|-------------------|
-| Embedding-based retrieval | Skill count > 20 or keyword recall < 70% |
-| DSPy prompt compilation | 50+ golden test cases accumulated |
-| Autonomous session extraction | Curation infrastructure mature and battle-tested |
-| A/B testing skill variants | Any skill > 100 invocations/month |
-| MCP Skills primitive | MCP publishes specification |
+- **Embedding-based retrieval**
+
+    - revisit when skill count exceeds 20
+    - revisit when keyword recall drops below 70 percent
+
+- **DSPy prompt compilation**
+
+    - revisit when 50 or more golden test cases accumulate
+
+- **Autonomous session extraction**
+
+    - revisit when curation infrastructure is mature and battle-tested
+
+- **A/B testing skill variants**
+
+    - revisit when any skill exceeds 100 invocations per month
+
+- **MCP Skills primitive**
+
+    - revisit when MCP publishes a specification

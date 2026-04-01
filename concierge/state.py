@@ -12,6 +12,7 @@ import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -40,7 +41,7 @@ def _str_to_datetime(val: str | None) -> datetime | None:
     return datetime.fromisoformat(val)
 
 
-def _session_state_to_dict(state: SessionState) -> dict:
+def _session_state_to_dict(state: SessionState) -> dict[str, Any]:
     """Convert a :class:`SessionState` to a plain dict suitable for YAML."""
     return {
         "current_suite": _enum_to_str(state.current_suite),
@@ -55,7 +56,7 @@ def _session_state_to_dict(state: SessionState) -> dict:
     }
 
 
-def _dict_to_session_state(data: dict) -> SessionState:
+def _dict_to_session_state(data: dict[str, Any]) -> SessionState:
     """Reconstruct a :class:`SessionState` from a plain dict."""
     return SessionState(
         current_suite=(

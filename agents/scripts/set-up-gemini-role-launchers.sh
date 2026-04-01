@@ -12,7 +12,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
-CLINK_ROLES_DIR="$AGENTS_DIR/role-prompts"
+ROLES_DIR="$AGENTS_DIR/role-prompts"
 
 # Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
@@ -23,13 +23,13 @@ source "$REPO_ROOT/bin/lib/roles-setup.sh"
 discover_agents
 
 log_success "Role launcher setup for Gemini"
-echo -e "Source: $CLINK_ROLES_DIR"
+echo -e "Source: $ROLES_DIR"
 echo -e "Target: $HOME/.local/bin"
 echo ""
 
 # Check if source directory exists
-if [[ ! -d "$CLINK_ROLES_DIR" ]]; then
-    log_error "Cannot find role-prompts directory at: $CLINK_ROLES_DIR"
+if [[ ! -d "$ROLES_DIR" ]]; then
+    log_error "Cannot find role-prompts directory at: $ROLES_DIR"
     exit 1
 fi
 
@@ -46,7 +46,7 @@ fi
 process_gemini_launcher() {
     local role_name="$1"
     local target_dir="$2"
-    local role_file="$CLINK_ROLES_DIR/${role_name}.md"
+    local role_file="$ROLES_DIR/${role_name}.md"
 
     # Skip if file doesn't exist
     if [[ ! -f "$role_file" ]]; then

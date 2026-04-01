@@ -17,9 +17,9 @@ Bureau uses a YAML-based configuration system with a four-tier hierarchy that al
   - [`mcp`](#mcp)
   - [`skills`](#skills)
   - [`code_standards`](#code_standards)
+  - [`output_style`](#output_style)
   - [`assess_mode`](#assess_mode)
   - [`roles`](#roles)
-  - [`pal`](#pal)
   - [`retention_period_for`](#retention_period_for)
   - [`cleanup`](#cleanup)
   - [`trash`](#trash)
@@ -37,10 +37,9 @@ Bureau uses a YAML-based configuration system with a four-tier hierarchy that al
   - [Change MCP ports to avoid conflicts](#change-mcp-ports-to-avoid-conflicts)
   - [Customize installed skills](#customize-installed-skills)
   - [Provide custom coding standards](#provide-custom-coding-standards)
+  - [Provide a custom output style](#provide-a-custom-output-style)
   - [Configure the assess mode skill](#configure-the-assess-mode-skill)
 - [Agent context files](#agent-context-files)
-- [Security note for subagents spawned via PAL MCP's `clink`](#security-note-for-subagents-spawned-via-pal-mcps-clink)
-  - [Solutions](#solutions)
 - [Related commands](#related-commands)
 
 
@@ -308,7 +307,10 @@ Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Serve
   - `clients.default` (Client, optional but strongly recommended): Used by all CLIs unless a CLI override exists.
   - `clients.<cli>` (Client, optional): Overrides for `claude`, `gemini`, `codex`, `opencode`.
   - `clients.disabled_for` (`list<string>`, optional): Agent names to exclude from this server. Values should match entries in the top-level `agents` list. When listed, the agent does not receive this server, even if a `clients.<cli>` override exists.
-- `settings` (`map<string, any>`, optional): Server-level settings (e.g. PAL disabled tools). Pass‑through; the renderer should not drop unknown keys.
+- `npm_runtime` (object, optional): Opts a Node-based stdio MCP into Bureau's shared local npm runtime.
+  - `packages` (`list<string>`, required when present): npm package specs installed into `${path_to.mcp_clones}/npm-tools` during setup.
+  - `binaries` (`list<string>`, required when present): executable names expected under `node_modules/.bin`; missing binaries trigger a repair install during setup.
+- `settings` (`map<string, any>`, optional): Server-level settings. Pass‑through; the renderer should not drop unknown keys.
 - `storage_path` (string, optional): Server‑specific storage (used by cleanup, e.g. Memory MCP).
 
 **Client** — each entry in `mcp.client_configs.<server_id>.clients.<client_id>`:
@@ -327,6 +329,9 @@ Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Serve
 > [!NOTE]
 > Codex HTTP does not support custom headers; use `clients.codex` with `stdio` for servers requiring headers (e.g. Context7).
 
+> [!NOTE]
+> `npm_runtime` is setup metadata only. CLIs still receive the resolved `clients.*.command` array, which should point at the shared local binaries under `${path_to.mcp_clones}/npm-tools/node_modules/.bin/...` rather than `npx`.
+
 ### `skills`
 
 
@@ -338,25 +343,24 @@ skills:
   disabled: []
   sources:
     - path: protocols/context/static/skills
-      prefix: bureau-
 ```
 
 **Fields:**
-- `enabled`: `all` or a list of skill directory names (without prefix) to include.
+- `enabled`: `all` or a list of canonical skill directory names to include.
 - `disabled`: list of skill directory names to exclude.
 - `sources`: list of directories to scan for skills.
   - `path`: absolute path or repo‑relative path.
-  - `prefix`: prefix applied to installed skill names (e.g. `bureau-`).
 
 > [!CAUTION]
-> - `protocols/scripts/set-up-skills.sh` removes **all** existing skills with the `bureau-` prefix from each CLI's skills directory before reinstalling. 
-> - **Avoid naming your own custom skills `bureau-*`** unless you expect them to be wiped during setup.
+> - `protocols/scripts/set-up-skills.sh` removes Bureau-owned skill symlinks before reinstalling.
+> - Legacy `bureau-*` installs are also cleaned up during migration.
+> - If a canonical skill path already exists as foreign content, setup warns and skips it instead of overwriting it.
 
 ### `code_standards`
 
 **Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
 
-List of markdown documents that describe coding standards, style preferences, and design principles. Used by the `bureau-assess-mode` skill during the quality-audit phase to check code against your documented standards.
+List of markdown documents that describe coding standards, style preferences, and design principles. Used by the `assess-mode` skill during the quality-audit phase to check code against your documented standards.
 
 **Resolution order (for assess mode):**
 1. `code_standards` config key is set → use those files
@@ -387,11 +391,44 @@ code_standards:
 > [!NOTE]
 > If no coding standards are found (no config key, no `code-standards.md` in protocols dir), agents skip the coding standards must-read at startup, and the assess mode skill limits its quality audit to internal consistency checks (DRYness, algorithmic efficiency, codebase pattern adherence).
 
+### `output_style`
+
+**Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
+
+List of markdown documents that define Bureau's always-on session output style. Bureau resolves these files in order, compiles them into `~/.config/bureau/protocols/output-style.md`, and then applies the resulting runtime artifact through each CLI's native or emulated integration path.
+
+```yaml
+output_style:
+  - protocols/context/static/ops/output-style.md
+```
+
+Bureau ships with a default seed file at `protocols/context/static/ops/output-style.md`. On setup, Bureau compiles the configured sources into `~/.config/bureau/protocols/output-style.md`.
+
+**Overriding:** Set `output_style` in `local.yml` to point to your own files. Bureau concatenates the files in list order and treats the result as the session-level style artifact.
+
+```yaml
+# local.yml — override with custom output style sources
+output_style:
+  - ~/my-team/voice.md
+  - ~/my-team/response-formatting.md
+```
+
+**Path resolution:**
+- Paths starting with `~` → expanded to `$HOME`
+- Absolute paths (starting with `/`) → used as-is
+- Relative paths → resolved from the Bureau repository root
+
+**Runtime behavior:**
+- Claude Code: Bureau installs a native Claude output style and selects it in `~/.claude/settings.json`
+- Codex and Gemini: generated `AGENTS.md` loads `output-style.md` and `ops-hub.md` at session start
+- OpenCode: generated config includes `output-style.md` and `ops-hub.md` in its `instructions`
+- Changes take effect on a new session after re-running `bin/open-bureau`
+
 ### `assess_mode`
 
 **Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
 
-Runtime configuration for the [`bureau-assess-mode` skill](../protocols/context/static/skills/assess-mode/SKILL.md). These values are read by the skill at activation time to determine what to review. Standards for audit are configured via the top-level [`code_standards`](#code_standards) setting.
+Runtime configuration for the [`assess-mode` skill](../protocols/context/static/skills/assess-mode/SKILL.md). These values are read by the skill at activation time to determine what to review. Standards for audit are configured via the top-level [`code_standards`](#code_standards) setting.
 
 ```yaml
 assess_mode:
@@ -407,7 +444,7 @@ assess_mode:
 
 **Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
 
-Controls which agent roles are available when launching CLIs **directly** through their native features (slash commands for Claude Code, launcher scripts for Codex/Gemini, auto-discovery for OpenCode). This is **separate from** PAL's `clink` tool cross-CLI delegation, which is configured via [`pal.base-roles`](#palbase-roles).
+Controls which agent roles are available when launching CLIs **directly** through their native features (slash commands for Claude Code, launcher scripts for Codex/Gemini, auto-discovery for OpenCode).
 
 ```yaml
 roles:
@@ -452,15 +489,6 @@ The default configuration enables 6 core agent roles, excluding all others:
 - `testing` - Test infrastructure and quality engineering
 - `migration-refactoring` - Large-scale refactoring strategist
 
-**Distinction from PAL configuration:**
-
-| Setting | Scope | Purpose |
-|:--------|:------|:--------|
-| `roles` | **Native CLI usage** | Controls slash commands, launchers, auto-discovery |
-| `pal.base-roles` | **PAL's `clink` tool** | Controls cross-CLI subagent delegation |
-
-These are independent: you can have all agents available for PAL's `clink` while restricting native CLI usage to a smaller set, or vice versa.
-
 **Example: Enable all agents for native usage**
 
 ```yaml
@@ -495,56 +523,6 @@ roles:
 
 > [!NOTE]
 > After modifying `roles` configuration, run `./bin/open-bureau` to regenerate slash commands, launchers, and symlinks. For Claude Code, the changes take effect immediately (run `/help` to see updated list). For Codex/Gemini launchers, you may need to restart your shell or run `hash -r` to refresh the command cache.
-
-### `pal`
-
-**File:** `defaults.yml`
-
-Configures the PAL MCP server's `clink` tool, which spawns subagents across different coding CLIs (Claude, Codex, Gemini). These settings control which models are used and which role prompts are available.
-
-#### `pal.base-roles`
-
-Baseline set of role prompts made available to ALL coding CLIs.
-
-```yaml
-pal:
-  base-roles: all    # options: "all", "none", or list of role names
-```
-
-**Values** *(these also apply to `extra-roles` below)*:
-- `all` - All discovered roles from `agents/role-prompts/`
-- `none` - No roles (except the default role)
-- `[list]` - Explicit list of role names corresponding to filestems in `agents/role-prompts/` (e.g., `[architect, debugger]`)
-
-#### Per-CLI settings (`pal.<claude|codex|gemini>`)
-
-Each CLI has its own configuration block with model and role settings.
-
-The options (with their default values) are shown below:
-
-**Claude:**
-```yaml
-pal:
-  claude:
-    model: sonnet      # Any valid Claude model
-    extra-roles: none  # Extra roles beyond base-roles to include for Claude
-```
-
-**Codex:**
-```yaml
-pal:
-  codex:
-    model: gpt-5.2-codex   # Any valid Codex model
-    effort: medium         # Options: minimal, low, medium, high, xhigh
-    extra-roles: none      # Extra roles beyond base-roles to include for Codex
-```
-
-**Gemini:**
-```yaml
-pal:
-  gemini:
-    extra-roles: none  # Extra roles beyond base-roles to include for Gemini
-```
 
 ### `retention_period_for`
 
@@ -617,6 +595,21 @@ startup_timeout_for:
 
 Increase these values on slower machines.
 
+### Concierge Telegram bot
+
+**File:** `concierge/config/defaults/pipeline.yml`
+
+The Telegram bot reads its configuration from the `telegram` section of the pipeline config:
+
+```yaml
+telegram:
+  polling_timeout: 30        # seconds between long-poll requests
+  typing_indicator: true     # send "typing..." while processing
+  max_response_length: 4096  # Telegram message limit
+```
+
+The bot token is **always** loaded from the `BUREAU_TELEGRAM_TOKEN` environment variable and is never stored in config files. See [SETUP.md](SETUP.md#telegram-bot-setup-optional) for full setup instructions.
+
 ### `path_to`
 
 **File:** `defaults.yml`
@@ -658,6 +651,8 @@ Some configuration values can be overridden via environment variables:
 | Environment Variable | Overrides | Description |
 |:---------------------|:----------|:------------|
 | `BUREAU_WORKSPACE` | `path_to.serena_memories_root` | Root for scanning Serena memory files |
+| `BUREAU_TELEGRAM_TOKEN` | — | Telegram bot token (required to start the Concierge bot; never stored in config files) |
+| `BUREAU_TELEGRAM_USER_ID` | — | Telegram user ID (fallback when no wizard config exists) |
 
 ### API keys and placeholder expansion
 
@@ -792,7 +787,6 @@ skills:
     - shadow-mode
   sources:
     - path: protocols/context/static/skills
-      prefix: bureau-
 ```
 
 ### Provide custom coding standards
@@ -802,6 +796,15 @@ skills:
 code_standards:
   - ~/my-team/style-guide.md
   - ~/my-team/design-principles.md
+```
+
+### Provide a custom output style
+
+```yaml
+# local.yml
+output_style:
+  - ~/my-team/voice.md
+  - ~/my-team/response-formatting.md
 ```
 
 ### Configure the assess mode skill
@@ -816,21 +819,26 @@ assess_mode:
 
 **Location:** `~/.config/bureau/protocols/`
 
-Bureau maintains a user-scoped directory of agent context files that are read at the start of every conversation. On first run, Bureau copies three default files into this directory:
+Bureau maintains a user-scoped directory of agent context files that are read at the start of every conversation. On first run, Bureau copies default files into this directory using a hub-and-spoke architecture:
 
 | File | Purpose |
 |:-----|:--------|
-| `tools-guide.md` | Quick reference for MCP tool selection |
-| `handoff-guide.md` | Delegation strategies and model selection |
-| `code-standards.md` | Coding standards for writing and reviewing code |
+| `output-style.md` | Compiled session-level output style used by all supported CLIs |
+| `ops-hub.md` | Routing table pointing to task-specific context (the hub) |
+| `ops/session-start.md` | Memory retrieval, factual accuracy protocol |
+| `ops/task-assessment.md` | Delegation mechanisms, headless CLI invocation |
+| `ops/task-execution.md` | Tool selection, memory storage, limits |
+| `ops/task-completion.md` | Approval gates, conversation handoff |
+| `ops/code-standards.md` | Coding standards for writing and reviewing code |
 
 **How it works:**
 - Setup (`bin/open-bureau`) copies defaults to `~/.config/bureau/protocols/` only if the directory doesn't exist or is empty
-- **All** `.md` files in this directory are included as must-read entries in the generated agent context
-- You can add, edit, or remove files freely — changes take effect on next `bin/open-bureau` run
+- Setup compiles the configured `output_style` sources into `~/.config/bureau/protocols/output-style.md`
+- Codex and Gemini load `output-style.md` and `ops-hub.md` at session start; Claude uses the compiled file to install a native output style; OpenCode includes both files in its generated `instructions`
+- You can edit the deployed protocols files directly, but generated artifacts like `output-style.md` will be regenerated on the next `bin/open-bureau` run
 
 > [!WARNING]
-> If you customize Bureau's MCP catalog (add, remove, or reconfigure tools), the default `tools-guide.md` may no longer accurately reflect your setup. **You are responsible for updating or replacing protocols files in `~/.config/bureau/protocols/` to match your configuration.** Run `bin/reset-protocols` to restore defaults at any time.
+> If you customize Bureau's MCP catalog (add, remove, or reconfigure tools), the default spoke files (particularly `ops/task-execution.md`) may no longer accurately reflect your setup. **You are responsible for updating or replacing protocols files in `~/.config/bureau/protocols/` to match your configuration.** Run `bin/reset-protocols` to restore defaults at any time.
 
 **Adding a custom context file:**
 ```bash
@@ -845,27 +853,6 @@ bin/reset-protocols --force  # Non-interactive (overwrites without prompting)
 ```
 
 
-## Security note for subagents spawned via PAL MCP's `clink`
-
-When you delegate tasks via `clink`, the spawned CLI (Claude, Codex, or Gemini) runs with flags that bypass interactive approvals:
-
-| CLI    | Flag                                         | Effect                        |
-|:-------|:---------------------------------------------|:------------------------------|
-| Claude | `--permission-mode acceptEdits`              | Auto-accepts file edits       |
-| Codex  | `--dangerously-bypass-approvals-and-sandbox` | Bypasses all safety checks    |
-| Gemini | `--yolo`                                     | Permissive mode (auto-approve)|
-
-**This is intentional:** 
-
-- Subagents are spawned programmatically (whether autonomously or via explicit prompting) by a parent agent that already has your trust. 
-- Requiring interactive approval for each subagent action would break the automation flow: the whole point of delegation is autonomous execution.
-
-### Solutions
-
-Stash/commit changes before delegating complex tasks. If you need stronger isolation, direct agents to run `clink`-spawned agents in worktrees with fresh branches, merging the subsequent changes only if they're approved by you.
-
-Also, don't delegate commands you wouldn't run yourself; the parent agent's judgment is only as strong as yours.
-
 ## Related commands
 
 | Command | Description |
@@ -876,3 +863,4 @@ Also, don't delegate commands you wouldn't run yourself; the parent agent's judg
 | `./bin/bureau-wipe <storage>` | Wipe a storage backend |
 | `./bin/ensure-prereqs` | Verify prerequisites are installed |
 | `./bin/reset-protocols` | Restore agent protocols files to defaults |
+| `./bin/start-concierge-bot` | Start the Concierge Telegram bot |

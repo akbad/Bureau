@@ -5,8 +5,8 @@
 # - Handles all Bureau-supported coding agents using the following user-scoped skills dirs:
 #     - Claude Code:  ~/.claude/skills/
 #     - OpenCode:     ~/.config/opencode/skill/
-#     - Gemini CLI:   ~/.gemini/skills/
 #     - Codex:        ~/.agents/skills/
+#     - Gemini CLI:   ~/.agents/skills/  (shared with Codex)
 #
 # Args:
 #    --dry-run      Show what would be done without making changes
@@ -28,10 +28,9 @@ SKILLS_CONFIG_GENERATOR="$REPO_ROOT/protocols/scripts/generate-skills-config.py"
 # Skill directory locations for each CLI
 CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
 OPENCODE_SKILLS_DIR="$HOME/.config/opencode/skill"
-CODEX_SKILLS_DIR="$HOME/.agents/skills"
+CODEX_GEMINI_SKILLS_DIR="$HOME/.agents/skills"
 LEGACY_CODEX_SKILLS_DIR="$HOME/.codex/skills"
-GEMINI_SKILLS_DIR="$HOME/.gemini/skills"
-BUREAU_SKILL_PREFIX="bureau-"
+LEGACY_BUREAU_SKILL_PREFIX="bureau-"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -65,19 +64,35 @@ ensure_dir() {
     fi
 }
 
+is_bureau_skill_symlink() {
+    local entry=$1
+    local target
+    local source_root
+
+    if [[ ! -L "$entry" ]]; then
+        return 1
+    fi
+
+    target="$(readlink "$entry")"
+    for source_root in "${SKILL_SOURCE_ROOTS[@]}"; do
+        if [[ "$target" == "$source_root"/* ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 set_up_bureau_skill_dirs() {
     local skill_conf_dir=$1
     ensure_dir "$skill_conf_dir"
-    
+
     for ((i = 0; i < ${#SKILL_SOURCE_DIRS[@]}; i++)); do
         local skill_name
-        local skill_install_subdir  # install path relative to the CLI's skill config dir
-        local skill_install_dir     # full install path
-        local skill_prefix
+        local skill_install_dir
         local skill_source_dir
 
         skill_name="${SKILL_NAMES[$i]}"
-        skill_prefix="${SKILL_PREFIXES[$i]}"
         skill_source_dir="${SKILL_SOURCE_DIRS[$i]}"
 
         if [[ ! -d "$skill_source_dir" ]]; then
@@ -85,11 +100,21 @@ set_up_bureau_skill_dirs() {
             continue
         fi
 
-        skill_install_subdir="${skill_prefix}${skill_name}"
-        skill_install_dir="$skill_conf_dir/$skill_install_subdir"
+        skill_install_dir="$skill_conf_dir/$skill_name"
 
         if [[ $DRY_RUN == true ]]; then
             log_action "Would link from:" "$skill_install_dir"
+            continue
+        fi
+
+        # skip foreign content instead of clobbering unprefixed skill names
+        if [[ -e "$skill_install_dir" && ! -L "$skill_install_dir" ]]; then
+            log_warning "Skipped conflicting non-symlink path: $skill_install_dir"
+            continue
+        fi
+
+        if [[ -L "$skill_install_dir" ]] && ! is_bureau_skill_symlink "$skill_install_dir"; then
+            log_warning "Skipped conflicting foreign symlink: $skill_install_dir"
             continue
         fi
 
@@ -98,33 +123,48 @@ set_up_bureau_skill_dirs() {
     done
 }
 
-remove_bureau_skill_dirs() {
+remove_legacy_bureau_skill_dirs() {
     local skill_conf_dir=$1
+    local entry
 
     if [[ ! -d "$skill_conf_dir" ]]; then
         return
     fi
 
-    for entry in "$skill_conf_dir"/${BUREAU_SKILL_PREFIX}*; do
+    for entry in "$skill_conf_dir"/${LEGACY_BUREAU_SKILL_PREFIX}*; do
         if [[ ! -e "$entry" ]]; then
             continue
         fi
 
-        if [[ -L "$entry" ]]; then
-            if [[ "$DRY_RUN" == true ]]; then
-                log_action "Would remove:" "$entry"
-            else
-                rm -f "$entry"
-                log_success "Removed: $entry"
-            fi
-        elif [[ -d "$entry" ]]; then
-            if [[ "$DRY_RUN" == true ]]; then
-                log_action "Would remove:" "$entry/"
-            else
-                rm -rf "$entry"
-                log_success "Removed: $entry/"
-            fi
-        elif [[ -e "$entry" ]]; then
+        if [[ "$DRY_RUN" == true ]]; then
+            log_action "Would remove:" "$entry"
+        else
+            rm -rf "$entry"
+            log_success "Removed: $entry"
+        fi
+    done
+}
+
+remove_bureau_skill_dirs() {
+    local skill_conf_dir=$1
+    local entry
+
+    if [[ ! -d "$skill_conf_dir" ]]; then
+        return
+    fi
+
+    # remove only symlinks Bureau owns; legacy bureau-* names are cleaned
+    #   separately to avoid deleting foreign content at canonical names
+    for entry in "$skill_conf_dir"/*; do
+        if [[ ! -e "$entry" && ! -L "$entry" ]]; then
+            continue
+        fi
+
+        if [[ "$(basename "$entry")" == ${LEGACY_BUREAU_SKILL_PREFIX}* ]]; then
+            continue
+        fi
+
+        if is_bureau_skill_symlink "$entry"; then
             if [[ "$DRY_RUN" == true ]]; then
                 log_action "Would remove:" "$entry"
             else
@@ -133,6 +173,8 @@ remove_bureau_skill_dirs() {
             fi
         fi
     done
+
+    remove_legacy_bureau_skill_dirs "$skill_conf_dir"
 }
 
 # Ensure jq is available
@@ -153,17 +195,23 @@ if [[ ! -f "$SKILLS_CONFIG_PATH" ]]; then
 fi
 
 SKILL_NAMES=()
-SKILL_PREFIXES=()
 SKILL_SOURCE_DIRS=()
+SKILL_SOURCE_ROOTS=()
 
-while IFS=$'\t' read -r name prefix source_path; do
+while IFS=$'\t' read -r name source_path; do
     if [[ -z "$name" || -z "$source_path" ]]; then
         continue
     fi
     SKILL_NAMES+=("$name")
-    SKILL_PREFIXES+=("$prefix")
     SKILL_SOURCE_DIRS+=("$source_path")
-done < <(jq -r '.skills[] | [.name, .prefix, .source_path] | @tsv' "$SKILLS_CONFIG_PATH")
+done < <(jq -r '.skills[] | [.name, .source_path] | @tsv' "$SKILLS_CONFIG_PATH")
+
+while IFS= read -r source_root; do
+    if [[ -z "$source_root" ]]; then
+        continue
+    fi
+    SKILL_SOURCE_ROOTS+=("$source_root")
+done < <(jq -r '.source_roots[]?' "$SKILLS_CONFIG_PATH")
 
 if [[ ${#SKILL_NAMES[@]} -eq 0 ]]; then
     log_error "No skills found in $SKILLS_CONFIG_PATH"
@@ -181,16 +229,13 @@ if [[ "$DRY_RUN" == true ]]; then
     log_empty_line
 fi
 
-log_warning "Removing existing Bureau skill installs..."
+log_warning "Removing existing Bureau-owned skill installs..."
 log_empty_line
 
-# Always remove Bureau-prefixed skills to keep installs consistent 
-#   and avoid stale entries
 remove_bureau_skill_dirs "$CLAUDE_SKILLS_DIR"
 remove_bureau_skill_dirs "$OPENCODE_SKILLS_DIR"
-remove_bureau_skill_dirs "$CODEX_SKILLS_DIR"
+remove_bureau_skill_dirs "$CODEX_GEMINI_SKILLS_DIR"
 remove_bureau_skill_dirs "$LEGACY_CODEX_SKILLS_DIR"
-remove_bureau_skill_dirs "$GEMINI_SKILLS_DIR"
 
 log_empty_line
 log_success "Bureau skills uninstalled."
@@ -211,12 +256,8 @@ log_header "OpenCode" "$OPENCODE_SKILLS_DIR"
 set_up_bureau_skill_dirs "$OPENCODE_SKILLS_DIR"
 echo ""
 
-log_header "Codex" "$CODEX_SKILLS_DIR"
-set_up_bureau_skill_dirs "$CODEX_SKILLS_DIR"
-echo ""
-
-log_header "Gemini CLI" "$GEMINI_SKILLS_DIR"
-set_up_bureau_skill_dirs "$GEMINI_SKILLS_DIR"
+log_header "Codex / Gemini CLI" "$CODEX_GEMINI_SKILLS_DIR"
+set_up_bureau_skill_dirs "$CODEX_GEMINI_SKILLS_DIR"
 echo ""
 
 log_divider

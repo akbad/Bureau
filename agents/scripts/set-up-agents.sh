@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLAUDE_AGENTS_DIRNAME="claude-subagents"
-CLINK_AGENTS_DIRNAME="role-prompts"
+ROLE_AGENTS_DIRNAME="role-prompts"
 REPO_ROOT="$(cd "$AGENTS_DIR/.." && pwd)"
 
 # Source internal Bureau libraries
@@ -28,35 +28,13 @@ echo "Selected agents: ${AGENTS[*]}"
 log_empty_line
 
 # Check if we're in the right place
-if [[ ! -d "$AGENTS_DIR/$CLAUDE_AGENTS_DIRNAME" ]] || [[ ! -d "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" ]]; then
-    log_error "Cannot find agent directories! ($CLAUDE_AGENTS_DIRNAME/ and $CLINK_AGENTS_DIRNAME within $AGENTS_DIR)"
+if [[ ! -d "$AGENTS_DIR/$CLAUDE_AGENTS_DIRNAME" ]] || [[ ! -d "$AGENTS_DIR/$ROLE_AGENTS_DIRNAME" ]]; then
+    log_error "Cannot find agent directories! ($CLAUDE_AGENTS_DIRNAME/ and $ROLE_AGENTS_DIRNAME within $AGENTS_DIR)"
     exit 1
 fi
 
 # ============================================================================
-# Step 1: Set up clink subagents (for PAL MCP with Gemini/Codex/Claude CLIs)
-# ============================================================================
-# Only set up PAL if any agent is selected (PAL is cross-CLI, used by all)
-if [[ ${#AGENTS[@]} -gt 0 ]]; then
-    log_action "Setting up clink subagents for PAL MCP"
-
-    # Create directory structure
-    mkdir -p ~/.pal/cli_clients/systemprompts
-    log_success "Ensured/created ~/.pal/cli_clients/systemprompts"
-
-    # Symlink role prompts folder
-    if [[ -L ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR ]]; then
-        rm ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR
-        log_success "Removed existing Bureau symlink at ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR (to ensure consistency after any reconfiguration)"
-    fi
-    ln -s "$AGENTS_DIR/$CLINK_AGENTS_DIRNAME" ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR
-    log_success "Symlinked role prompts (for use with clink) to ~/.pal/cli_clients/systemprompts/$AGENTS_SUBDIR"
-
-    echo ""
-fi
-
-# ============================================================================
-# Step 2: Set up Claude Code subagents
+# Step 1: Set up Claude Code subagents
 # ============================================================================
 if agent_enabled "Claude Code"; then
     log_action "Setting up Claude Code subagents"
@@ -80,7 +58,7 @@ else
 fi
 
 # ============================================================================
-# Step 3: Set up agent launchers (slash commands and wrapper scripts)
+# Step 2: Set up agent launchers (slash commands and wrapper scripts)
 # ============================================================================
 
 # Claude Code slash commands
@@ -128,7 +106,7 @@ if agent_enabled "OpenCode"; then
 
         count=0
         for agent_name in $AGENTS_ENABLED_FOR_OPENCODE; do
-            source_file="$AGENTS_DIR/$CLINK_AGENTS_DIRNAME/${agent_name}.md"
+            source_file="$AGENTS_DIR/$ROLE_AGENTS_DIRNAME/${agent_name}.md"
             if [[ -f "$source_file" ]]; then
                 ln -s "$source_file" "$OPENCODE_AGENTS_DIR/${agent_name}.md"
                 count=$((count + 1))
@@ -146,8 +124,7 @@ log_success "Agent setup complete!"
 echo ""
 echo "Next steps:"
 echo "  1. Run the configs setup script: protocols/scripts/set-up-protocols.sh"
-echo "  2. Restart PAL MCP server to reload clink configs"
-echo "  3. Verify Claude Code agents with: claude (then run /agents)"
-echo "  4. Install claude-mem plugin:"
+echo "  2. Verify Claude Code agents with: claude (then run /agents)"
+echo "  3. Install claude-mem plugin:"
 echo "     > /plugin marketplace add thedotmack/claude-mem"
 echo "     > /plugin install claude-mem"

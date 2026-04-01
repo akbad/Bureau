@@ -24,7 +24,7 @@ from pathlib import Path
 _HISTORY_FILENAME = "feature_history.jsonl"
 
 
-def load_feature_history(data_dir: Path, feature_type: str) -> list[dict]:
+def load_feature_history(data_dir: Path, feature_type: str) -> list[dict[str, str]]:
     """Load JSONL entries for the given feature type.
 
     Returns an empty list when the history file does not exist.
@@ -33,7 +33,7 @@ def load_feature_history(data_dir: Path, feature_type: str) -> list[dict]:
     if not history_file.exists():
         return []
 
-    entries: list[dict] = []
+    entries: list[dict[str, str]] = []
     with open(history_file) as f:
         for line in f:
             line = line.strip()
@@ -45,7 +45,7 @@ def load_feature_history(data_dir: Path, feature_type: str) -> list[dict]:
     return entries
 
 
-def hours_since_last(history: list[dict], now: datetime) -> float:
+def hours_since_last(history: list[dict[str, str]], now: datetime) -> float:
     """Hours since most recent entry, or *inf* if no history."""
     if not history:
         return float("inf")
@@ -58,7 +58,7 @@ def hours_since_last(history: list[dict], now: datetime) -> float:
 
 
 def count_in_period(
-    history: list[dict], now: datetime, period_hours: float
+    history: list[dict[str, str]], now: datetime, period_hours: float
 ) -> int:
     """Count entries within the last *period_hours* hours."""
     cutoff = now - timedelta(hours=period_hours)

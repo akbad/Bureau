@@ -1,13 +1,12 @@
 """Tests for pipeline orchestrator."""
 
-from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 
 import pytest
 
 from concierge.models import (
     FeatureCandidate, FeatureType, MessageClass, MessageEnvelope,
-    QueueItem, SessionState, Suite,
+    SessionState, Suite,
 )
 from concierge.pipeline.orchestrator import run_pipeline
 from concierge.pipeline.queue import PriorityQueue

@@ -3,6 +3,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from operations.dossiers.db import connect_dossier_db
 from operations.dossiers.fold import fold_dossier
 
 
@@ -211,3 +212,40 @@ class TestFoldPruning:
         fi_count = conn.execute("SELECT COUNT(*) FROM file_interactions").fetchone()[0]
         conn.close()
         assert fi_count == 1
+
+
+class TestRefoldTaskDuplication:
+    """Tests for re-fold task duplication fix."""
+
+    def test_refold_does_not_duplicate_tasks(self, tmp_path: Path):
+        """Re-folding with tasks in input should NOT create duplicate tasks."""
+        tasks = [{"subject": "A"}, {"subject": "B"}, {"subject": "C"}]
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            tasks=tasks,
+        )
+        # Re-fold with same tasks in input
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            tasks=tasks,
+        )
+        # Verify: should still have 3 tasks, not 6
+        conn = connect_dossier_db(tmp_path / f"{result['slug']}.db")
+        count = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        conn.close()
+        assert count == 3
+
+    def test_refold_still_inserts_decisions(self, tmp_path: Path):
+        """Re-folding should still insert new decisions."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            decisions=[{"what": "Decision A", "why": "Reason A", "decided_by": "user"}],
+        )
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            decisions=[{"what": "Decision B", "why": "Reason B", "decided_by": "user"}],
+        )
+        conn = connect_dossier_db(tmp_path / f"{result['slug']}.db")
+        count = conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
+        conn.close()
+        assert count == 2  # Both decisions should exist

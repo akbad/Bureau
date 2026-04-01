@@ -17,14 +17,18 @@ class TestPriorityQueue:
     def test_add_and_peek(self):
         q = PriorityQueue(max_size=10)
         q.add(self._make_candidate(), priority=0.8)
-        assert q.peek().priority == 0.8
+        item = q.peek()
+        assert item is not None
+        assert item.priority == 0.8
 
     def test_ordering_by_priority(self):
         q = PriorityQueue(max_size=10)
         q.add(self._make_candidate("a"), priority=0.3)
         q.add(self._make_candidate("b"), priority=0.9)
         q.add(self._make_candidate("c"), priority=0.6)
-        assert q.pop().candidate.domain == "b"
+        item = q.pop()
+        assert item is not None
+        assert item.candidate.domain == "b"
 
     def test_eviction_when_full(self):
         q = PriorityQueue(max_size=2)
@@ -38,9 +42,13 @@ class TestPriorityQueue:
     def test_aging_boosts_priority(self):
         q = PriorityQueue(max_size=10, aging_rate=0.1)
         q.add(self._make_candidate(), priority=0.5)
-        initial = q.peek().priority
+        item = q.peek()
+        assert item is not None
+        initial = item.priority
         q.age_items(hours_elapsed=5)
-        assert q.peek().priority > initial
+        aged = q.peek()
+        assert aged is not None
+        assert aged.priority > initial
 
     def test_expired_items_removed(self):
         q = PriorityQueue(max_size=10, max_age_hours=1)

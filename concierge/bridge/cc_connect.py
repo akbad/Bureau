@@ -39,6 +39,11 @@ class BridgeConfig:
     assistant_name: str = "Concierge"
     data_dir: Path = Path.home() / ".config" / "bureau" / "concierge"
 
+    @property
+    def session_state_path(self) -> Path:
+        """Path to the session state YAML file."""
+        return self.data_dir / "state" / "session.yml"
+
     def get_cli_command(self, prompt: str) -> list[str]:
         """Build the CLI command for a given prompt."""
         base = list(CLI_COMMANDS[self.backend])

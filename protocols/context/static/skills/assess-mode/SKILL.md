@@ -1,4 +1,5 @@
 ---
+name: assess-mode
 description: Two-phase code assessment workflow (architectural comprehension then quality audit) that adapts output to context. Interactive guided tour when running as a main agent; structured markdown report when running as a subagent. Supports four comprehension styles including hunk-by-hunk inline review (comprehension + audit per diff hunk). Activate when user says "assess my changes", "review my changes", "walk me through this code", "audit these files", "assess my changes hunk by hunk", "detailed review", or "ASSESS MODE ON". Configurable standards sources and git diff targets.
 ---
 

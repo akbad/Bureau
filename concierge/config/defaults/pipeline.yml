@@ -14,3 +14,9 @@ background:
   schedule_hours: [6, 14]
   max_execution_minutes: 5
   max_llm_calls_per_run: 2
+
+telegram:
+  # token loaded from BUREAU_TELEGRAM_TOKEN env var (never from config files)
+  polling_timeout: 30  # seconds between long-poll requests
+  typing_indicator: true  # send "typing..." while processing
+  max_response_length: 4096  # Telegram message limit

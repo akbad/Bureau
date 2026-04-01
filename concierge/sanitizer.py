@@ -15,7 +15,7 @@ import re
 
 
 # Patterns to strip entirely
-_STRIP_PATTERNS: list[re.Pattern] = [
+_STRIP_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"```[\s\S]*?```"),           # Code blocks
     re.compile(r"`[^`]+`"),                    # Inline code
     re.compile(r"Allow .+\? \[Y/n\]"),         # Tool approval prompts
@@ -28,7 +28,7 @@ _STRIP_PATTERNS: list[re.Pattern] = [
 ]
 
 # Patterns to clean up (replace, not remove)
-_CLEANUP_PATTERNS: list[tuple[re.Pattern, str]] = [
+_CLEANUP_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\n{3,}"), "\n\n"),           # Excessive newlines
     (re.compile(r"^\s+$", re.MULTILINE), ""),  # Whitespace-only lines
 ]

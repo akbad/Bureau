@@ -1,0 +1,51 @@
+{
+  "name": "reflect",
+  "version": "0.1.0",
+  "description": "Activate when you consider a deliverable done -- an implementation, plan, review, research result, or skill draft. Also activate when you are about to present work as final, declare a task complete, or commit/push a result. Triggers on phrases like 'I think this is ready', 'this looks complete', 'let me present the results', or internal satisfaction with output quality. Do NOT activate for trivial edits, typo fixes, or mechanical changes where the risk of unreviewed work is negligible.",
+  "keywords": [
+    "reflect",
+    "self-review",
+    "reflection",
+    "review",
+    "quality",
+    "done",
+    "complete",
+    "verify",
+    "check",
+    "finalize",
+    "deliverable",
+    "anti-sycophancy"
+  ],
+  "domains": [
+    "implementation",
+    "planning",
+    "research",
+    "review",
+    "skill-authoring",
+    "reconciliation"
+  ],
+  "triggers": {
+    "user_phrases": [
+      "reflect on this",
+      "review your work",
+      "self-review",
+      "check your work",
+      "are you sure this is right",
+      "did you miss anything"
+    ],
+    "conditions": [
+      "agent is about to declare a deliverable done",
+      "agent is about to present results as final",
+      "agent is about to commit or push work",
+      "agent is about to hand off a deliverable to another agent",
+      "Dispatch reconciliation has completed"
+    ]
+  },
+  "activation_mode": "auto",
+  "companion_files": [
+    "anti-sycophancy-gates.md"
+  ],
+  "hook_points": [],
+  "created": "2026-03-31T00:00:00Z",
+  "updated": "2026-03-31T00:00:00Z"
+}

@@ -122,6 +122,13 @@ class MCPPostConfig(TypedDict, total=False):
     claude_settings_env: dict[str, str]
 
 
+class MCPNpmRuntimeConfig(TypedDict):
+    """Shared local npm runtime metadata for a client config."""
+
+    packages: list[str]
+    binaries: list[str]
+
+
 class MCPClientTransportConfig(TypedDict, total=False):
     """A single clients.<client_id> transport configuration."""
 
@@ -150,6 +157,7 @@ class MCPClientConfig(TypedDict, total=False):
     clients: dict[str, MCPClientEntry]
     settings: dict[str, Any]
     storage_path: str
+    npm_runtime: MCPNpmRuntimeConfig
 
 
 class MCPConfig(TypedDict, total=False):
@@ -158,6 +166,14 @@ class MCPConfig(TypedDict, total=False):
     dependencies: dict[str, MCPDependencyConfig]
     services: dict[str, MCPServiceConfig]
     client_configs: dict[str, MCPClientConfig]
+
+
+class ProtocolsConfig(TypedDict, total=False):
+    """Protocol file deployment mode configuration."""
+
+    update: bool   # -u: re-copy Bureau-managed protocol files
+    force: bool    # -f: overwrite without backup (implies update)
+    bare: bool     # -b: remove all protocol files and hooks
 
 
 class ConversationsConciergeConfig(TypedDict, total=False):
@@ -173,8 +189,8 @@ class ConversationsConciergeConfig(TypedDict, total=False):
 class ConversationsConfig(TypedDict, total=False):
     """Dossiers: cross-agent conversation continuity configuration."""
 
-    save: str                                   # command verb, default "fold"
-    resume: str                                 # command verb, default "unfold"
+    save: str                                   # command verb, default "fold-dossier"
+    resume: str                                 # command verb, default "unfold-dossier"
     storage_dir: str                            # default "~/.config/bureau/dossiers"
     stale_dossier_days: int                     # cleanup threshold, default 30
     max_retained_sessions: int                  # prune file_interactions beyond this, default 5
@@ -191,6 +207,8 @@ class Config(TypedDict, total=False):
     startup_timeout_for: StartupTimeoutForConfig
     path_to: PathToConfig
     roles: NativeAgentsConfig
+    protocols: ProtocolsConfig
+    output_style: list[str]
     mcp: MCPConfig
     conversations: ConversationsConfig
 

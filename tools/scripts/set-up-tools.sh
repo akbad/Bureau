@@ -17,6 +17,14 @@
 
 set -e  # exit on error
 
+# setup flags
+MODE_BARE=false
+for arg in "$@"; do
+    case "$arg" in
+        --bare) MODE_BARE=true ;;
+    esac
+done
+
 # --- CONFIG ---
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -83,21 +91,6 @@ if [[ "$(plan_jq '.prune_disabled_mcps // false')" == "true" ]]; then
     AUTO_CLEAN_MCP=true
 fi
 
-# Add CLI bin paths (resolved directly for portability) to the PATH provided to PAL MCP
-#   on startup so that each can be called directly via clink (i.e. to spawn subagents)
-CLI_BIN_PATHS=""
-for cli in claude gemini codex; do
-    if cli_path="$(command -v "$cli" 2>/dev/null)"; then
-        cli_dir="$(dirname "$cli_path")"
-        # Add to path if not already present (dedup)
-        if [[ ":$CLI_BIN_PATHS:" != *":$cli_dir:"* ]]; then
-            CLI_BIN_PATHS="${CLI_BIN_PATHS:+$CLI_BIN_PATHS:}$cli_dir"
-        fi
-    else
-        log_warning "CLI '$cli' not found in PATH - clink won't be able to use it"
-    fi
-done
-export CLI_BIN_PATHS
 
 expand_tilde() {
     local value=$1
@@ -121,7 +114,9 @@ parse_stdio_mcp_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
             --env)
-                _STDIO_ENV_PAIRS+=("$2")
+                # Expand shell variables in env values so they're resolved at
+                # setup time, not left as literals in configs.
+                _STDIO_ENV_PAIRS+=("$(eval echo "$2")")
                 shift 2
                 ;;
             --timeout-ms)
@@ -167,49 +162,73 @@ remove_opencode_servers() {
     uv run "$SCRIPT_DIR/remove-opencode-servers.py" "$target" "${servers[@]}"
 }
 
-managed_registry_prune() {
+remove_managed_servers() {
     local cli=$1
-    local config_path=$2
-    local registry_path
-    registry_path="$(managed_registry_path "$cli")"
-
-    local prune_json
-    prune_json="$(uv run python "$REPO_ROOT/tools/scripts/managed-mcp-registry.py" \
-        --mode prune \
-        --cli "$cli" \
-        --plan "$SETUP_PLAN_FILE" \
-        --registry "$registry_path" \
-        --config "$config_path")"
-
-    mapfile -t to_remove < <(echo "$prune_json" | jq -r '.to_remove[]?')
-    if [[ ${#to_remove[@]} -eq 0 ]]; then
+    shift
+    local servers=("$@")
+    if [[ ${#servers[@]} -eq 0 ]]; then
         return 0
     fi
 
-    log_info "Removing Bureau-managed MCPs for $cli: ${to_remove[*]}"
     case "$cli" in
         claude)
-            for server_id in "${to_remove[@]}"; do
+            for server_id in "${servers[@]}"; do
                 claude mcp remove "$server_id" --scope user
             done
             ;;
         gemini)
-            for server_id in "${to_remove[@]}"; do
+            for server_id in "${servers[@]}"; do
                 gemini mcp remove "$server_id"
             done
             ;;
         codex)
-            for server_id in "${to_remove[@]}"; do
+            for server_id in "${servers[@]}"; do
                 codex mcp remove "$server_id"
             done
             ;;
         opencode)
-            remove_opencode_servers "$OPENCODE_CONFIG" "${to_remove[@]}"
+            remove_opencode_servers "$OPENCODE_CONFIG" "${servers[@]}"
             ;;
         *)
             log_warning "Unknown CLI for managed MCP cleanup: $cli"
             ;;
     esac
+}
+
+managed_registry_reconcile() {
+    local cli=$1
+    local config_path=$2
+    local allow_prune=$3
+    local registry_path
+    registry_path="$(managed_registry_path "$cli")"
+
+    local reconcile_json
+    reconcile_json="$(uv run python "$REPO_ROOT/tools/scripts/managed-mcp-registry.py" \
+        --mode reconcile \
+        --cli "$cli" \
+        --plan "$SETUP_PLAN_FILE" \
+        --registry "$registry_path" \
+        --config "$config_path")"
+
+    local -a to_update
+    local -a to_remove
+    local -a servers_to_remove
+    mapfile -t to_update < <(echo "$reconcile_json" | jq -r '.to_update[]?')
+    if [[ "$allow_prune" == "true" ]]; then
+        mapfile -t to_remove < <(echo "$reconcile_json" | jq -r '.to_remove[]?')
+    else
+        to_remove=()
+    fi
+    servers_to_remove=("${to_update[@]}" "${to_remove[@]}")
+
+    if [[ ${#to_update[@]} -gt 0 ]]; then
+        log_info "Refreshing Bureau-managed MCPs for $cli: ${to_update[*]}"
+    fi
+    if [[ ${#to_remove[@]} -gt 0 ]]; then
+        log_info "Removing disabled Bureau-managed MCPs for $cli: ${to_remove[*]}"
+    fi
+
+    remove_managed_servers "$cli" "${servers_to_remove[@]}"
 }
 
 managed_registry_record() {
@@ -409,6 +428,29 @@ start_http_server() {
     fi
 }
 
+clean_fastembed_cache_if_corrupt() {
+    # If a fastembed model download was interrupted, the cache contains .incomplete
+    # blob files and an empty onnx/ dir. ONNX runtime then fails with NoSuchFile.
+    # Detect this and wipe the model cache so fastembed re-downloads cleanly.
+    local env_pairs=("$@")
+    local provider="" model=""
+    for pair in "${env_pairs[@]}"; do
+        case "$pair" in
+            EMBEDDING_PROVIDER=*) provider="${pair#*=}" ;;
+            EMBEDDING_MODEL=*)    model="${pair#*=}" ;;
+        esac
+    done
+    [[ "$provider" == "fastembed" && -n "$model" ]] || return 0
+
+    local cache_dir="$HOME/.cache/fastembed/models--${model//\//--}"
+    [[ -d "$cache_dir" ]] || return 0
+
+    if compgen -G "$cache_dir/blobs/*.incomplete" > /dev/null 2>&1; then
+        log_warning "Detected incomplete fastembed model download for $model — clearing cache to re-download"
+        rm -rf "$cache_dir"
+    fi
+}
+
 start_http_process() {
     local service_id=$1
     local service_name=$2
@@ -420,6 +462,8 @@ start_http_process() {
 
     mapfile -t cmd_args < <(plan_jq ".services[\"$service_id\"].command[]")
     mapfile -t env_pairs < <(plan_jq ".services[\"$service_id\"].env // {} | to_entries[] | \"\(.key)=\(.value)\"")
+
+    clean_fastembed_cache_if_corrupt "${env_pairs[@]}"
 
     local start_cmd=("${cmd_args[@]}")
     if [[ ${#env_pairs[@]} -gt 0 ]]; then
@@ -462,13 +506,6 @@ add_mcp_to_gemini() {
         echo '{"mcpServers":{}}' > "$GEMINI_CONFIG"
     fi
 
-    # Check if server already exists
-    # IMPORTANT: must check for `\"$server_name\": {`  since the string \"$server_name\" 
-    #            may already exist in the `autoApprovedTools` array
-    if grep -q "\"$server_name\": {" "$GEMINI_CONFIG" 2>/dev/null; then
-        return 1
-    fi
-
     uv run "$SCRIPT_DIR/add-mcp-to-gemini.py" "$transport" "$server_name" "$GEMINI_CONFIG" "$@"
 }
 
@@ -487,20 +524,36 @@ add_mcp_to_codex() {
 
     if [[ "$transport" == "http" ]]; then
         local url=$1
+        local bearer_env=${2:-}  # optional bearer_token_env_var
         cat >> "$CODEX_CONFIG" << EOF
 
 [mcp_servers.$server_name]
 url = "$url"
 transport = "http"
 EOF
+        # Codex uses bearer_token_env_var instead of custom HTTP headers for auth
+        if [[ -n "$bearer_env" ]]; then
+            cat >> "$CODEX_CONFIG" << EOF
+bearer_token_env_var = "$bearer_env"
+EOF
+        fi
     else  # stdio server
         parse_stdio_mcp_args "$@"
+
+        # Build TOML args array with proper escaping (inner quotes → \")
+        local toml_args_str="" sep=""
+        for arg in "${_STDIO_CMD_ARGS[@]:1}"; do
+            local escaped="${arg//\\/\\\\}"  # escape backslashes first
+            escaped="${escaped//\"/\\\"}"    # then escape double quotes
+            toml_args_str+="${sep}\"${escaped}\""
+            sep=", "
+        done
 
         cat >> "$CODEX_CONFIG" << EOF
 
 [mcp_servers.$server_name]
 command = "${_STDIO_CMD_ARGS[0]}"
-args = [$(printf '"%s", ' "${_STDIO_CMD_ARGS[@]:1}" | sed 's/, $//')]
+args = [$toml_args_str]
 transport = "stdio"
 EOF
         if [[ -n "$_STDIO_STARTUP_TIMEOUT" ]]; then
@@ -563,12 +616,25 @@ add_http_mcp_to_agent() {
             "${claude_cmd[@]}"
             ;;
         "$CODEX")
-            # Codex HTTP mode doesn't support custom headers, only bearer_token
-            # Skip if headers are required (usually checked by caller but repeat here for safety)
-            if [[ ${#headers[@]} -gt 0 ]]; then
-                return 2  # Cannot configure - headers not supported
+            # Codex HTTP mode doesn't support custom headers — it uses
+            # bearer_token_env_var for auth instead.  Try to derive the env
+            # var from an Authorization: Bearer header when present; otherwise
+            # fall back to the explicit bearer_token_env_var passed by the
+            # caller.  If neither is available and headers exist, we cannot
+            # configure this server on Codex.
+            local bearer_env=""
+            for header in "${headers[@]}"; do
+                # match "Authorization:Bearer ${VAR}" or "Authorization:Bearer $VAR"
+                if [[ "$header" =~ ^Authorization:Bearer[[:space:]]*\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$ ]]; then
+                    bearer_env="${BASH_REMATCH[1]}"
+                    break
+                fi
+            done
+
+            if [[ -z "$bearer_env" && ${#headers[@]} -gt 0 ]]; then
+                return 2  # Cannot configure - unsupported headers
             fi
-            add_mcp_to_codex "$server" "http" "$url"
+            add_mcp_to_codex "$server" "http" "$url" "$bearer_env"
             ;;
     esac
 }
@@ -704,6 +770,38 @@ install_or_update_pip_pkg_from_git() {
     fi
 }
 
+sync_npm_runtime() {
+    local sync_json
+    sync_json="$(uv run python "$REPO_ROOT/tools/scripts/sync-npm-runtime.py" --plan "$SETUP_PLAN_FILE")"
+
+    local installed
+    local reason
+    installed="$(echo "$sync_json" | jq -r '.installed')"
+    reason="$(echo "$sync_json" | jq -r '.reason')"
+
+    case "$reason" in
+        disabled)
+            return 0
+            ;;
+        up_to_date)
+            log_success "Shared local npm MCP runtime already up to date"
+            ;;
+        manifest_changed)
+            log_success "Shared local npm MCP runtime installed/updated from manifest"
+            ;;
+        missing_binaries)
+            log_warning "Shared local npm MCP runtime repaired missing binaries"
+            ;;
+        *)
+            if [[ "$installed" == "true" ]]; then
+                log_success "Shared local npm MCP runtime synced"
+            else
+                log_warning "Shared local npm MCP runtime returned unexpected status: $reason"
+            fi
+            ;;
+    esac
+}
+
 # Ensure a git repository is cloned to a target path
 ensure_git_repo_cloned() {
     local repo_name=$1
@@ -781,7 +879,7 @@ configure_auto_approve() {
                     --read-allow "~/.config/bureau/protocols"
                 ;;
             "$CODEX")
-                uv run "$SCRIPT_DIR/add-codex-auto-approvals.py" "$CODEX_CONFIG" "${codex_auto_approve[@]}"
+                uv run "$SCRIPT_DIR/add-codex-auto-approvals.py" "$CODEX_CONFIG" --plan "$SETUP_PLAN_FILE" "${codex_auto_approve[@]}"
                 ;;
             "$GEMINI")
                 uv run "$SCRIPT_DIR/add-gemini-auto-approvals.py" "$GEMINI_CONFIG" "${gemini_auto_approve[@]}"
@@ -878,6 +976,8 @@ log_empty_line
 log_info "→ Installing/checking for update for GitHub Spec Kit CLI..."
 install_or_update_pip_pkg_from_git "https://github.com/github/spec-kit.git" "specify-cli"
 
+sync_npm_runtime
+
 log_info "Preparing MCP dependencies..."
 
 # Prepare dependencies first (no docker needed for dependencies)
@@ -945,21 +1045,23 @@ done < <(service_order)
 log_separator
 log_info "Configuring agents to use MCP servers..."
 
+log_separator
 if [[ "$AUTO_CLEAN_MCP" == true ]]; then
-    log_separator
-    log_info "Pruning disabled Bureau-managed MCPs..."
-    if agent_enabled "$CLAUDE"; then
-        managed_registry_prune "claude" "$CLAUDE_CLI_STATE"
-    fi
-    if agent_enabled "$GEMINI"; then
-        managed_registry_prune "gemini" "$GEMINI_CONFIG"
-    fi
-    if agent_enabled "$CODEX"; then
-        managed_registry_prune "codex" "$CODEX_CONFIG"
-    fi
-    if agent_enabled "$OPENCODE"; then
-        managed_registry_prune "opencode" "$OPENCODE_CONFIG"
-    fi
+    log_info "Reconciling Bureau-managed MCPs and pruning disabled entries..."
+else
+    log_info "Reconciling Bureau-managed MCPs..."
+fi
+if agent_enabled "$CLAUDE"; then
+    managed_registry_reconcile "claude" "$CLAUDE_CLI_STATE" "$AUTO_CLEAN_MCP"
+fi
+if agent_enabled "$GEMINI"; then
+    managed_registry_reconcile "gemini" "$GEMINI_CONFIG" "$AUTO_CLEAN_MCP"
+fi
+if agent_enabled "$CODEX"; then
+    managed_registry_reconcile "codex" "$CODEX_CONFIG" "$AUTO_CLEAN_MCP"
+fi
+if agent_enabled "$OPENCODE"; then
+    managed_registry_reconcile "opencode" "$OPENCODE_CONFIG" "$AUTO_CLEAN_MCP"
 fi
 
 apply_claude_post_config() {
@@ -1000,6 +1102,19 @@ for agent in "${AGENTS[@]}"; do
         if [[ "$transport" == "http" ]]; then
             url=$(echo "$client_cfg" | jq -r '.url')
             mapfile -t headers < <(echo "$client_cfg" | jq -r '.headers // {} | to_entries[] | "\(.key):\(.value)"')
+            # If the client config has bearer_token_env_var (Codex-specific field)
+            # but no explicit Authorization header, synthesize one so
+            # add_http_mcp_to_agent can extract the env var name uniformly
+            bearer_token_env_var=$(echo "$client_cfg" | jq -r '.bearer_token_env_var // empty')
+            if [[ -n "$bearer_token_env_var" ]]; then
+                local has_auth=false
+                for h in "${headers[@]}"; do
+                    [[ "$h" == Authorization:* ]] && has_auth=true && break
+                done
+                if [[ "$has_auth" == false ]]; then
+                    headers+=("Authorization:Bearer \${${bearer_token_env_var}}")
+                fi
+            fi
             if add_http_mcp_to_agent "$agent" "$server_id" "$url" "${headers[@]}"; then
                 log_success "$agent configured ($server_id)"
             else
@@ -1127,6 +1242,7 @@ if agent_enabled "OpenCode"; then
                 --template "$TEMPLATE_OC" \
                 --output "$GENERATED_OC" \
                 --repo-root "$REPO_ROOT" \
+                --protocols-dir "$HOME/.config/bureau/protocols" \
                 --mcp "$MCP_OC_TMP" \
                 ${PERMS_OC_TMP:+--permissions "$PERMS_OC_TMP"}; then
                 log_warning "Failed to render OpenCode template; skipping OpenCode sync"
@@ -1136,7 +1252,11 @@ if agent_enabled "OpenCode"; then
         mkdir -p "$(dirname "$TARGET_OC")"
 
         if [[ -n "$GENERATED_OC" && -f "$GENERATED_OC" ]]; then
-            if uv run "$SCRIPT_DIR/configure-opencode.py" --target "$TARGET_OC" --generated "$GENERATED_OC"; then
+            OPENCODE_ARGS=(--target "$TARGET_OC" --generated "$GENERATED_OC")
+            if [[ "$MODE_BARE" == true ]]; then
+                OPENCODE_ARGS+=(--bare)
+            fi
+            if uv run "$SCRIPT_DIR/configure-opencode.py" "${OPENCODE_ARGS[@]}"; then
                 log_success "OpenCode config merged into $TARGET_OC (preserved user overrides)"
             else
                 log_warning "OpenCode merge failed; leaving $TARGET_OC unchanged"

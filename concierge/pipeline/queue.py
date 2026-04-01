@@ -13,10 +13,13 @@ negated so that **higher** logical priority is dequeued first.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from pqdict import pqdict
+
+from typing import Any
 
 from concierge.models import FeatureCandidate, QueueItem
 
@@ -58,14 +61,19 @@ class PriorityQueue:
     def __len__(self) -> int:
         return len(self._pq)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[QueueItem]:
         return iter(self._items.values())
 
     # ------------------------------------------------------------------
     # Core operations
     # ------------------------------------------------------------------
 
-    def add(self, candidate: FeatureCandidate, priority: float) -> str | None:
+    def add(
+        self,
+        candidate: FeatureCandidate,
+        priority: float,
+        context_snapshot: dict[str, Any] | None = None,
+    ) -> str | None:
         """Insert *candidate* with the given *priority*.
 
         If the queue is full and the new priority is higher than the current
@@ -92,7 +100,10 @@ class PriorityQueue:
             del self._items[worst_id]
 
         item_id = uuid4().hex[:8]
-        item = QueueItem(candidate=candidate, priority=priority)
+        item = QueueItem(
+            candidate=candidate, priority=priority,
+            context_snapshot=context_snapshot,
+        )
         self._pq[item_id] = -priority
         self._items[item_id] = item
         return item_id

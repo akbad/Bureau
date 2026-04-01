@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from ..config.loader import get_classifier_config
 from ..models import MessageClass
+from . import MAX_LENGTH
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ _cached_session = None
 _cached_tokenizer = None
 
 
-def _get_model(model_path: str | Path, tokenizer_name: str):
+def _get_model(model_path: str | Path, tokenizer_name: str) -> tuple[Any, Any]:
     """Return cached (session, tokenizer), loading on first call."""
     global _cached_session, _cached_tokenizer
     if _cached_session is None:
@@ -95,7 +97,7 @@ def classify_with_model(text: str) -> tuple[MessageClass, float]:
             return_tensors="np",
             truncation=True,
             padding="max_length",
-            max_length=128,
+            max_length=MAX_LENGTH,
         )
 
         ort_inputs = {k: v for k, v in inputs.items() if k in {i.name for i in session.get_inputs()}}

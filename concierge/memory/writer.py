@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def append_auto_entry(path: Path, entry: dict) -> None:
+def append_auto_entry(path: Path, entry: dict[str, object]) -> None:
     """Append a timestamped JSONL entry to *path*.
 
     Adds a ``"timestamp"`` key with the current UTC ISO-8601 timestamp.

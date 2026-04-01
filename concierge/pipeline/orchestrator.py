@@ -17,6 +17,7 @@ scoring + queuing -> lottery selection.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from ..models import (
@@ -32,6 +33,7 @@ from .lottery import FeatureSelector
 from .queue import PriorityQueue
 from .scoring import score_candidates
 from .suite_detector import detect_suite
+from ..config.loader import get_priorities_config
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,7 @@ def evaluate_all_features(
     """
     ddir = data_dir or _DEFAULT_DATA_DIR
 
-    evaluators: list[tuple[FeatureType, callable]] = [
+    evaluators: list[tuple[FeatureType, Callable[[], list[FeatureCandidate]]]] = [
         (FeatureType.DISPATCH, lambda: evaluate_dispatch_candidates(session, ddir)),
         (FeatureType.BREW, lambda: evaluate_brew_candidates(session, ddir)),
         (FeatureType.PROBE, lambda: evaluate_probe_candidates(session, ddir)),
@@ -115,11 +117,17 @@ def run_pipeline(
         logger.debug("Detected suite: %s", suite.value)
 
         # --- Stage 2: Attache selection --------------------------------------
+        # NOTE: Attaches are selected here for future use by per-suite agent
+        # routing (e.g. filtering feature evaluators or adjusting scoring by
+        # attache capabilities).  Currently unused downstream — the result is
+        # logged but not passed to later stages.
         attaches = select_attaches(suite)
         logger.debug("Selected attaches: %s", attaches)
 
         # --- Stage 3: Hard rules ---------------------------------------------
         blocked = evaluate_hard_rules(suite, session)
+        # Short-circuit if hard rules block all feature types
+        # (defensive; no current rule does this)
         if blocked == set(FeatureType):
             logger.debug("All feature types blocked by hard rules")
             return None
@@ -132,13 +140,17 @@ def run_pipeline(
             logger.debug("No feature candidates generated")
             return None
 
-        from ..config.loader import get_priorities_config
-        weights = get_priorities_config().get("weights", {})
+        weights = get_priorities_config().get("scoring_weights", {})
         scored = score_candidates(candidates, weights)
 
         # --- Stage 5: Queue -------------------------------------------------
+        snapshot = {
+            "suite": session.current_suite.value if session.current_suite else None,
+            "suite_since": session.suite_since.isoformat() if session.suite_since else None,
+            "active_feature": session.active_feature.value if session.active_feature else None,
+        }
         for candidate, priority in scored:
-            queue.add(candidate, priority)
+            queue.add(candidate, priority, context_snapshot=snapshot)
 
         # --- Stage 6: Lottery selection --------------------------------------
         sel = selector or FeatureSelector()
@@ -149,6 +161,7 @@ def run_pipeline(
             logger.debug(
                 "Selected feature: %s/%s", result.feature_type.value, result.domain,
             )
+            sel.decay_epsilon()
         return result
 
     except Exception:

@@ -20,8 +20,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_AGENTS: set[str] = {"claude", "gemini", "codex", "opencode"}
-
 # CLI invocation patterns per agent.
 # Each pattern is a list of args; the prompt is piped via stdin.
 _CLI_COMMANDS: dict[str, list[str]] = {
@@ -30,6 +28,8 @@ _CLI_COMMANDS: dict[str, list[str]] = {
     "codex": ["codex", "--quiet"],
     "opencode": ["opencode", "--pipe"],
 }
+
+SUPPORTED_AGENTS: set[str] = set(_CLI_COMMANDS)
 
 _DEFAULT_TIMEOUT = 60  # seconds
 
@@ -46,6 +46,7 @@ def _get_preferred_agent() -> str:
         concierge = config.get("concierge", {})
         return concierge.get("preferred_agent", "claude")
     except Exception:
+        logger.debug("Failed to read preferred_agent from config, defaulting to 'claude'", exc_info=True)
         return "claude"
 
 
@@ -55,6 +56,7 @@ def _get_enabled_agents() -> list[str]:
         from operations.config_loader import get_enabled_agents
         return get_enabled_agents()
     except Exception:
+        logger.debug("Failed to read enabled agents from config, defaulting to ['claude']", exc_info=True)
         return ["claude"]
 
 

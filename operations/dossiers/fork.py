@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from .db import connect_dossier_db
+from .db import open_dossier_db, safe_db_path
 from .fold import _generate_hash, _slugify, _now_iso
 
 
@@ -17,35 +17,38 @@ def fork_dossier(
     Uses sqlite3.backup() for a WAL-safe copy (ensures uncommitted
     WAL transactions are included in the fork).
     """
-    source_path = dossiers_dir / f"{slug}.db"
+    source_path = safe_db_path(dossiers_dir, slug)
     if not source_path.exists():
         raise FileNotFoundError(f"Dossier not found: {slug}")
 
     # Read original metadata for defaults
-    source_conn = connect_dossier_db(source_path)
-    meta = source_conn.execute("SELECT * FROM metadata").fetchone()
+    with open_dossier_db(source_path) as source_conn:
+        meta = source_conn.execute("SELECT * FROM metadata").fetchone()
 
-    new_hash = _generate_hash()
-    fork_name = name or f"{meta['name']} (fork)"
-    new_slug = f"{_slugify(fork_name)}-{new_hash}"
-    dest_path = dossiers_dir / f"{new_slug}.db"
+        fork_name = name or f"{meta['name']} (fork)"
+        # collision-safe: retry until we find an unused slug
+        while True:
+            new_hash = _generate_hash()
+            new_slug = f"{_slugify(fork_name)}-{new_hash}"
+            dest_path = dossiers_dir / f"{new_slug}.db"
+            if not dest_path.exists():
+                break
 
-    # WAL-safe copy via sqlite3 backup API
-    dest_conn = sqlite3.connect(dest_path)
-    source_conn.backup(dest_conn)
-    source_conn.close()
-    dest_conn.close()
+        # WAL-safe copy via sqlite3 backup API
+        dest_conn = sqlite3.connect(dest_path)
+        source_conn.backup(dest_conn)
+        dest_conn.close()
+        dest_path.chmod(0o600)  # owner read/write only
 
     # Update metadata in the fork
     now = _now_iso()
-    conn = connect_dossier_db(dest_path)
-    conn.execute(
-        """UPDATE metadata SET
-           hash = ?, name = ?, slug = ?, updated_at = ?,
-           parent = ?, locked_by = NULL, locked_at = NULL""",
-        (new_hash, fork_name, new_slug, now, meta["hash"]),
-    )
-    conn.commit()
-    conn.close()
+    with open_dossier_db(dest_path) as conn:
+        with conn:  # transaction boundary
+            conn.execute(
+                """UPDATE metadata SET
+                   hash = ?, name = ?, slug = ?, updated_at = ?,
+                   parent = ?, locked_by = NULL, locked_at = NULL""",
+                (new_hash, fork_name, new_slug, now, meta["hash"]),
+            )
 
     return {"slug": new_slug, "hash": new_hash}

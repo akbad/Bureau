@@ -185,13 +185,12 @@ def test_filesystem_allowed_methods_override_command():
                         "default": {
                             "transport": "stdio",
                             "command": [
-                                "npx",
-                                "-y",
-                                "mcp-filter",
-                                "-s",
-                                "npx -y @modelcontextprotocol/server-filesystem /tmp",
-                                "-a",
+                                "/tmp/npm-tools/node_modules/.bin/mcp-filter",
+                                "--include",
                                 "read_multiple_files",
+                                "--",
+                                "/tmp/npm-tools/node_modules/.bin/mcp-server-filesystem",
+                                "/tmp",
                             ],
                         }
                     },
@@ -203,8 +202,17 @@ def test_filesystem_allowed_methods_override_command():
     resolved = resolve_mcp_catalog(config, env={})
     command = resolved["client_configs"]["filesystem"]["clients"]["default"]["command"]
 
-    assert command.count("-a") == 2
-    assert command[-4:] == ["-a", "read_multiple_files", "-a", "read_file"]
+    assert command.count("--include") == 2
+    assert command[:7] == [
+        "/tmp/npm-tools/node_modules/.bin/mcp-filter",
+        "--include",
+        "read_multiple_files",
+        "--include",
+        "read_file",
+        "--",
+        "/tmp/npm-tools/node_modules/.bin/mcp-server-filesystem",
+    ]
+    assert command[-1] == "/tmp"
 
 
 def test_filters_services_with_missing_dependency_dependencies():

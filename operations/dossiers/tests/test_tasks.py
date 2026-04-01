@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from operations.dossiers.fold import fold_dossier
-from operations.dossiers.tasks import list_tasks, add_task, update_task, remove_task
+from operations.dossiers.tasks import list_tasks, add_task, update_task, remove_task, claim_task, complete_task
 
 
 class TestListTasks:
@@ -88,3 +88,51 @@ class TestRemoveTask:
         remove_task(tmp_path, result["slug"], task_id=1)
         tasks = list_tasks(tmp_path, result["slug"])
         assert len(tasks) == 0  # deleted tasks excluded from list
+
+
+class TestClaimTask:
+    def test_claims_pending_task(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A", "status": "pending"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1, owner="agent-x")
+        tasks = list_tasks(tmp_path, result["slug"])
+        assert tasks[0]["status"] == "in_progress"
+        assert tasks[0]["owner"] == "agent-x"
+
+    def test_claim_already_in_progress_raises(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A", "status": "pending"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1, owner="agent-x")
+        with pytest.raises(ValueError, match="not pending"):
+            claim_task(tmp_path, result["slug"], task_id=1, owner="agent-y")
+
+    def test_claim_nonexistent_task_raises(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+        )
+        with pytest.raises(ValueError, match="not pending"):
+            claim_task(tmp_path, result["slug"], task_id=999, owner="agent-x")
+
+
+class TestCompleteTask:
+    def test_completes_in_progress_task(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A", "status": "pending"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1, owner="agent-x")
+        complete_task(tmp_path, result["slug"], task_id=1)
+        tasks = list_tasks(tmp_path, result["slug"])
+        assert tasks[0]["status"] == "completed"
+
+    def test_complete_pending_task_raises(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A", "status": "pending"}],
+        )
+        with pytest.raises(ValueError, match="not in progress"):
+            complete_task(tmp_path, result["slug"], task_id=1)

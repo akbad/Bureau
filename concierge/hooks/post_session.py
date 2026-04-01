@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def extract_memories(
     session_transcript: str,
     data_dir: Path,
-) -> dict:
+) -> dict[str, int]:
     """Extract and persist noteworthy information from a session transcript.
 
     Scans the conversation for:
@@ -63,7 +63,7 @@ def extract_memories(
     return results
 
 
-def _extract_preferences(transcript: str) -> list[dict]:
+def _extract_preferences(transcript: str) -> list[dict[str, str]]:
     """Extract preference statements from transcript.
 
     V1: simple keyword matching.  Looks for patterns like:
@@ -71,7 +71,7 @@ def _extract_preferences(transcript: str) -> list[dict]:
     - "I'm allergic to X"
     - "My favorite X is Y"
     """
-    preferences: list[dict] = []
+    preferences: list[dict[str, str]] = []
 
     patterns = [
         (r"(?:i|I)\s+(?:like|love|enjoy|prefer)\s+(.+?)(?:\.|!|$)", "general"),
@@ -92,7 +92,7 @@ def _extract_preferences(transcript: str) -> list[dict]:
     return preferences
 
 
-def update_session_state(data_dir: Path, session_summary: dict | None = None) -> None:
+def update_session_state(data_dir: Path, session_summary: dict[str, object] | None = None) -> None:
     """Update persistent state after a session ends.
 
     Records:

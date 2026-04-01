@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+#
+# Purpose:
+#   - Ensures the classifier ONNX model exists and is up to date
+#   - Retrains when model.onnx is missing or older than training sources
+#   - Skips gracefully if ML dependencies are not installed
+#
+# Usage:
+#   ./bin/ensure-classifier-model           # Check and train if needed
+#   ./bin/ensure-classifier-model --force   # Force retrain regardless of staleness
+#
+# Exit codes:
+#   0 - Model is up to date, was trained, or was skipped (always non-fatal)
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$REPO_ROOT/bin/lib/logging.sh"
+
+MODEL_PATH="$REPO_ROOT/concierge/classifier/model.onnx"
+TRAINING_SOURCES="concierge/classifier/train.py concierge/classifier/training_data/"
+
+FORCE=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE=true
+            shift
+            ;;
+        -h|--help)
+            sed -n '2,/^$/p' "$0" | sed 's/^# //g'
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# --- Ensure ML deps are installed ---
+if ! uv run python -c "import torch; import transformers; import onnxruntime" 2>/dev/null; then
+    log_info "Installing ML dependencies (torch, transformers, onnxruntime)..."
+    if uv sync --extra ml 2>&1; then
+        log_success "ML dependencies installed"
+    else
+        log_warning "Failed to install ML dependencies"
+        log_warning "  Classifier will use fallback classification (CONVERSE with 0.0 confidence)"
+        log_warning "  To retry manually: uv sync --extra ml"
+        exit 0
+    fi
+fi
+
+# --- Staleness check ---
+needs_training=false
+
+if [[ "$FORCE" == true ]]; then
+    needs_training=true
+    log_info "Force flag set — will retrain model"
+elif [[ ! -f "$MODEL_PATH" ]]; then
+    needs_training=true
+    log_info "Model not found at $MODEL_PATH — will train"
+else
+    # Get commit timestamp of last change to training sources
+    source_commit_ts=$(git -C "$REPO_ROOT" log -1 --format='%ct' -- $TRAINING_SOURCES 2>/dev/null || echo "0")
+
+    # Get model file modification time (cross-platform)
+    if [[ "$(uname)" == "Darwin" ]]; then
+        model_mtime=$(stat -f '%m' "$MODEL_PATH")
+    else
+        model_mtime=$(stat -c '%Y' "$MODEL_PATH")
+    fi
+
+    if [[ "$source_commit_ts" -gt "$model_mtime" ]]; then
+        needs_training=true
+        log_info "Training sources are newer than model — will retrain"
+    else
+        log_success "Classifier model is up to date"
+    fi
+fi
+
+# --- Train if needed ---
+if [[ "$needs_training" == true ]]; then
+    log_info "Training classifier model (this may take 1-2 min on Apple Silicon, ~5 min on CPU)..."
+
+    if uv run python -m concierge.classifier.train; then
+        log_success "Classifier model trained successfully"
+    else
+        log_warning "Classifier model training failed"
+        log_warning "  The concierge will use fallback classification until the model is available"
+    fi
+fi

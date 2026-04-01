@@ -93,16 +93,19 @@ def load_config(user_config_dir: Path | str | None = None) -> dict[str, Any]:
 @lru_cache(maxsize=1)
 def get_classifier_config() -> dict[str, Any]:
     """Return the classifier section of the default config (cached)."""
-    return load_config()["classifier"]
+    result: dict[str, Any] = load_config()["classifier"]
+    return result
 
 
 @lru_cache(maxsize=1)
 def get_priorities_config() -> dict[str, Any]:
     """Return the priorities section of the default config (cached)."""
-    return load_config()["priorities"]
+    result: dict[str, Any] = load_config()["priorities"]
+    return result
 
 
 @lru_cache(maxsize=1)
 def get_pipeline_config() -> dict[str, Any]:
     """Return the pipeline section of the default config (cached)."""
-    return load_config()["pipeline"]
+    result: dict[str, Any] = load_config()["pipeline"]
+    return result

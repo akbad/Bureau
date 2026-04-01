@@ -18,6 +18,15 @@ class TestClaimLock:
         assert status["locked_by"] == "claude-code"
         assert status["locked_at"] is not None
 
+    def test_same_agent_reclaim_succeeds(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D."
+        )
+        claim_lock(tmp_path, result["slug"], agent="claude-code")
+        claim_lock(tmp_path, result["slug"], agent="claude-code")
+        status = get_lock_status(tmp_path, result["slug"])
+        assert status["locked_by"] == "claude-code"
+
     def test_returns_holder_when_already_locked(self, tmp_path: Path):
         result = fold_dossier(
             dossiers_dir=tmp_path, name="Test", agent="a", digest="D."
@@ -33,6 +42,6 @@ class TestReleaseLock:
             dossiers_dir=tmp_path, name="Test", agent="a", digest="D."
         )
         claim_lock(tmp_path, result["slug"], agent="claude-code")
-        release_lock(tmp_path, result["slug"])
+        release_lock(tmp_path, result["slug"], agent="claude-code")
         status = get_lock_status(tmp_path, result["slug"])
         assert status["locked_by"] is None

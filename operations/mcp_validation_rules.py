@@ -57,7 +57,7 @@ SERVICE_ALLOWED_KEYS: set[str] = {
 # Recognized top-level keys for mcp.client_configs.* entries
 CLIENT_CONFIG_ALLOWED_KEYS: set[str] = {
     "enabled", "requires_env", "depends_on", "clients",
-    "settings", "storage_path",
+    "settings", "storage_path", "npm_runtime",
 }
 
 # Recognized keys for individual client entries inside clients.*
@@ -107,7 +107,11 @@ CLIENT_CONFIG_TYPE_RULES: list[tuple[str, str]] = [
     ("enabled", "bool"),
     ("requires_env", "list[str]"),
     ("settings", "dict"),
+    ("npm_runtime", "dict"),
 ]
+
+# Recognized sub-keys inside npm_runtime blocks
+NPM_RUNTIME_ALLOWED_KEYS: set[str] = {"packages", "binaries"}
 
 # Type rules for individual client entries inside clients.*
 CLIENT_ENTRY_TYPE_RULES: list[tuple[str, str]] = [

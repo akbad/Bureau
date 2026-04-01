@@ -1,5 +1,6 @@
 from importlib import util
 from pathlib import Path
+import json
 
 import pytest
 import tomlkit
@@ -145,3 +146,102 @@ url = "http://example.com"
         doc = tomlkit.parse(content)
         assert doc["approval_policy"] == "never"
         assert doc["mcp_servers"]["test"]["enabled"] is True
+
+
+# ── per-tool approval tests ──────────────────────────────────────────
+
+class TestPerToolApproval:
+    """Tests for per-tool approval_mode entries from plan JSON"""
+
+    def _make_plan(self, tmp_path, codex_tools):
+        """Write a minimal plan JSON containing codex_tools and return the path."""
+        plan_path = tmp_path / "plan.json"
+        plan = {
+            "auto_approved": {
+                "mcp_servers": {
+                    "codex": list(codex_tools.keys()),
+                    "codex_tools": codex_tools,
+                }
+            }
+        }
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        return str(plan_path)
+
+    def test_writes_per_tool_approval_from_plan(self, tmp_path):
+        """Plan JSON with codex_tools should produce per-tool approval_mode entries."""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text("""
+[mcp_servers.qdrant]
+url = "http://localhost:8782/mcp/"
+enabled = true
+""".lstrip(), encoding="utf-8")
+
+        plan_path = self._make_plan(tmp_path, {
+            "qdrant": ["qdrant-find", "qdrant-store"],
+        })
+
+        update_codex_config(str(config_path), ["qdrant"], plan_path)
+
+        doc = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+        tools = doc["mcp_servers"]["qdrant"]["tools"]
+        assert tools["qdrant-find"]["approval_mode"] == "approve"
+        assert tools["qdrant-store"]["approval_mode"] == "approve"
+
+    def test_preserves_existing_tool_approvals(self, tmp_path):
+        """Existing per-tool entries should not be clobbered."""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text("""
+[mcp_servers.qdrant]
+url = "http://localhost:8782/mcp/"
+enabled = true
+
+[mcp_servers.qdrant.tools.qdrant-find]
+approval_mode = "deny"
+""".lstrip(), encoding="utf-8")
+
+        plan_path = self._make_plan(tmp_path, {
+            "qdrant": ["qdrant-find", "qdrant-store"],
+        })
+
+        update_codex_config(str(config_path), ["qdrant"], plan_path)
+
+        doc = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+        tools = doc["mcp_servers"]["qdrant"]["tools"]
+        # existing entry gets overwritten with "approve" (Bureau manages these)
+        assert tools["qdrant-find"]["approval_mode"] == "approve"
+        # new entry added
+        assert tools["qdrant-store"]["approval_mode"] == "approve"
+
+    def test_skips_tool_approvals_without_plan(self, tmp_path):
+        """No --plan flag should produce no per-tool entries (backward compat)."""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text("""
+[mcp_servers.qdrant]
+url = "http://localhost:8782/mcp/"
+enabled = true
+""".lstrip(), encoding="utf-8")
+
+        update_codex_config(str(config_path), ["qdrant"])
+
+        doc = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+        assert "tools" not in doc["mcp_servers"]["qdrant"]
+
+    def test_skips_tools_for_unknown_servers(self, tmp_path):
+        """codex_tools referencing a server not in config.toml should not crash."""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text("""
+[mcp_servers.qdrant]
+url = "http://localhost:8782/mcp/"
+enabled = true
+""".lstrip(), encoding="utf-8")
+
+        plan_path = self._make_plan(tmp_path, {
+            "nonexistent_server": ["tool_a", "tool_b"],
+        })
+
+        # should not raise
+        update_codex_config(str(config_path), ["qdrant"], plan_path)
+
+        doc = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+        # qdrant untouched (no tools in plan for it)
+        assert "tools" not in doc["mcp_servers"]["qdrant"]

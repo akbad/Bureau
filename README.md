@@ -112,7 +112,7 @@ All agents automatically read these files at startup:
 
     - Serves as an entrypoint to documentation progressively disclosing each MCP servers' tool capabilities
 
-- **Custom Bureau skills**: structured workflow protocols (e.g. `bureau-assess-mode`) installed for all supported CLIs and activated automatically by matching prompts
+- **Custom Bureau skills**: structured workflow protocols (e.g. `assess-mode`) installed for all supported CLIs and activated automatically by matching prompts
 - **[Superpowers](https://github.com/obra/superpowers) skills** — community-maintained skill library *(currently Claude Code and Codex only)*
 
 Injected via these files
@@ -144,7 +144,7 @@ with each of the 3 files above generated from [templates](protocols/context/temp
 
 > [!NOTE]
 > 
-> All skill names below appear in agent interfaces prefixed with `bureau-` (e.g. `assess-mode` → `bureau-assess-mode`).
+> Bureau skill names match their source and install directory names (e.g. `assess-mode`).
 
 #### Skills installed by default
 

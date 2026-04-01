@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import sys
 from pathlib import Path
 
@@ -39,14 +40,16 @@ from transformers import (
 
 logger = logging.getLogger(__name__)
 
+from . import MAX_LENGTH
+
 LABEL_MAP = {"REPLY": 0, "QUERY": 1, "CONVERSE": 2, "COMMAND": 3}
 MODEL_NAME = "distilbert-base-uncased"
-MAX_LENGTH = 128
 BATCH_SIZE = 16
 LEARNING_RATE = 2e-5
 MAX_EPOCHS = 5
 PATIENCE = 2
 WARMUP_RATIO = 0.1
+SEED = 42
 
 TRAINING_DATA_DIR = Path(__file__).parent / "training_data"
 OUTPUT_PATH = Path(__file__).parent / "model.onnx"
@@ -89,7 +92,20 @@ def train() -> dict[str, float]:
 
     Returns a dict of validation metrics.
     """
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    # Global seeds for deterministic training across machines
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(SEED)
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     logger.info("Using device: %s", device)
 
     # Load data
@@ -104,7 +120,10 @@ def train() -> dict[str, float]:
         dataset, [train_size, val_size],
         generator=torch.Generator().manual_seed(42),
     )
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(
+        train_ds, batch_size=BATCH_SIZE, shuffle=True,
+        generator=torch.Generator().manual_seed(SEED),
+    )
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE)
 
     # Model
@@ -123,6 +142,9 @@ def train() -> dict[str, float]:
     # Training loop
     best_val_loss = float("inf")
     patience_counter = 0
+    # capture initial weights so best_state is always defined when
+    # model.load_state_dict(best_state) is called after the loop
+    best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
 
     for epoch in range(1, MAX_EPOCHS + 1):
         # --- Train ---

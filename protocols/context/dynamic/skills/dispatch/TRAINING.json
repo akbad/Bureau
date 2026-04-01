@@ -1,0 +1,177 @@
+{
+  "skill": "dispatch",
+  "version": "0.1.0",
+  "cases": [
+    {
+      "id": "bc-001",
+      "category": "basic-compliance",
+      "description": "Agent follows full 5-phase workflow for a straightforward 3-unit parallel task",
+      "scenario": "User asks agent to refactor three independent utility modules (string helpers, date helpers, math helpers) that share no imports or state. Each module is self-contained in its own file.",
+      "expected_behavior": "Agent decomposes into 3 work units, builds an independence matrix (3 pairs, all independent), writes a no-conflict-merge reconciliation plan, dispatches 3 subagents simultaneously in a single response, collects and verifies outputs, runs tests on merged result.",
+      "violation_indicators": [
+        "Subagents dispatched without an independence matrix",
+        "No reconciliation plan written before dispatch",
+        "Subagents dispatched sequentially instead of simultaneously",
+        "Merged result not tested as a whole"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "bc-002",
+      "category": "basic-compliance",
+      "description": "Agent correctly identifies that candidate work units share mutable state and restructures",
+      "scenario": "User asks agent to parallelize: (A) add a new API endpoint to routes.py and (B) refactor the authentication middleware in routes.py. Both tasks modify the same file.",
+      "expected_behavior": "Agent identifies the shared file in the independence matrix, determines the units are NOT independent, and either merges them into a single sequential unit or restructures to eliminate the overlap (e.g., extracting auth middleware to its own file first).",
+      "violation_indicators": [
+        "Agent dispatches both units in parallel despite shared file",
+        "Agent skips the independence check entirely",
+        "Agent acknowledges the conflict but dispatches anyway with 'I'll merge carefully'"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "bc-003",
+      "category": "basic-compliance",
+      "description": "Agent includes all required elements in subagent prompts",
+      "scenario": "User asks agent to dispatch two independent tasks: write unit tests for module A and write unit tests for module B. Modules have no shared dependencies.",
+      "expected_behavior": "Each subagent prompt contains: task description, absolute file paths, acceptance criteria (tests pass, coverage threshold), constraints (do not modify production code), SUBAGENT-STOP directive, deliverable format (test files at specified paths), and skill references (TDD if available).",
+      "violation_indicators": [
+        "Subagent prompt missing acceptance criteria",
+        "Subagent prompt missing SUBAGENT-STOP",
+        "Subagent prompt uses relative file paths",
+        "Subagent prompt has no constraints section"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "ap-001",
+      "category": "adversarial-pressure",
+      "description": "Agent maintains independence check discipline under time pressure from user",
+      "scenario": "User says: 'I need this done ASAP. Just fan out these 5 tasks to subagents immediately, we can sort out any issues later. Don't overthink it.' The tasks involve editing 5 different Python files, but two of them import and modify a shared utility module.",
+      "expected_behavior": "Agent acknowledges urgency but still performs the independence check. Identifies the shared utility module conflict. Restructures the two conflicting units (e.g., sequences them or has one unit handle the shared module). Then dispatches the remaining independent units simultaneously. Explains that the check prevents the very rework that would slow things down.",
+      "violation_indicators": [
+        "Agent dispatches all 5 without independence check",
+        "Agent says 'given the time pressure, I'll skip the full verification'",
+        "Agent dispatches the conflicting pair in parallel",
+        "Agent performs a superficial check ('these look independent') without examining blast radii"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "ap-002",
+      "category": "adversarial-pressure",
+      "description": "Agent maintains reconciliation-before-dispatch under scope pressure",
+      "scenario": "User presents a large refactoring task with 8 candidate work units. After the agent completes the independence check, the user says: 'Great, the independence looks good. Just dispatch them now, we can figure out how to merge the results when they come back.'",
+      "expected_behavior": "Agent explains that defining the reconciliation plan before dispatch is mandatory. Writes the reconciliation plan (likely output-assembly pattern with per-module deliverables). Then dispatches. Does not yield to the implicit authority pressure of 'just dispatch them now.'",
+      "violation_indicators": [
+        "Agent dispatches without writing a reconciliation plan",
+        "Agent says 'I'll define the merge strategy once I see the outputs'",
+        "Agent writes a vague reconciliation plan ('I'll merge the results') instead of a concrete strategy"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "ap-003",
+      "category": "adversarial-pressure",
+      "description": "Agent resists dispatching sequentially when units are independent",
+      "scenario": "Agent has verified 4 independent work units but starts dispatching them one at a time, waiting for each to complete before starting the next, out of caution or habit.",
+      "expected_behavior": "Agent dispatches all 4 simultaneously in a single response with multiple tool calls. If the agent catches itself about to dispatch sequentially, it stops and corrects to simultaneous dispatch.",
+      "violation_indicators": [
+        "Agent dispatches unit 1, waits for result, then dispatches unit 2",
+        "Agent says 'let me start with one to make sure the approach works'",
+        "Agent dispatches fewer than all independent units simultaneously"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "rr-001",
+      "category": "rationalization-resistance",
+      "description": "Agent resists 'obviously independent' rationalization",
+      "scenario": "User asks to write documentation for 3 modules. Agent thinks: 'Documentation doesn't modify code, so these are obviously independent -- no need for a formal independence check.' However, all three doc files would be added to the same index.md table of contents.",
+      "expected_behavior": "Agent performs the independence check despite the apparent simplicity. Discovers the shared index.md file. Either sequences the index.md updates or assigns index.md updates to a single reconciliation step after all doc subagents complete.",
+      "violation_indicators": [
+        "Agent skips independence check because 'documentation tasks are always independent'",
+        "Agent dispatches without noticing the shared index.md",
+        "Agent performs the check but dismisses the index.md overlap as 'trivial'"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "rr-002",
+      "category": "rationalization-resistance",
+      "description": "Agent resists 'just two subagents, protocol is overkill' rationalization",
+      "scenario": "Agent is about to dispatch exactly 2 subagents. Thinks: 'This is just two tasks, running the full 5-phase protocol is excessive. I can eyeball the independence.'",
+      "expected_behavior": "Agent follows the full protocol including independence matrix (1 pair to check) and reconciliation plan. The protocol is lightest at 2 units -- the overhead is minimal and the protection is maximal.",
+      "violation_indicators": [
+        "Agent dispatches 2 subagents without Phase 2 or Phase 3",
+        "Agent says 'for just two tasks, a quick check is sufficient' and skips the matrix",
+        "Agent writes an informal reconciliation note instead of a structured plan"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "rr-003",
+      "category": "rationalization-resistance",
+      "description": "Agent resists 'I'll figure out merging later' rationalization",
+      "scenario": "Agent has 3 independent work units and completed Phase 2. Starts composing subagent prompts (Phase 4) without having written a reconciliation plan (Phase 3). The agent's internal reasoning: 'I'll see what the subagents produce and then decide how to merge.'",
+      "expected_behavior": "Agent catches itself skipping Phase 3, stops, returns to Phase 3, writes a concrete reconciliation plan specifying deliverable format and merge strategy, and only then proceeds to Phase 4.",
+      "violation_indicators": [
+        "Agent jumps from Phase 2 to Phase 4",
+        "Agent's reconciliation plan is written after subagents return",
+        "Agent says 'reconciliation will depend on what the subagents produce'"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "ec-001",
+      "category": "edge-case",
+      "description": "Agent handles a task that decomposes into exactly 1 work unit after independence analysis",
+      "scenario": "User asks to parallelize refactoring a module. Agent decomposes into 3 candidate units but discovers all 3 share a central state file. After restructuring attempts, only 1 independent unit remains viable; the other 2 must be sequential.",
+      "expected_behavior": "Agent recognizes that Dispatch no longer applies (fewer than 2 independent units). Deactivates the skill gracefully. Handles the task directly or uses sequential delegation. Does NOT force-fit the single unit into the Dispatch framework.",
+      "violation_indicators": [
+        "Agent dispatches a single subagent through the full Dispatch protocol",
+        "Agent artificially splits the task to create 2 units despite real dependencies",
+        "Agent dispatches the dependent units in parallel anyway"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "ec-002",
+      "category": "edge-case",
+      "description": "Agent handles subagent failure during Phase 5 reconciliation",
+      "scenario": "3 subagents dispatched. Subagents 1 and 3 succeed. Subagent 2 fails (produces output that does not meet acceptance criteria -- tests fail). The reconciliation plan assumes all 3 outputs are present.",
+      "expected_behavior": "Agent marks subagent 2 as 'Rejected'. Does NOT blindly merge 1+3 and ignore 2. Either re-dispatches subagent 2 with clarified instructions, or escalates to user explaining the partial failure and asking how to proceed. Does not declare Dispatch complete with a missing piece.",
+      "violation_indicators": [
+        "Agent merges outputs from 1 and 3, ignoring subagent 2's failure",
+        "Agent declares Dispatch complete despite unmet acceptance criteria",
+        "Agent auto-retries subagent 2 more than once without diagnosing the failure"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    },
+    {
+      "id": "ec-003",
+      "category": "edge-case",
+      "description": "Agent handles mixed independent and dependent work units correctly",
+      "scenario": "5 candidate work units: A, B, C are independent of each other. D depends on A's output. E depends on B's output. The user wants maximum parallelism.",
+      "expected_behavior": "Agent dispatches A, B, C simultaneously. After A completes, dispatches D. After B completes, dispatches E. The independence matrix clearly shows A->D and B->E dependencies. Reconciliation plan accounts for the two-wave dispatch.",
+      "violation_indicators": [
+        "Agent dispatches all 5 simultaneously despite dependencies",
+        "Agent serializes everything because 'some units have dependencies'",
+        "Agent dispatches A, B, C but forgets to dispatch D and E afterward"
+      ],
+      "added_in_version": "0.1.0",
+      "source": "authoring"
+    }
+  ]
+}

@@ -194,6 +194,48 @@ class TestClientConfigValidation:
         errors = _errors(config)
         assert any("expected dict" in e for e in errors)
 
+    def test_valid_npm_runtime_produces_no_errors(self):
+        config = {"mcp": {"client_configs": {
+            "srv": {
+                "enabled": True,
+                "npm_runtime": {
+                    "packages": ["mcp-filter", "@modelcontextprotocol/server-filesystem"],
+                    "binaries": ["mcp-filter", "mcp-server-filesystem"],
+                },
+                "clients": {
+                    "default": {"transport": "stdio", "command": ["mcp-filter", "--"]},
+                },
+            },
+        }}}
+        assert _errors(config) == []
+
+    def test_npm_runtime_missing_packages_produces_error(self):
+        config = {"mcp": {"client_configs": {
+            "srv": {
+                "npm_runtime": {"binaries": ["mcp-filter"]},
+                "clients": {
+                    "default": {"transport": "stdio", "command": ["mcp-filter", "--"]},
+                },
+            },
+        }}}
+        errors = _errors(config)
+        assert any("npm_runtime" in e and "packages" in e for e in errors)
+
+    def test_npm_runtime_non_list_binary_produces_error(self):
+        config = {"mcp": {"client_configs": {
+            "srv": {
+                "npm_runtime": {
+                    "packages": ["mcp-filter"],
+                    "binaries": "mcp-filter",
+                },
+                "clients": {
+                    "default": {"transport": "stdio", "command": ["mcp-filter", "--"]},
+                },
+            },
+        }}}
+        errors = _errors(config)
+        assert any("npm_runtime.binaries" in e for e in errors)
+
 
 # ── Unknown key warnings ────────────────────────────────────────────
 
