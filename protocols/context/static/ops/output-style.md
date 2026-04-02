@@ -78,7 +78,7 @@ However:
     1. Convert your content to use the [list structure described above](#lists) instead of a table
     2. Split the cell's content into paragraphs:
 
-        - In *GitHub-flavoured Markdown*, you can add `<br/>` tags in the cell's content
+        - In *GitHub-flavoured Markdown* (**GFH**), you can add `<br/>` tags in the cell's content
         - If working in another framework (e.g. Material for Mkdocs), find a suitable solution (investigate its docs if needed)
 
     3. Reorganize your content's broader section structure:
@@ -98,23 +98,23 @@ However:
 
 #### Inline emphasis
 
-In your content, include a healthy amount of:
+#### Inline emphasis
 
-- bolds
-- italics
-- underlines (via `<ins> ... </ins>`)
-- GitHub-flavoured Markdown alerts (`[!NOTE]`, `[!IMPORTANT]`, `[!CAUTION]`, etc.)
+Use a healthy amount of each formatting level below. They should signal a consistent degree of emphasis:
 
-> [!TIP]
+- *Italics* for mild emphasis, nuance, or tone
+- **Bold** for strong emphasis on key terms or claims
+- ***Bold + italic*** for maximum emphasis on critical points
+- <ins>Underline</ins> for key terms being defined or introduced
+- GFH alerts (`[!NOTE]`, `[!IMPORTANT]`, `[!CAUTION]`, etc.) tastefully, for special callouts as needed
+
+> [!CAUTION]
 >
-> #### Emphasis escalation
+> - Only use GFH alerts in **GFH *documents***.
+> - This *excludes*:
 >
-> Each formatting level should signal a consistent degree of emphasis:
->
-> - *Italics* for mild emphasis, nuance, or tone
-> - **Bold** for strong emphasis on key terms or claims
-> - ***Bold + italic*** for maximum emphasis on critical points
-> - `<ins>Underline</ins>` for key terms being defined or introduced
+>     - your **chat responses**
+>     - documents that are **meant for *non*-GFH environments/frontends** (e.g. Material for Markdown docs) *unless* they *explicitly support* GFH alerts
 
 #### Code blocks
 
@@ -129,7 +129,7 @@ Any code blocks you include should have one or both of:
 >
 > These guidelines apply:
 >
-> - <ins>only</ins> when writing a file that will be directly rendered via **GitHub-flavoured Markdown** *(e.g., internal documentation in a GitHub repo)*
+> - <ins>only</ins> when writing a file that will be directly rendered via **GFH** *(e.g., internal documentation in a GitHub repo)*
 > - <ins>not</ins> when writing any other kind of Markdown file *(e.g., Markdown files used in Material for Mkdocs sites)*
 
 1. When **nesting block elements (callouts, blockquotes, code blocks) within lists**, if the block element is:
@@ -144,13 +144,13 @@ Any code blocks you include should have one or both of:
     3. the block element (callout, blockquote, or code block)
     <p></p>
 
-    > Without the `<p>` tag pair, the callout renders (in GitHub-flavoured Markdown) too close to the preceding list element and the spacing looks cramped and awkward.
+    > Without the `<p>` tag pair, the callout renders (in GFH) too close to the preceding list element and the spacing looks cramped and awkward.
     >
-    > Without the empty line in between the `<p>` tag pair and the callout, the GitHub-flavoured Markdown engine will not properly parse the callout's beginning `>` and it won't be rendered correctly.
+    > Without the empty line in between the `<p>` tag pair and the callout, the GFH engine will not properly parse the callout's beginning `>` and it won't be rendered correctly.
 
-2. **<ins>Never</ins> nest *indented* GitHub-flavoured Markdown alerts** (i.e. `> [!NOTE]`, `> [!TIP]`) within, for example, lists
+2. **<ins>Never</ins> nest *indented* GFH alerts** (i.e. `> [!NOTE]`, `> [!TIP]`) within, for example, lists
 
-    - GitHub-flavoured Markdown does not support this: they will not render properly.
+    - GFH does not support this: they will not render properly.
     - Examples:
 
         ```markdown
