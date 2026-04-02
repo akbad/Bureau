@@ -98,8 +98,6 @@ However:
 
 #### Inline emphasis
 
-#### Inline emphasis
-
 Use a healthy amount of each formatting level below. They should signal a consistent degree of emphasis:
 
 - *Italics* for mild emphasis, nuance, or tone
