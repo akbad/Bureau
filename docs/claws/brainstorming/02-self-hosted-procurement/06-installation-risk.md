@@ -26,13 +26,22 @@ Issue #477 confirms these delegation targets exist, but:
 - **Signal via signal-cli:** Requires Java. Setup is non-trivial. Need to verify macOS compatibility and daemon behavior.
 - **Verification step:** Set up each desired channel, test after Mac sleep/wake cycles, test after network changes, run for 48+ hours to evaluate stability.
 
-### 4. Memory growth and performance
+### 4. FTS5 session search summarization — LLM dependency
+
+The FTS5 session search feature uses an LLM to summarize retrieved past-session results before injecting them into context. By default this targets "Gemini Flash" (a cloud provider).
+
+- **Question:** Can this summarization step be redirected to Ollama or the Claude Code credential store provider?
+- **Question:** If redirected to a weaker local model, does the summarization quality degrade enough to make session search useless?
+- **Mitigation:** If the feature cannot be redirected, it can be disabled — the core MEMORY.md/USER.md/skill system works without it.
+- **Verification step:** Configure Hermes with Ollama as the sole provider, trigger a session search, verify it works or fails gracefully.
+
+### 5. Memory growth and performance
 
 - **FTS5 index growth:** After months of use, the SQLite session archive will grow. What is the query performance at 10K, 50K, 100K sessions?
 - **Skill accumulation:** If Hermes creates hundreds of skill files, does system prompt bloat degrade performance?
 - **Verification step:** Simulate heavy usage for a week, then benchmark memory retrieval and session startup times.
 
-### 5. Honcho self-hosting (if desired later)
+### 6. Honcho self-hosting (if desired later)
 
 - Honcho can self-host locally via Docker (PostgreSQL backend).
 - For basic operation, no external API key needed (`AUTH_USE_AUTH=false` for local development).

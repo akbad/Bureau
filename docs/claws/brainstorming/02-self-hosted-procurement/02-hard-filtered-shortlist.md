@@ -6,7 +6,7 @@ Before filtering on constraints, every named platform was verified against prima
 
 | Platform | Real? | GitHub | Stars | Last active | Language |
 |---|---|---|---|---|---|
-| Hermes Agent | **Yes** | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | ~30K+ | April 2026 | TypeScript |
+| Hermes Agent | **Yes** | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | ~24K+ | April 2026 | Python |
 | OpenClaw | **Yes** | [openclaw/openclaw](https://github.com/openclaw/openclaw) | ~347K | April 2026 | TypeScript |
 | Letta | **Yes** | [letta-ai/letta](https://github.com/letta-ai/letta) | ~15K+ | 2026 | Python |
 | OpenHands | **Yes** | [All-Hands-AI/OpenHands](https://github.com/All-Hands-AI/OpenHands) | ~50K+ | 2026 | Python |
@@ -26,7 +26,7 @@ Each constraint is evaluated as PASS / FAIL / PARTIAL. A single FAIL on any hard
 
 | Platform | Verdict | Evidence |
 |---|---|---|
-| Hermes Agent | **PASS** | Ollama (local, no key). Also reuses Claude Code credential store (subscription auth, not API key). |
+| Hermes Agent | **PASS** | Ollama (local, no key). Also reuses Claude Code credential store (subscription auth, not API key). Minor caveat: FTS5 session search summarization defaults to Gemini Flash — may need redirection to local model or accepted as one small cloud call. |
 | OpenClaw | **PASS** | Ollama (dummy placeholder key, not a real key). CLI backends use local CLI auth. |
 | Letta | **PASS** (degraded) | Ollama supported, but docs warn: "very demanding agent harness, unlikely to get good performance with most open weights models." |
 | OpenHands | **PASS** (degraded) | Ollama supported. Requires LLM API key field (can point to Ollama). |
