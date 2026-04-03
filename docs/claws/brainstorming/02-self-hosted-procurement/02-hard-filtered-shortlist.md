@@ -96,9 +96,9 @@ Each constraint is evaluated as PASS / FAIL / PARTIAL. A single FAIL on any hard
 | **OpenClaw** | None | **SURVIVES** |
 | Letta | CLI delegation (FAIL), Phone channels (FAIL) | **ELIMINATED** — strong as a memory ingredient, not as a deployable platform |
 | OpenHands | CLI delegation (FAIL), Phone channels (FAIL) | **ELIMINATED** — strong as a SWE executor ingredient, not as a shell |
-| Memoh | CLI delegation (PARTIAL), API key clarity (PARTIAL) | **ELIMINATED** — promising but unverified on critical constraints |
-| CoPaw | CLI delegation (PARTIAL) | **BORDERLINE** — watch closely, too immature (v1.0.0, March 2026) |
-| OpenFang | API keys (FAIL — active bug) | **ELIMINATED** — would need bug fix before reconsideration |
+| Memoh | CLI delegation (PARTIAL), API key clarity (PARTIAL), macOS (uncertain — requires containerd/privileged Docker) | **ELIMINATED** — promising memory system but requires cloud LLM API keys for inference, uncertain macOS compatibility due to containerd dependency. AGPL-3.0 license. |
+| CoPaw | CLI delegation (PARTIAL) | **BORDERLINE** — watch closely, too immature (v1.0.0, March 2026). Notable: has iMessage support, Apple Silicon MLX optimization, zero-API-key with llama.cpp. Alibaba/AgentScope team, 14.4K stars. |
+| OpenFang | API keys (FAIL — active Ollama bug, issue #260) | **ELIMINATED** — architecturally strong (wraps Claude Code CLI, 40 channels, single Rust binary), but cannot operate zero-API-key until Ollama bug is fixed. **Revisit when issue #260 is resolved.** |
 | Khoj | CLI delegation (FAIL), Phone channels (PARTIAL) | **ELIMINATED** — wrong category (knowledge manager, not agent orchestrator) |
 | Goose | Phone channels (FAIL) | **ELIMINATED** — useful as a worker CLI, not as an always-on shell |
 

@@ -70,6 +70,12 @@ Bureau already has a working Telegram → Claude Code/Codex/Gemini bridge, backg
 - You want self-improving behavior without building it yourself.
 - You want a community ecosystem of skills and integrations.
 
+### If OpenFang fixes its Ollama bug: reconsider it
+
+OpenFang (github.com/RightNow-AI/openfang) is architecturally the most ambitious platform reviewed — a single 32MB Rust binary with 40 channel adapters, 38 built-in tools, 16 security systems, and explicit Claude Code CLI wrapping. It has a `CLAUDE.md` file in its repo and can wrap Claude Code as an agent runtime with scheduled tasks, heartbeat monitors, and event-driven workflows. It also supports migration from OpenClaw (`openfang migrate --from openclaw`).
+
+**However**, issue #260 (March 2026) shows that Ollama local mode incorrectly demands `GROQ_API_KEY`, which breaks the zero-API-key requirement. The project is also pre-1.0 with "rough edges." Monitor this issue — if fixed, OpenFang could become the strongest single-binary contender.
+
 ### If you prioritize Apple Silicon optimization and local-only with zero network: CoPaw
 
-CoPaw (v1.0.0, March 30, 2026) is the only platform with explicit MLX optimization for Apple Silicon M1–M4. If you want to run everything on-device with zero network dependency (not even a Telegram bot), CoPaw is the best-optimized option. However, it is brand-new (v1.0.0 just shipped), has no Claude Code delegation, and its channel coverage is Asia-centric (DingTalk, Feishu, WeChat). Watch this space — it may become a serious contender within 6 months.
+CoPaw (v1.0.0, March 30, 2026) is the only platform with explicit MLX optimization for Apple Silicon M1–M4. Built by Alibaba's AgentScope team (14.4K stars, Apache 2.0). If you want to run everything on-device with zero network dependency, CoPaw is the best-optimized option. It supports iMessage, Telegram, Discord, and several Asia-centric channels (DingTalk, Feishu, WeChat). However, it is brand-new (v1.0.0 just shipped), has no built-in Claude Code delegation (would need a custom skill), and its self-improving capabilities are unproven. Watch this space — it may become a serious contender within 6 months.
