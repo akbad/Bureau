@@ -3,7 +3,7 @@
 ## Purpose
 
 This iteration aggregates the independent research in
-[`docs/claws/exploration/`](../../exploration/README.md) and reframes it into
+[`docs/claws/exploration/`](../../../exploration/README.md) and reframes it into
 Bureau's own architecture-space assessment.
 
 The working assumption for this task is:
