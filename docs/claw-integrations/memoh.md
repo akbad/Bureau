@@ -26,13 +26,15 @@ Key architectural properties:
 
 | Property | Detail |
 |---|---|
-| Language | Go (home/studio infrastructure) |
+| Language | Go (65.7%), TypeScript (Vue 3 frontend) |
 | Container runtime | Embedded containerd (Linux namespaces + cgroups) |
-| LLM providers | Any OpenAI-compatible, Anthropic, Google; per-bot model assignment |
-| MCP support | Full (HTTP / SSE / Stdio / OAuth); per-bot independent connections |
-| Browser automation | Headless Chromium/Firefox via Playwright |
-| Web UI | Vue 3 + Tailwind CSS dashboard |
-| License | Open source (see repository) |
+| LLM providers | OpenAI, Anthropic, Google via Twilight AI SDK; per-bot model assignment |
+| MCP support | Full (HTTP / SSE / Stdio / OAuth); per-bot independent connections; MCP federation as tool provider |
+| Browser automation | Playwright browser gateway on port 8083 |
+| Web UI | Vue 3 + Tailwind CSS dashboard on port 8082; dark/light theme, i18n |
+| REST API | Port 8080 with integrated channel adapters |
+| License | **AGPLv3** (copyleft; see Risks section 11) |
+| Maturity | v0.6.3 (April 2, 2026), 1.2k stars, 120 forks, 721 commits, 29 releases |
 | Edge-friendly | Go binary runs efficiently on low-resource devices |
 
 The GitHub description explicitly positions it as "like OpenClaw" — the
@@ -244,6 +246,11 @@ Each bot runs in its own containerd container with:
 - **Dedicated filesystem** — no shared state between bots
 - **Dedicated network namespace** — network isolation between bots
 - **Dedicated tool set** — each bot's MCP connections are independent
+- **gRPC over Unix domain sockets** — communication between the main server
+  and bot containers avoids TCP, reducing attack surface
+- **Snapshots and versioning** — container state can be captured, versioned,
+  and rolled back
+- **Data export/import** — bot data is portable between Memoh instances
 
 Memoh embeds containerd inside the server container, requiring Linux kernel
 features (namespaces, cgroups) and elevated privileges (typically
@@ -265,7 +272,14 @@ This enables fine-grained permission management: e.g., allow a user on
 Telegram but deny them on Discord, or restrict certain conversations to
 specific users.
 
-### 8.3 Security Implications for Bureau Integration
+### 8.3 Default Credentials
+
+The admin UI ships with default credentials `admin/admin123`. Any production
+deployment must change these immediately. If Memoh is deployed alongside
+Bureau, both systems must share a coherent authentication boundary or risk
+one becoming a backdoor to the other.
+
+### 8.4 Security Implications for Bureau Integration
 
 Memoh's container isolation addresses Bureau's identified gap: Bureau has no
 container isolation (noted as "Low priority" in the agent framework
@@ -384,7 +398,30 @@ unification path; Weak fit as a replacement for Bureau's core orchestration.**
   requires API-level communication (REST/MCP), not library-level. This adds
   latency and complexity compared to in-process solutions.
 
-### 11.2 Architectural Risks
+### 11.2 License Risk (AGPLv3)
+
+Memoh is licensed under AGPLv3, the most restrictive common open-source
+license. If Bureau interacts with Memoh only via its REST API (network
+boundary), the AGPL's copyleft provisions should not propagate to Bureau's
+codebase. However, if any Memoh code is embedded in Bureau or if Bureau's
+code is modified to run inside Memoh's process, AGPL copyleft would apply
+to Bureau. **The integration must maintain a strict network boundary.**
+
+### 11.3 Model Cost Amplification
+
+Memoh's fact extraction runs an LLM call on every conversation turn. If
+Bureau delegates significant traffic to Memoh bots, the extraction overhead
+multiplies model costs. The "Off" memory mode should be used for bots that
+serve purely as execution sandboxes without needing memory.
+
+### 11.4 macOS Compatibility
+
+Bureau is macOS-focused; containerd is Linux-native. Running Memoh on macOS
+requires a Linux VM (e.g., via Lima or Colima), adding a layer of
+indirection. This affects the development experience for Bureau contributors
+and may introduce latency for sandboxed operations.
+
+### 11.5 Architectural Risks
 
 - **Dependency coupling** — adding Memoh as a required component increases
   Bureau's deployment complexity. The Docker Compose stack grows from
@@ -392,11 +429,15 @@ unification path; Weak fit as a replacement for Bureau's core orchestration.**
 - **Memory coherence** — bridging two memory systems (Bureau's fragmented
   stack + Memoh's unified pipeline) risks inconsistency. A sandbox bot's
   memories may diverge from Bureau's understanding of the same context.
+- **Qdrant duplication** — both Bureau and Memoh use Qdrant. Running two
+  instances is wasteful; sharing one requires careful collection namespacing
+  to prevent data leakage. Embedding model, vector dimensions, and distance
+  metric must be aligned between the two systems.
 - **Heartbeat/cron overlap** — Bureau is developing its own proactive features.
   Running both Bureau's and Memoh's scheduling systems creates coordination
   challenges.
 
-### 11.3 Strategic Risks
+### 11.6 Strategic Risks
 
 - **Project maturity** — Memoh is newer than OpenClaw and has a smaller
   community. Long-term maintenance is uncertain.
@@ -407,7 +448,7 @@ unification path; Weak fit as a replacement for Bureau's core orchestration.**
   servers, 3 memory backends, and a classification pipeline. Adding Memoh
   as an integration layer further stretches the complexity budget.
 
-### 11.4 Recommended Approach
+### 11.7 Recommended Approach
 
 **Phase 1 (Low effort):** Use Memoh as an optional, standalone sandbox for
 untrusted code execution. Bureau dispatches tasks via REST API, collects

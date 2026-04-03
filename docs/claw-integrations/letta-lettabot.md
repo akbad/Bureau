@@ -273,3 +273,75 @@ Letta + LettaBot is the strongest memory-layer candidate evaluated for Bureau in
 The integration should proceed as a memory-layer replacement with LettaBot as channel adapter, not as a wholesale framework migration. Bureau's orchestration logic, agent roles, workflow skills, and coding CLI integration remain Bureau's domain. Letta provides the stateful memory backbone; LettaBot provides the channel surface.
 
 Priority: address the cross-agent memory gap before Phase 3. If shared memory blocks prove insufficient for 66-agent context sharing, a hybrid approach retaining Qdrant for cross-agent semantic search alongside Letta for per-agent memory is the pragmatic path.
+
+---
+
+## 12. High-Impact Feature Merges & Extensions
+
+The following ideas represent high-leverage integration points where Bureau's multi-agent orchestration and Letta's stateful memory architecture produce capabilities that neither system can achieve alone.
+
+### 12.1 Evolutionary Role Genomes
+
+Each of Bureau's 66 agent roles becomes a Letta agent whose persona memory block functions as a living "genome" -- a self-editing behavioral specification that mutates based on task outcomes. After every task delegation, the agent writes a structured outcome record (success/failure, time taken, user satisfaction signal) to its archival memory, then periodically rewrites its own persona block to reinforce strategies correlated with success and deprecate those correlated with failure. Over hundreds of invocations, each role evolves into a specialist finely tuned to the specific codebase, team, and problem distribution it encounters -- without any human prompt engineering.
+
+**Why it matters:** Today, Bureau's role prompts are static text written once by a human. This turns them into living documents that optimize themselves, creating agents that are measurably better at their jobs after 100 tasks than after 10.
+
+### 12.2 Cross-Agent Recall Mesh
+
+Implement a shared archival memory partition accessible to all 66 Bureau agents, functioning as an organizational "institutional memory." When any agent encounters a novel pattern -- a tricky debugging solution, an architectural decision rationale, a security vulnerability class -- it writes a structured knowledge fragment to the shared partition with metadata tags (domain, confidence, source agent, timestamp). Other agents query this mesh before starting work, effectively inheriting the accumulated experience of every other agent in the system. A relevance-decay function deprioritizes stale knowledge, and conflicting entries trigger a reconciliation protocol where the originating agents are re-queried.
+
+**Why it matters:** Bureau's agents currently operate in hermetic isolation -- the debugger's hard-won insight about a race condition never reaches the architect planning the next module. This creates a collective intelligence where the system as a whole becomes smarter than any individual agent.
+
+### 12.3 Dossier-to-Living-Memory Migration Engine
+
+Build a one-shot migration tool that parses Bureau's existing dossier files and decomposes them into Letta memory tiers: identity/behavioral content maps to persona blocks, user-specific knowledge maps to human blocks, reference material maps to archival memory with vector embeddings, and session-specific transient notes map to custom core blocks. Post-migration, the dossier format is retired entirely -- agents read and write structured memory blocks instead of flat markdown files. A reverse-export function can snapshot the current memory state back into dossier-format markdown for human review or version control.
+
+**Why it matters:** Bureau's dossier system is the single largest source of maintenance burden. Migrating it to self-maintaining Letta memory blocks eliminates manual dossier upkeep while preserving (and enhancing) every piece of accumulated knowledge.
+
+### 12.4 Code Review Pattern Crystallization
+
+The Assess Mode skill writes its findings -- comprehension model, per-file audit results, quality standard violations -- into the invoking agent's archival memory as structured review records. Over successive reviews of the same codebase, Letta's recall memory builds a longitudinal dataset of what kinds of issues recur, which files are chronic problem areas, and which quality standards the team consistently violates versus consistently meets. The agent then edits its own core memory to create a "review prior" -- a compressed summary of known hotspots, common anti-patterns, and team-specific style preferences -- that is automatically injected into the context window at the start of every future review, making each review faster and more targeted than the last.
+
+**Why it matters:** Code review today is memoryless -- every review starts from zero. This creates a reviewer that has read every past review and remembers what it found, turning Assess Mode from a stateless tool into a continuously improving quality oracle.
+
+### 12.5 Five-Channel Unified Development Console
+
+LettaBot's five channels (Telegram, Slack, Discord, WhatsApp, Signal) each serve a distinct development workflow surface, all backed by a single Letta agent with unified memory. Telegram becomes the mobile triage interface (quick approvals, status checks, alerts). Slack becomes the team collaboration surface (Bureau agent outputs posted to channels, threaded discussions with the agent). Discord hosts a persistent "war room" for long-running debugging sessions with voice narration via ElevenLabs TTS. WhatsApp serves as the emergency escalation path with voice-note-driven incident response (Whisper transcription into the agent's recall memory). Signal handles security-sensitive communications (credential rotation confirmations, vulnerability disclosures). The Letta agent's core memory maintains a unified "operational state" block that synchronizes context across all five surfaces -- a conversation started on Telegram can be continued on Slack with full context.
+
+**Why it matters:** Developers currently context-switch between tools and lose state. This creates a single agent that follows the developer across every communication surface, maintaining perfect continuity -- something no existing coding assistant offers.
+
+### 12.6 Speculative Pre-Computation via Heartbeat Cycles
+
+Repurpose LettaBot's heartbeat mechanism (periodic unprompted agent activation) as a speculative pre-computation engine. During idle heartbeat cycles, the Letta agent examines its recall memory for recent conversations and archival memory for pending tasks, then proactively delegates work to Bureau agents: running Assess Mode on recently modified files, pre-computing blast radius analysis for open PRs, refreshing stale memory entries by re-querying codebases via Serena/Sourcegraph, and pre-fetching API documentation via Context7 for libraries mentioned in recent conversations. Results are written to archival memory with a "speculative" tag. When the user next interacts, the agent checks for relevant speculative results and presents them immediately, creating the illusion of instant, anticipatory assistance.
+
+**Why it matters:** Every existing coding assistant is purely reactive -- it waits for you to ask. This creates an agent that works while you sleep, so your next morning standup starts with a pre-computed status report and your next code review is already half-done.
+
+### 12.7 Memory-Versioned Rollback Trees
+
+Implement a git-like versioning layer over Letta's memory blocks. Every self-edit to a persona block, human block, or custom block is recorded as a diff with a parent pointer, forming a tree of memory states. Agents can branch their memory (e.g., "try an aggressive refactoring style for this sprint"), and if the branch produces worse outcomes (measured by task success rates in archival memory), roll back to the parent state. A CLI command (`bureau memory log <agent-role>`) displays the memory evolution history. A diff viewer shows exactly what the agent changed about its own beliefs and when. Critical for the Evolutionary Role Genomes feature (12.1): without rollback, a single bad self-edit can permanently degrade an agent.
+
+**Why it matters:** Self-editing memory without version control is like code without git -- one bad commit and you lose everything. This makes autonomous learning safe by making it reversible, which is the prerequisite for trusting agents to modify their own behavior.
+
+### 12.8 Multi-Agent Debate with Shared Working Memory
+
+When Bureau dispatches a complex task (e.g., "design the authentication system"), multiple agent roles (architect, security-compliance, api-design, performance) are each instantiated as Letta agents that share a single custom core memory block labeled "debate-workspace." Each agent reads the workspace, appends its perspective with structured reasoning, and the next agent reads the accumulated perspectives before adding its own. The workspace block functions as a real-time blackboard visible to all participants. After all agents have contributed, a synthesizer agent reads the full debate workspace plus each agent's archival memory (for historical context on similar decisions) and produces a final recommendation. The entire debate transcript is preserved in archival memory for future reference.
+
+**Why it matters:** Bureau can already dispatch to multiple agents, but they cannot see or respond to each other's reasoning. Shared working memory turns parallel independent analysis into genuine collaborative deliberation -- the difference between asking five experts separately and putting them in a room together.
+
+### 12.9 Adaptive Skill Activation via Memory-Driven Classification
+
+Replace Bureau's current prompt-matching skill activation with a Letta memory-driven classifier. The agent maintains a core memory block containing a compressed decision tree: given task characteristics (keywords, file types, repository structure, recent history from recall memory, user preferences from human block), which skill (Assess Mode, Micro Mode, Scrimmage Mode, etc.) produces the best outcomes? This decision tree self-edits based on observed results -- if Scrimmage Mode consistently catches issues that Assess Mode misses in security-critical repos, the agent learns to prefer Scrimmage Mode for those contexts. The agent also learns compound skill sequences: "for this user, always run Blast Radius Mode before Micro Mode" -- a personalized workflow that emerges from memory, not configuration.
+
+**Why it matters:** Skill activation today is rigid pattern matching. This creates a system that learns which workflows work best for which situations and which users, turning Bureau's skill catalog into an adaptive toolkit that configures itself.
+
+### 12.10 Context-Aware Model Routing with Historical Performance Memory
+
+Bureau supports four CLI backends (Claude Code, Gemini CLI, Codex, OpenCode). Build a Letta-backed routing layer where the dispatching agent maintains archival memory records of task-model performance pairs: "Claude Code completed architecture tasks in 45s avg with 92% user acceptance; Gemini CLI completed broad code search tasks in 12s avg with 88% acceptance." The agent's core memory holds a compressed routing table derived from these records, which self-edits as new data arrives. When a task comes in, the agent consults its routing table, current model availability (via heartbeat-driven health checks stored in memory), and the user's human memory block (which may contain explicit preferences like "prefer Claude for reviews") to select the optimal CLI backend. This transforms Bureau's `handoff-guide.md` from a static document into a continuously learning routing optimizer.
+
+**Why it matters:** Bureau's handoff guide is a human-written heuristic. This replaces it with an empirical, self-improving routing function that gets better at choosing the right model for the right task with every interaction -- personalized to the specific user, codebase, and task distribution.
+
+### 12.11 Incident Replay and Post-Mortem Memory
+
+When a debugging session occurs (via the debugger agent role), the entire investigation is recorded as a structured "incident record" in archival memory: initial symptoms, hypotheses explored, dead ends encountered, root cause identified, and fix applied. These records are tagged with error signatures (exception types, stack trace patterns, error message templates). On future incidents, before the debugger begins work, it queries archival memory for matching error signatures and retrieves relevant past incident records. If a match is found, the debugger's core memory is pre-loaded with the previous investigation path, allowing it to skip dead ends and jump directly to likely root causes. Over time, the system builds a codebase-specific incident knowledge base that makes debugging progressively faster.
+
+**Why it matters:** Debugging the same class of issue twice is pure waste. This creates a debugger with perfect recall of every past investigation, turning repeated incidents from full investigations into instant pattern matches -- the equivalent of a senior engineer who has "seen this before."

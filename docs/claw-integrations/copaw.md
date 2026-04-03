@@ -398,3 +398,221 @@ highest-value integration points (channels and security) without the
 dependency weight of full AgentScope adoption.  The IPC bridge approach
 is a viable alternative if CoPaw is already deployed as a personal
 assistant and Bureau is added alongside it.
+
+---
+
+## 12. High-Impact Feature Merges & Extensions
+
+Ideas for combined Bureau + CoPaw capabilities that neither system can
+deliver alone and that have no equivalent in the current agent framework
+landscape.
+
+---
+
+### 12.1 iMessage-Driven Code Review with Role Rotation
+
+Send a pull request URL via iMessage and CoPaw routes it to Bureau's
+`assess-mode` skill, automatically cycling through relevant agent roles
+(security-compliance, debugger, architect) and streaming each
+role's verdict back as threaded iMessage replies with inline diff
+snippets.  The user can reply "dig deeper on the SQL injection finding"
+and Bureau spawns a targeted subagent, returning results to the same
+iMessage thread.
+
+**Why it matters:** No existing system lets you trigger a multi-role,
+structured code review from a native SMS/iMessage conversation and
+interact with the results conversationally on your phone.
+
+---
+
+### 12.2 Cross-Memory Dossier Synthesis
+
+Bureau's Qdrant-backed dossiers store dev context (architecture
+decisions, session state, code patterns) while ReMe's ProfileHandler
+stores user preferences, communication style, and personal knowledge.
+A shared synthesis layer queries both stores simultaneously and produces
+a merged context document: "This user prefers functional patterns, last
+worked on the payments module, has a meeting at 3pm, and the CI pipeline
+is red on `main`."  Agents receive this fused dossier at session start,
+enabling responses that are both technically precise and personally
+calibrated.
+
+**Why it matters:** Every agent framework treats "dev memory" and
+"personal memory" as separate worlds.  Fusing them means an agent that
+knows your code AND your calendar, communication preferences, and
+working patterns -- context no single-purpose system can assemble.
+
+---
+
+### 12.3 Tool Guard Mesh with Multi-Agent Trust Tiers
+
+CoPaw's Tool Guard blocks dangerous shell patterns pre-execution.
+Bureau runs 66 agent roles with varying trust requirements (an
+`architect` planning subagent needs no filesystem write access; a
+`debugger` might need broad read access).  Combine them: each Bureau
+role gets a trust tier (read-only, scoped-write, full-write, privileged)
+and CoPaw's Tool Guard enforces tier-appropriate restrictions on every
+MCP tool call.  A `security-compliance` agent can read `/etc/` but not
+write; a `refactorer` can write to `src/` but not `config/`.  Violations
+are routed to the user via iMessage for real-time approval, with
+one-tap approve/deny reactions.
+
+**Why it matters:** No multi-agent coding framework currently enforces
+per-role, per-path security policies with a real-time mobile approval
+channel.  This is the missing link between "autonomous agents" and
+"agents I actually trust to run unsupervised."
+
+---
+
+### 12.4 Heartbeat-Driven Codebase Health Monitor
+
+CoPaw's Heartbeat scheduler fires on a cron schedule, but instead of
+checking emails it triggers Bureau agents: run `assess-mode` on the
+latest commits, execute the test suite via a `tester` subagent, check
+dependency freshness with the `dependency-tracker` role, and scan for
+secrets with Semgrep MCP.  Results are compiled into a daily health
+digest delivered via iMessage, DingTalk, or any CoPaw channel.  If a
+critical finding is detected (security vulnerability, broken tests),
+it escalates immediately rather than waiting for the next digest.
+
+**Why it matters:** CI/CD pipelines report pass/fail.  This reports
+*qualitative, role-specific intelligence* about codebase health --
+architectural drift, test coverage gaps, security posture changes --
+delivered proactively to your messaging app, not buried in CI logs.
+
+---
+
+### 12.5 Skill Security Scanner as Bureau MCP Vetting Gate
+
+CoPaw's skill scanner detects prompt injection, command injection,
+hardcoded secrets, and data exfiltration in plugin code.  Bureau
+installs and manages 15+ MCP servers, each with arbitrary tool
+implementations.  Wire CoPaw's scanner as a pre-install gate: every
+time Bureau clones or updates an MCP server repo (into `.mcp-servers/`),
+the scanner runs automatically, flagging suspicious patterns before any
+agent can invoke the new tools.  Extend the scanner with Bureau-specific
+rules: detect MCP tool definitions that request overly broad filesystem
+access, tools that shell out without input sanitization, or tools whose
+descriptions contain injection-style override instructions.
+
+**Why it matters:** MCP servers are the new supply chain attack surface
+for agent frameworks.  No existing system vets MCP tool code before
+granting agents access to it.  This creates a "package audit" layer
+purpose-built for the agent tool ecosystem.
+
+---
+
+### 12.6 Conversational Spec-Kit via iMessage
+
+Bureau's spec-kit integration drives spec-driven development, but it
+requires sitting at a terminal.  Bridge it through CoPaw's iMessage
+channel: start a spec conversation from your phone ("I need an endpoint
+that handles bulk user imports with validation"), and CoPaw routes it
+to Bureau where a `planner` agent runs the spec-kit workflow --
+asking clarifying questions back via iMessage, generating the spec,
+producing the implementation plan, and posting the resulting tasklist
+to GitHub Issues.  When you reach your desk, the full spec, plan, and
+tasks are waiting.  You never opened a terminal.
+
+**Why it matters:** Spec-driven development currently requires
+synchronous terminal sessions.  Making it asynchronous and mobile-native
+means architecture decisions happen when inspiration strikes, not when
+you happen to be at your workstation.
+
+---
+
+### 12.7 ReMe-Augmented Agent Role Evolution
+
+Bureau's 66 agent roles have static system prompts.  ReMe's
+ProfileHandler tracks user preferences and interaction patterns over
+time.  Connect them: ReMe observes which roles the user spawns most,
+which role outputs get accepted vs. rejected, and which follow-up
+corrections the user makes.  Over time, it builds a per-user
+"role preference profile" that dynamically adjusts role system prompts
+-- e.g., "this user's `architect` agent should default to event-driven
+patterns, prefer Go over Java, and always consider observability."
+Role prompts become living documents that learn from usage, not static
+Markdown files.
+
+**Why it matters:** Every agent framework ships static personas.  This
+is the first system where agent roles would adapt to individual users
+based on observed preferences, creating agents that get more useful the
+longer you work with them.
+
+---
+
+### 12.8 Cross-Channel Context Continuity with Shared Qdrant
+
+Start a debugging session in Claude Code on your laptop, with all
+context stored in the shared Qdrant instance.  Leave your desk.  Resume
+the conversation from iMessage on your phone via CoPaw, which pulls
+the full session context from the same Qdrant namespace and hands it
+to a Bureau `debugger` subagent.  Receive a candidate fix as an
+iMessage attachment (a patch file).  Reply "apply it" and CoPaw
+forwards the instruction to Bureau, which applies the patch, runs
+tests, and reports results back to iMessage.  The entire debugging arc
+spans two devices, two interfaces, and one continuous memory.
+
+**Why it matters:** Context continuity across devices and interfaces is
+an unsolved problem in agentic coding.  Terminal sessions die when you
+close the lid.  This creates a persistent, device-independent agent
+session backed by shared vector memory.
+
+---
+
+### 12.9 Bilateral Blast Radius Analysis
+
+Bureau's `blast-radius-mode` skill maps code-level impact (callers,
+dependents, tests, contracts).  CoPaw knows your schedule, your team's
+communication channels, and your project deadlines via ReMe.  Combine
+them: when blast-radius analysis shows a breaking change in a shared
+module, the system cross-references with ReMe's knowledge to identify
+which team members own affected code, checks their availability via
+calendar integration, and proactively sends them a heads-up on their
+preferred channel (iMessage for Alice, DingTalk for Bob, Discord for
+the team channel) with a summary of the impact and a link to the
+proposed diff.
+
+**Why it matters:** Blast radius analysis today stops at the code graph.
+Extending it to the human graph -- who is affected, how to reach them,
+when they are available -- turns a static report into an active
+coordination mechanism.
+
+---
+
+### 12.10 Shadow Mode with iMessage-Based Approval Queue
+
+Bureau's `shadow-mode` skill proposes diffs without touching files.
+Route those proposals through CoPaw's iMessage channel as rich-preview
+messages showing the before/after for each file.  The user swipes
+through proposals on their phone, replying with a thumbs-up reaction
+to approve or "reject: use a map instead" to request changes.  Approved
+diffs are batched and applied by Bureau on the next sync.  This creates
+a genuinely asynchronous, mobile-native code review and approval
+workflow where the agent proposes and the human disposes, untethered
+from the terminal.
+
+**Why it matters:** Shadow mode currently requires the user to be in
+the terminal watching diffs scroll by.  Making it asynchronous and
+mobile turns it into a "code suggestion inbox" -- a pattern that
+exists nowhere else in agent-assisted development.
+
+---
+
+### 12.11 Federated Skill Marketplace with Trust Scoring
+
+CoPaw has a skill install/remove/scan lifecycle.  Bureau has workflow
+skills (assess-mode, micro-mode, scrimmage-mode, etc.) plus
+Superpowers community skills.  Merge the ecosystems: Bureau skills
+become installable as CoPaw skills and vice versa, with CoPaw's
+security scanner providing a trust score for each.  Skills that pass
+scanning get a "verified" badge; skills with flagged patterns get a
+"review required" warning.  Users browse a unified catalog, install
+across both systems with one command, and the trust score travels with
+the skill.  Community contributors submit skills to one marketplace
+that serves both the personal-assistant and dev-orchestration domains.
+
+**Why it matters:** Agent skill ecosystems are currently siloed per
+framework.  A federated marketplace with automated security scoring
+creates the first cross-framework skill economy with built-in supply
+chain trust.
