@@ -237,6 +237,90 @@ CoPaw is a **moderate-fit** integration candidate for Bureau. The strongest use 
 
 ---
 
+## 11. High-Impact Bureau × CoPaw Integration Ideas
+
+### 11.1 "Cortex Bridge" -- Unified Memory Mesh with Bidirectional Sync
+
+The single biggest unlock from a Bureau × CoPaw integration is fusing their memory stacks into a single coherent knowledge fabric. Bureau's memory systems (Qdrant vector store, Memory MCP, SQLite dossiers) are optimized for codebase topology, agent coordination state, and project-level knowledge graphs. CoPaw's ReMe system excels at personal, longitudinal user modeling -- preferences, habits, communication style, and Theory of Mind. Today these are islands. Cortex Bridge would make them a continent.
+
+The implementation would be a bidirectional sync daemon that maps ReMe's file-based memory (PROFILE.md, HEARTBEAT.md, episodic summaries) into Bureau's Qdrant collections as tagged memory vectors, while simultaneously projecting Bureau's codebase context, architectural decision records, and agent dossier updates back into ReMe's hybrid retrieval index. The sync protocol would use content-addressed hashing to detect divergence and a CRDT-inspired merge strategy to resolve conflicts without data loss. The result: when a developer tells CoPaw on Telegram "I hate deeply nested ternaries," that preference propagates into Bureau's coding agent personas within minutes, shaping every code generation and review action across Claude Code, Gemini CLI, and Codex sessions.
+
+This is multiplicatively valuable because neither platform alone can do this. Bureau has deep code understanding but no personal memory that persists across the developer's life. CoPaw has rich personal memory but no understanding of code architecture. Cortex Bridge means the coding agents know the human, and the personal assistant knows the code.
+
+### 11.2 "Whisper Deploy" -- Chat-Triggered Autonomous Coding Workflows
+
+Imagine a developer riding the subway, phone in hand, who messages their CoPaw agent on Slack: "The auth timeout bug is back -- same one from March. Fix it the way we discussed and open a PR." CoPaw's ReMe retrieves the March conversation context, identifies the agreed-upon fix strategy, and dispatches the task to Bureau's headless CLI invocation layer. Bureau spins up the appropriate agent role (e.g., `fixer` or `surgeon`), uses its Blast Radius Mode to assess impact, executes the fix using Micro Mode DAG editing for surgical precision, runs Assess Mode for self-review, and opens a GitHub PR. CoPaw then delivers the PR link, diff summary, and test results back to the developer's Slack thread.
+
+The workflow chains CoPaw's multi-channel ingestion and natural language understanding with Bureau's deep SWE execution pipeline. CoPaw handles the "what does the user want" problem using its Theory of Mind and long-term memory, while Bureau handles the "how to safely change code" problem using its agent roles, workflow skills, and MCP tool infrastructure. The handoff uses A2A protocol for structured task delegation and MCP for shared tool access.
+
+This is the kind of feature that redefines what "mobile development" means. No IDE, no terminal, no SSH. Just a chat message and a PR. The combinatorial value is enormous: CoPaw's channel reach (8+ platforms, including iMessage and WhatsApp) becomes the universal front door to Bureau's entire coding agent arsenal.
+
+### 11.3 "Heartbeat Conductor" -- CoPaw Heartbeat as Bureau's Autonomous Scheduler
+
+Bureau's workflow skills (Scrimmage Mode, Assess Mode, Blast Radius) are powerful but reactive -- they run when invoked. CoPaw's Heartbeat system is autonomous but general-purpose. Heartbeat Conductor merges them: CoPaw's cron-driven HEARTBEAT.md becomes the scheduling engine that autonomously triggers Bureau's specialized workflows on configurable cadences.
+
+A developer configures once: "Every morning at 8 AM, run Scrimmage Mode on any files changed in the last 24 hours. Every Friday at 3 PM, run Blast Radius analysis on the week's merged PRs. After every deploy, run Assess Mode on the deployment diff." CoPaw's Heartbeat fires the cron triggers, Bureau's headless CLI executes the workflows, and CoPaw delivers the results to the developer's preferred channel with a morning briefing that reads like a personalized engineering report.
+
+Neither platform achieves this alone. Bureau lacks a persistent scheduling daemon and multi-channel delivery. CoPaw lacks deep SWE analysis capabilities. Together, they create an always-on engineering co-pilot that proactively surfaces vulnerabilities, architectural drift, and code quality regressions before the developer even opens their laptop. This transforms Bureau from a tool you use into a colleague that works while you sleep.
+
+### 11.4 "Persona Prism" -- Theory of Mind-Driven Agent Role Selection
+
+Bureau has 66 agent roles, but selecting the right one for a given task is currently a manual or heuristic process. CoPaw's Theory of Mind system accumulates deep knowledge about a developer's preferences, skill level, communication style, and past decisions. Persona Prism uses CoPaw's user model to dynamically select, configure, and tune Bureau's agent roles for each interaction.
+
+When a junior developer who prefers verbose explanations and cautious refactoring asks for help, Persona Prism routes to Bureau's `mentor` or `educator` role with conservative edit strategies. When a senior systems programmer who values terseness and performance asks the same question, it routes to `architect` or `surgeon` with aggressive optimization enabled. The routing decision is not static -- it evolves as CoPaw's Theory of Mind refines over weeks and months of interaction. CoPaw even tracks which agent roles produced outcomes the user praised versus reverted, feeding that signal back into future role selection.
+
+This is a genuine competitive moat. No other multi-agent coding system has a persistent, cross-session user model that tunes agent behavior to the individual developer. It is the difference between a tool that treats every user identically and one that genuinely adapts to who you are. Investors care about retention, and personalization that compounds over time is the strongest retention mechanism in software.
+
+### 11.5 "Concierge Dispatch" -- Bureau's ML Classifier Meets CoPaw's Channel Router
+
+Bureau's Concierge ML pipeline classifies incoming messages into suites (WORK, REST, SOCIAL, CREATIVE, PROCESSING) to route them appropriately. CoPaw's multi-channel architecture handles messages from 8+ platforms. Concierge Dispatch fuses these: every inbound message across all CoPaw channels passes through Bureau's Concierge classifier, which determines not just the message's intent but its optimal handling pipeline.
+
+A WORK-classified message from Slack triggers Bureau's coding agent stack. A CREATIVE-classified message from Discord routes to a brainstorming agent. A PROCESSING-classified message triggers background computation with results delivered asynchronously. The classification also feeds back into CoPaw's ReMe memory, tagging interactions by suite type, which enables powerful longitudinal analytics: "You spend 60% of your Slack time on WORK tasks but 80% of your Discord time on CREATIVE tasks -- do you want to restructure your notification routing?"
+
+The multiplicative value: Bureau's classifier gains a massive expansion in input surface area (from terminal-only to 8+ chat platforms), while CoPaw's channel router gains intelligent, ML-driven message triage that goes far beyond keyword matching. Together they create an omniscient dispatcher that knows what you need, where you are, and how to handle it.
+
+### 11.6 "Ghost Review" -- Multi-Channel Code Review Delivery with Contextual Memory
+
+Code review is one of the highest-friction activities in software engineering. Ghost Review uses Bureau's Assess Mode to perform deep, automated code reviews, then leverages CoPaw's multi-channel delivery and persistent memory to present reviews where the developer actually is, with context they actually need.
+
+When a PR is opened, Bureau's Assess Mode runs a thorough review using its full MCP tool stack (Semgrep for security, Sourcegraph for cross-repo impact, Qdrant for historical pattern matching). The review output then flows to CoPaw, which consults ReMe to understand this specific developer's review preferences: Do they prefer inline comments or a summary? Do they want security issues flagged separately? Do they historically struggle with concurrency bugs and need extra explanation there? CoPaw then formats and delivers the review to the developer's preferred channel -- a Telegram summary on mobile, a detailed Discord thread for desktop, or a Slack DM for urgent security findings.
+
+The persistent memory dimension is what makes this transformative. Over time, Ghost Review learns which review comments a developer acts on versus ignores, which categories of feedback they find most valuable, and how to calibrate severity to avoid alert fatigue. A code review system that gets smarter about each individual reviewer every week is something no existing tool provides.
+
+### 11.7 "Session Weave" -- Cross-Platform Session State Continuity
+
+Bureau has Fold/Unfold for session state management within a single agent context. CoPaw maintains conversation continuity across multiple chat platforms. Session Weave unifies these: a developer can start a coding task in Claude Code via the terminal, Fold the session state, commute to the office, and Unfold it via a CoPaw message on Slack -- resuming exactly where they left off, with full context, from a completely different interface and device.
+
+The implementation leverages Bureau's existing Fold/Unfold serialization to capture the complete agent state (active files, decision history, pending tasks, tool states) and stores it in a shared Cortex Bridge memory layer accessible to CoPaw. When the developer sends "unfold my auth refactor session" on any CoPaw channel, CoPaw retrieves the serialized state, hydrates it into a Bureau headless instance, and presents a contextual summary of where things stand along with ready actions. The developer can then continue via chat commands that map to Bureau workflow actions, or explicitly transfer back to a terminal session.
+
+This breaks the assumption that coding happens at a desk. It makes the developer's entire coding context portable across devices, platforms, and interfaces. For distributed teams across time zones, this means a developer in Tokyo can Fold a session at end of day and a colleague in Berlin can Unfold it the next morning with full context preservation. Neither Bureau's Fold/Unfold (terminal-locked) nor CoPaw's channel continuity (lacks deep coding state) can achieve this independently.
+
+### 11.8 "Sentinel Ring" -- Distributed Security Monitoring with Proactive Alerting
+
+Bureau integrates Semgrep for static analysis and Scrimmage Mode for adversarial self-testing. CoPaw has Tool Guard and File Access Guard for runtime security. Sentinel Ring creates a unified security posture that spans code-time, build-time, and runtime, with proactive alerting delivered through CoPaw's multi-channel infrastructure.
+
+Bureau's Semgrep MCP server runs continuous static analysis on code changes. Scrimmage Mode periodically attacks the codebase to find vulnerabilities. These findings feed into a shared security knowledge base in Cortex Bridge. CoPaw's Heartbeat system monitors this knowledge base and applies urgency-aware routing: critical vulnerabilities trigger immediate Telegram/Slack alerts with one-tap approval for Bureau-generated fixes. Medium-severity issues accumulate into a weekly security digest. Low-severity items are batched into monthly review reports. CoPaw's Theory of Mind further personalizes the alert calibration -- if a developer consistently dismisses a category of warnings, CoPaw adjusts thresholds to reduce noise while noting the override pattern.
+
+The compound value: Bureau provides the deep security analysis engine that CoPaw lacks. CoPaw provides the persistent scheduling, multi-channel delivery, and personalized alert calibration that Bureau lacks. Together they create a security system that is simultaneously thorough and non-annoying -- arguably the hardest problem in application security tooling.
+
+### 11.9 "Apprentice Loop" -- Self-Improving Coding Skills Through Interaction Memory
+
+CoPaw's autonomous learning loop accumulates knowledge about user preferences over time. Bureau's agent roles execute coding tasks with measurable outcomes (tests pass/fail, PRs merged/reverted, review comments addressed/ignored). Apprentice Loop connects these feedback signals into a closed-loop system where both platforms continuously improve their performance for each specific developer.
+
+Every Bureau coding action produces an outcome signal: did the generated code pass tests? Was the PR merged without changes, or did the developer rewrite it? Did Assess Mode's review catch the issues the developer actually cared about? These signals flow into CoPaw's ReMe memory, tagged with the Bureau agent role, task type, codebase region, and time of day. Over weeks, CoPaw builds a statistical model of what works for this developer: "Agent `surgeon` produces better results for backend refactoring, but `architect` is preferred for API design. The developer reverts aggressive optimizations on Mondays but accepts them on Thursdays. Test coverage suggestions are acted on 90% of the time; style suggestions only 20%."
+
+This feedback loop then influences future Bureau agent selection (via Persona Prism), prompt tuning, and workflow configuration. The system literally gets better at coding for you the longer you use it. This is the retention flywheel that turns a tool into an indispensable partner -- and the kind of compounding advantage that is nearly impossible for competitors to replicate because it requires both deep coding execution (Bureau) and longitudinal personal memory (CoPaw).
+
+### 11.10 "Bridge Console" -- Unified Ops Dashboard Merging CoPaw Console and Bureau Hub
+
+CoPaw has a TypeScript-based Console UI for agent management and MCP configuration. Bureau has its hub-and-spoke context architecture for multi-agent orchestration. Bridge Console merges these into a single operational dashboard that provides real-time visibility into the entire Bureau × CoPaw stack: active agent roles, memory utilization across both ReMe and Qdrant, Heartbeat schedule status, active coding sessions, channel message flow, and Concierge classification metrics.
+
+The dashboard would surface actionable intelligence that neither platform's UI currently provides: "Your `fixer` agent has a 94% test-pass rate on the payments service but only 67% on the auth service -- consider switching to `surgeon` for auth work." "ReMe memory for Project X is 3x larger than Project Y despite similar complexity -- you may have redundant memories to prune." "Your Friday Scrimmage Mode runs consistently find more issues than Tuesday runs -- consider increasing Friday frequency."
+
+This is the control plane that makes the entire integration legible and manageable. Without it, the Bureau × CoPaw combination risks being a powerful but opaque system. With it, developers and engineering managers gain a single pane of glass for their AI-augmented development workflow, with metrics that justify continued investment and expansion.
+
+---
+
 *Sources:*
 - [CoPaw Official Website](https://copaw.bot/)
 - [CoPaw GitHub Repository](https://github.com/agentscope-ai/CoPaw)
