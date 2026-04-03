@@ -269,6 +269,90 @@ Memoh is a well-architected, actively developed self-hosted AI agent platform wi
 
 ---
 
+## 11. High-Impact Bureau x Memoh Integration Ideas
+
+### 11.1 The Qdrant Membrane -- Shared Memory Fabric with Namespace Federation
+
+Both Bureau and Memoh already run Qdrant as their vector backbone. Instead of treating these as two separate databases that happen to use the same engine, the integration should create a **federated namespace architecture** where a single Qdrant cluster hosts partitioned collections with controlled cross-namespace read/write policies. Bureau's 66 agent roles would write to `bureau/*` collections (task artifacts, code embeddings, blast-radius graphs, session state), while Memoh bots write to `memoh/*` collections (conversational facts, user preferences, episodic memories). A thin "Membrane" proxy layer -- implementable as a shared MCP server -- enforces ACLs and performs on-the-fly re-ranking when an agent from one side queries the other's namespace.
+
+The multiplicative value is profound: a Memoh bot fielding a Telegram question from a developer can transparently query Bureau's code-intelligence memories to answer "What broke in the auth module last week?" without Bureau agents needing to be online. Conversely, Bureau's Assess Mode can pull a developer's stated preferences and past feedback patterns from Memoh's per-user memory to calibrate code review tone and focus areas. Neither platform alone has both the conversational-fact extraction pipeline AND the deep SWE artifact memory -- the Membrane makes them one continuously learning organism.
+
+A practical implementation would use Qdrant's multi-tenancy features (payload-based filtering and collection aliases) combined with a lightweight Go sidecar (natural for Memoh's stack) that exposes a unified MCP tool interface. Bureau agents call `membrane_query` with a scope parameter; the sidecar handles cross-namespace fan-out, deduplication, and relevance fusion across dense, sparse, and BM25 results from both systems.
+
+### 11.2 Containerd Sandboxes for Bureau Agent Roles -- "One Container Per Brain"
+
+Bureau orchestrates 66 agent roles, but they all share the host environment. Memoh has already solved per-bot containerd isolation with snapshot/restore, filesystem isolation, and gRPC bridging. The integration should let Bureau **spawn each agent role inside a Memoh-managed container**, inheriting Memoh's full isolation stack: dedicated filesystem, network namespace, resource limits, and snapshotting.
+
+This transforms Bureau's agent roles from logical abstractions into physically isolated execution units. The Scrimmage Mode attacker agent runs in a container that literally cannot see the defender's filesystem. The Blast Radius analyzer gets a read-only snapshot of the codebase that it cannot mutate. Each Micro Mode DAG node executes in its own container, and if it corrupts state, the snapshot rolls back in milliseconds. Memoh's container lifecycle management (create, pause, resume, snapshot, export) becomes Bureau's infrastructure layer, and Bureau's orchestration logic becomes Memoh's missing multi-agent workflow brain.
+
+The implementation leverages Memoh's existing gRPC bridge over Unix Domain Sockets. Bureau's hub process sends agent-spawn requests to Memoh's container manager, which creates a lightweight containerd container pre-loaded with the agent's role definition, MCP connections, and memory namespace. The agent communicates back through the gRPC bridge. Container snapshots before and after each task create a complete audit trail of every agent's actions -- something neither platform provides alone.
+
+### 11.3 Channel Gateway Router -- Bureau Speaks Nine Languages
+
+Bureau currently operates through CLI invocation and terminal interfaces. Memoh connects to nine communication channels. The Channel Gateway Router turns every Bureau workflow into a multi-channel conversational experience by routing Bureau events, queries, and results through Memoh's channel adapters.
+
+A developer pushes a commit. Bureau's Assess Mode triggers a code review. Instead of the review sitting in a terminal log, the Gateway Router dispatches a structured summary to the developer's Telegram, with inline buttons (via Telegram's bot API) for "Approve," "Request Changes," or "Escalate to Senior." The developer taps "Request Changes" and types a voice note explaining what they want. Memoh's bot receives this, runs fact extraction on the transcribed audio, and routes the structured feedback back to Bureau's hub, which dispatches it to the appropriate agent role. The entire review cycle happens without the developer opening a terminal.
+
+The router is implemented as a Memoh skill file that maps Bureau event types to channel-specific message templates. Bureau publishes events to a shared message queue (or directly via MCP tool calls to the Memoh bot). Memoh's per-user memory segmentation means the router knows each developer's preferred channel, notification preferences, and timezone -- it sends code reviews to Alice on Discord at 9am and to Bob on Matrix at 2pm. Bureau gets a complete communications layer it would take months to build natively; Memoh gets high-value, structured content flowing through its channels instead of just chat.
+
+### 11.4 Conversational Fact Extraction for Coding Sessions -- "Session Sediment"
+
+Bureau's coding agents (Claude Code, Gemini CLI, Codex, OpenCode) generate massive amounts of conversational context during coding sessions -- architectural decisions, rejected approaches, bug hypotheses, performance observations, user preferences about code style. Today, this context evaporates when the session ends (or at best gets partially captured in Bureau's Fold/Unfold state). Memoh's LLM-driven fact extraction pipeline should run as a **sidecar on every Bureau coding session**, continuously extracting structured facts and depositing them into the shared Qdrant memory.
+
+The "Session Sediment" accumulates over weeks and months into an institutional knowledge base that no wiki or documentation system can match, because it captures the *reasoning* behind decisions, not just the decisions themselves. Six months later, when a developer asks "Why did we use Redis instead of Memcached for the session store?", the system retrieves the exact extracted fact: "Team decided Redis over Memcached because the session data requires sorted set operations for leaderboard features -- discussed during PR #847 review on 2026-01-15."
+
+Memoh's hybrid retrieval (dense + sparse + BM25) is critical here because coding-session facts contain both natural language reasoning and code-specific tokens (function names, error codes, dependency versions) that need keyword-precise retrieval alongside semantic search. Bureau's agents contribute the raw material; Memoh's extraction pipeline contributes the refining process; the Qdrant Membrane stores the refined product. The combination creates an ever-growing organizational memory that makes every future coding session smarter.
+
+### 11.5 Sub-Agent Delegation Chains -- "Bureau as Memoh's Specialist Network"
+
+Memoh supports sub-agent delegation, where a bot can spawn a sub-agent with independent context to handle a specific task. Bureau has 66 specialized agent roles. The integration should make Bureau's entire agent roster available as Memoh's specialist delegation targets, creating delegation chains that flow from conversational channels through Memoh into Bureau's deep SWE capabilities.
+
+A product manager sends a message to the team's Memoh bot on Lark: "Can we add OAuth support to the user service? What's the effort estimate?" The Memoh bot delegates to Bureau's Blast Radius agent, which analyzes the codebase and returns an impact graph. The Memoh bot then delegates to Bureau's Assess Mode agent for a complexity estimate. Results flow back through the delegation chain, and the Memoh bot synthesizes a conversational response: "Adding OAuth touches 12 files across 3 services. Estimated 3-5 days. The main risk is the session middleware refactor. Want me to create a detailed task breakdown?" The PM says yes, and the chain delegates to Bureau's planning agent.
+
+This is implemented by registering each Bureau agent role as an MCP tool endpoint that Memoh bots can invoke through MCP federation. Bureau exposes a `bureau_delegate` MCP tool that accepts a role name, task description, and context payload. Memoh's skill files define delegation strategies that map conversational intents to Bureau role invocations. The key differentiator: Memoh maintains the conversational continuity and user relationship while Bureau provides the deep technical analysis. Neither could deliver this end-to-end experience alone.
+
+### 11.6 Concierge Pipeline Meets Heartbeat -- "The Autonomous Context Curator"
+
+Bureau's Concierge ML pipeline classifies messages into suites (WORK, REST, SOCIAL, CREATIVE, PROCESSING). Memoh's heartbeat system triggers autonomous background activities on a schedule. Combining these creates an **Autonomous Context Curator** that proactively maintains and enriches the shared memory layer without human prompting.
+
+Every heartbeat cycle (configurable, e.g., every 30 minutes), the Curator wakes up and performs a suite-aware sweep. For WORK-classified memories, it cross-references against the current Git state to detect stale information ("memory says auth uses JWT, but code now uses session tokens -- flagging for update"). For PROCESSING-classified items, it checks whether pending tasks have been completed and updates their status. For CREATIVE-classified memories, it periodically runs associative retrieval to surface unexpected connections ("the UI animation pattern discussed last Tuesday is similar to the loading-state approach in the mobile app -- consider unifying").
+
+The Curator also performs memory hygiene: compacting redundant facts, promoting frequently-retrieved memories to higher-priority tiers, and garbage-collecting memories about deleted code or resolved issues. Bureau's Concierge provides the semantic classification intelligence; Memoh's heartbeat provides the autonomous execution schedule; the shared Qdrant layer provides the substrate. The result is a memory system that actively maintains itself -- a capability that emerges only from the combination and that dramatically improves retrieval quality over time.
+
+### 11.7 Scrimmage Mode Over the Wire -- "Red Team as a Service"
+
+Bureau's Scrimmage Mode pits an attacker agent against a defender agent for adversarial code review. Currently this runs locally. With Memoh's container isolation and channel connectivity, Scrimmage Mode becomes a distributed, observable, multi-participant security exercise.
+
+The attacker agent runs in one Memoh container; the defender in another. They have completely isolated filesystems and network namespaces -- the attacker genuinely cannot see the defender's analysis, and vice versa. A dedicated Memoh bot on Discord streams the Scrimmage in real-time to a security channel, formatting attack vectors as red-highlighted messages and defense responses as green-highlighted messages. Team members can interject with hints or constraints via the channel, and these are routed to the appropriate agent through Memoh's multi-user awareness. The entire Scrimmage is recorded as structured memory entries with full fact extraction, building a security knowledge base over time.
+
+Post-Scrimmage, the Session Sediment system (idea 11.4) extracts the key findings into the shared memory layer, tagged with the specific code regions, vulnerability categories, and remediation patterns discussed. Future Scrimmages on similar code automatically retrieve these historical findings as context. Bureau contributes the adversarial workflow design; Memoh contributes the isolation infrastructure, real-time channel streaming, and persistent memory capture. The integration transforms an internal testing tool into a team-facing security practice with institutional memory.
+
+### 11.8 MCP Federation Bridge -- "The Universal Tool Mesh"
+
+Bureau runs 8+ MCP servers (Qdrant, Memory MCP, Serena, Sourcegraph, Brave/Tavily, Playwright, Semgrep, GitHub). Memoh supports MCP federation with four transport modes (HTTP, SSE, Stdio, OAuth) and per-bot independent connections. The MCP Federation Bridge creates a **unified tool mesh** where every tool from both platforms is discoverable and invocable by any agent on either side.
+
+The Bridge is a dedicated MCP proxy server that aggregates tool registrations from all Bureau MCP servers and all Memoh bot MCP connections into a single federated catalog. An agent on either platform calls `federation_discover` to list available tools, then invokes any tool through the Bridge regardless of which platform hosts it. A Memoh bot handling a Discord conversation can invoke Bureau's Semgrep server to run a security scan, or Bureau's Sourcegraph server to search across repositories. A Bureau agent in Micro Mode can invoke a Memoh bot's browser automation to screenshot a staging deployment for visual regression checking.
+
+The Bridge also handles capability negotiation and transport translation -- if a Bureau MCP server speaks Stdio and a Memoh bot expects SSE, the Bridge adapts. OAuth credentials are managed centrally. The Bridge logs all cross-platform tool invocations to the shared memory layer, creating an audit trail and enabling the Autonomous Context Curator (idea 11.6) to track tool usage patterns and suggest workflow optimizations. This transforms two separate tool ecosystems into one composable mesh with multiplicative capability expansion.
+
+### 11.9 Fold/Unfold Across Channels -- "Portable Session State"
+
+Bureau's Fold/Unfold skill compresses and restores session state, enabling context portability between sessions. Memoh's cross-platform identity binding recognizes users across channels. Combining these creates **channel-portable session state**: a developer starts a complex debugging session with Bureau in their terminal, Folds the state, commutes home, and Unfolds it in a Telegram conversation with a Memoh bot that has full access to Bureau's agent capabilities.
+
+The Fold operation serializes not just the conversation context but the full agent state: which files were examined, what hypotheses were formed, what tools were invoked, and what the agent's current "mental model" of the problem is. This serialized state is stored in the shared Qdrant layer with the user's cross-platform identity as the key. When the user Unfolds from any channel -- Discord, Matrix, email, web UI -- Memoh retrieves the state, hydrates the appropriate Bureau agent role, and resumes exactly where the session left off.
+
+This solves a fundamental friction in developer workflows: context switching between devices and interfaces destroys continuity. Neither Bureau alone (no multi-channel presence) nor Memoh alone (no deep SWE session state) can provide this. Together, they create a development assistant that follows the developer across their entire device and platform landscape without losing a single thread of context.
+
+### 11.10 The Learning Concierge -- "Adaptive Routing Through Accumulated Wisdom"
+
+Bureau's Concierge classifies incoming messages into suites for routing. Memoh's memory pipeline accumulates facts about user behavior, preferences, and interaction patterns. The Learning Concierge feeds Memoh's accumulated user knowledge back into Bureau's classification and routing decisions, creating a system that gets measurably better at task dispatch over time.
+
+Initially, Bureau's Concierge routes a message like "fix the flaky test" to a standard debugging workflow. Over weeks, Memoh's memory accumulates facts: this particular developer's "flaky test" reports are 80% related to race conditions in async code; they prefer seeing the fix as a diff before it is applied; they work on the payments service exclusively; they get frustrated when the agent modifies test assertions instead of fixing the underlying bug. The Learning Concierge injects these accumulated preferences into the routing decision, selecting a Bureau agent role preconfigured with async-debugging expertise, diff-first presentation, payments-service context, and a "fix the cause, not the symptom" instruction.
+
+The feedback loop closes when the developer's satisfaction signal (explicit approval, speed of acceptance, absence of follow-up corrections) is captured by Memoh's fact extraction and stored as a routing-quality observation. Over months, the system converges toward optimal routing for each user, each project, and each problem type. This is a genuine machine learning loop implemented entirely through LLM-driven fact extraction and retrieval augmentation -- no traditional ML training required, and only possible with both Bureau's routing infrastructure and Memoh's persistent user-modeling memory.
+
+---
+
 ## Sources
 
 - [Memoh GitHub Repository](https://github.com/memohai/Memoh)
