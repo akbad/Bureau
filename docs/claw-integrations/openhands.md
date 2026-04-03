@@ -305,3 +305,97 @@ OpenHands fills Bureau's most significant architectural gap: safe, isolated, ins
 ---
 
 *This analysis is based on OpenHands v1.6.0 architecture and Bureau's current multi-agent orchestration design. Reassess if either system undergoes significant architectural changes.*
+
+---
+
+## 12. High-Impact Feature Merges & Extensions
+
+The following ideas represent high-differentiation capabilities that become possible only when Bureau's orchestration layer and OpenHands' sandboxed execution runtime are combined. Each targets a gap that neither system can fill alone.
+
+---
+
+### 12.1 Assess Mode with Live Verdict Verification
+
+Bureau's Assess Mode currently builds a mental model and audits files against quality standards, but its findings are static -- it reasons about code without executing it. With OpenHands integration, Assess Mode's second phase (the audit pass) spawns a transient sandbox per finding: if the reviewer suspects a race condition, it writes a targeted concurrency stress test and runs it; if it flags a missing null check, it crafts an input that triggers the crash. Each audit finding gets an attached "verified" or "unverified" tag based on actual execution evidence, and the concrete reproducer is included in the report.
+
+**Why it matters:** Review tools that can prove their own findings collapse the feedback loop from "the reviewer thinks this is a bug" to "here is a failing test," eliminating an entire round-trip of developer triage.
+
+---
+
+### 12.2 Micro Mode with Sandboxed Step Gates
+
+Micro Mode's DAG-based planning already pauses after each atomic edit for user approval. By wiring each step gate to an OpenHands sandbox checkpoint, the system can run the project's test suite (or a targeted subset) after every single edit, presenting the user with a green/red signal alongside the diff. If a step breaks tests, Micro Mode can automatically roll back the sandbox to the previous checkpoint and re-attempt with a corrected approach -- all before the user even sees the failed attempt. The sandbox filesystem is snapshotted via Docker commit at each gate, making rollback instantaneous.
+
+**Why it matters:** Step-gated editing becomes step-gated-and-verified editing. Users gain proof that each atomic change is independently correct, not just syntactically plausible, turning Micro Mode into a formally progressive construction process.
+
+---
+
+### 12.3 Role-Isolated Sandboxes (Per-Agent Security Domains)
+
+Each of Bureau's 66 agent roles executes inside its own OpenHands Docker container with a tailored security profile. The `security-compliance` role gets a sandbox with Semgrep, Trivy, and network access to vulnerability databases but no write access to source files. The `debugger` role gets a sandbox with GDB, strace, and the failing test harness but no network egress. The `architect` role gets read-only access to the full codebase plus a scratchpad volume for design documents. Bureau's orchestration layer enforces these profiles declaratively via a new `sandbox_profile` field in role definitions, mapping each role to an OpenHands `SandboxConfig` with specific bind mounts, resource caps, and network policies.
+
+**Why it matters:** No existing agent framework enforces least-privilege execution at the role level. This makes Bureau the first system where "the debugger agent literally cannot modify production code" is an architectural guarantee, not a prompt-level suggestion.
+
+---
+
+### 12.4 Dossier Snapshots with Full Sandbox State
+
+Bureau's dossier system currently stores agent profiles and textual context. With OpenHands integration, a dossier snapshot expands to include the full sandbox state at a meaningful checkpoint: filesystem tarball, installed packages, environment variables, running services, and the event log up to that point. When a future task resembles a previous one, Bureau can restore the snapshot as an OpenHands sandbox base image, giving the agent a warm start with the exact environment and partial progress from the prior session. Snapshots are indexed in Qdrant by task description embedding, enabling semantic retrieval of "the closest prior working state."
+
+**Why it matters:** This creates resumable, transferable execution contexts. An agent working on a React upgrade can pick up exactly where a previous session left off -- dependencies installed, test suite configured, half the migration complete -- instead of rebuilding from scratch.
+
+---
+
+### 12.5 Spec-Kit to Sandbox Pipeline (Spec-Driven Execution)
+
+Bureau's spec-kit workflow already produces specs, implementation plans, and tasklists. The integration adds an "execute" phase: each tasklist item is dispatched to OpenHands as an independent, sandboxed coding task with acceptance criteria derived from the spec. OpenHands generates the implementation, runs the spec's test criteria, and returns a validated patch. Bureau's orchestrator sequences the tasks respecting the dependency graph from the spec, merges validated patches incrementally, and runs integration tests in a final sandbox after all tasks complete. If any task fails its acceptance criteria after N retries, the pipeline halts and surfaces the failure with the full event log for human intervention.
+
+**Why it matters:** This closes the loop from "agent writes a plan" to "agent executes the plan with proof of correctness" entirely within one system. Spec-kit becomes not just a planning tool but an end-to-end delivery pipeline where every deliverable is sandbox-verified before it touches the real codebase.
+
+---
+
+### 12.6 Cross-CLI Competitive Execution (Tournament Mode)
+
+Bureau's multi-CLI orchestration (Claude Code, Gemini CLI, Codex, OpenCode) gains a new capability: for high-stakes tasks, Bureau dispatches the same task specification to multiple OpenHands sandboxes, each driven by a different LLM backend. Claude, GPT, and Gemini each produce an independent solution in isolated containers. Bureau's Assess Mode then evaluates all solutions against the same criteria -- test pass rate, code quality metrics, diff size, execution time -- and selects the best one (or synthesizes a hybrid). The losing solutions are discarded but their event logs are ingested into Qdrant to inform future model-routing decisions, building a corpus of "which model does best on which task type."
+
+**Why it matters:** No agent framework currently supports competitive multi-model execution with automated adjudication. This turns Bureau into a meta-optimizer that empirically learns per-task model strengths rather than relying on static heuristics or user intuition.
+
+---
+
+### 12.7 Scrimmage Mode with Real Attack Execution
+
+Bureau's Scrimmage Mode currently generates attack vectors across five categories (input validation, state, failure modes, concurrency, security) but relies on the agent reasoning about whether they would succeed. With OpenHands, every generated attack vector is actually executed in an isolated sandbox: malformed inputs are sent to running services, concurrent requests are fired in parallel, and the sandbox captures whether the service crashes, leaks data, or deadlocks. Scrimmage Mode's report transforms from "these attack vectors might work" to "these 3 out of 12 attacks caused observable failures, here are the stack traces and reproduction steps."
+
+**Why it matters:** This converts a theoretical security review into an automated penetration test. The agent doesn't just hypothesize vulnerabilities -- it demonstrates them with evidence, producing output comparable to a human security engineer's findings.
+
+---
+
+### 12.8 Event Log Memory Distillation
+
+After every OpenHands task completes, Bureau's memory pipeline processes the full event log (which can contain hundreds of action-observation pairs) through a distillation step: an LLM summarizes the event log into structured lessons -- "this library requires flag X when running on ARM," "the test suite needs Redis running before integration tests," "module Y has an undocumented circular import with Z." These distilled facts are stored in Qdrant with embeddings tied to the repository, tech stack, and task type. On future tasks in the same codebase, Bureau injects relevant distilled knowledge as microagent instructions before OpenHands begins, so the agent never repeats the same discovery process twice.
+
+**Why it matters:** OpenHands forgets between sessions by design. This feature gives Bureau the ability to accumulate institutional knowledge from sandboxed execution and feed it forward, creating an organizational memory that makes every subsequent task in a codebase faster than the last.
+
+---
+
+### 12.9 Blast Radius Mode with Dependency Graph Execution
+
+Bureau's Blast Radius Mode currently performs static impact analysis -- enumerating callers, dependents, and affected tests. With OpenHands, the analysis becomes dynamic: for each identified dependency, the sandbox checks out the dependent module, applies the proposed change, and runs its tests. The blast radius report then includes not just "these 14 modules depend on the changed function" but "of those 14, 11 still pass, 2 fail with type errors, and 1 has a subtle behavioral change where the return value shifted from `None` to an empty list." Each failure includes the exact test output and a suggested fix generated in the sandbox.
+
+**Why it matters:** Static dependency analysis misses runtime behavioral changes. This feature provides empirical blast radius measurement -- the kind of confidence that currently requires a human engineer to manually check each downstream consumer.
+
+---
+
+### 12.10 Hot-Swappable Sandbox Environments for Polyglot Monorepos
+
+Bureau gains awareness of per-directory tech stacks within monorepos by reading workspace configuration files (package.json, Cargo.toml, go.mod, pyproject.toml). When a task spans multiple stack boundaries -- say, a gRPC schema change that affects a Rust service, a TypeScript client, and a Python ML pipeline -- Bureau decomposes the task and spins up a dedicated OpenHands sandbox per stack segment, each with the correct runtime image (Rust nightly, Node 22, Python 3.12). The orchestrator coordinates cross-sandbox communication via shared volumes for generated artifacts (protobuf outputs, compiled binaries), running each segment's test suite in its native environment. Integration validation happens in a final "composition sandbox" that runs the end-to-end test suite.
+
+**Why it matters:** Current coding agents treat monorepos as flat codebases and stumble when a task requires compiling Rust, running npm, and executing pytest in the same session. This decomposes polyglot tasks into properly isolated, natively-tooled execution environments while preserving cross-boundary coordination.
+
+---
+
+### 12.11 Safeguard Mode with Continuous Invariant Monitoring
+
+Bureau's Safeguard Mode defines system invariants (value constraints, state machines, ordering guarantees) that must hold after changes. With OpenHands, these invariants become runtime assertions executed continuously in a background sandbox. While the primary coding agent makes changes, a parallel OpenHands container runs the invariant suite against each intermediate state of the codebase -- not just the final result. If an intermediate edit violates an invariant, the monitoring sandbox signals Bureau's orchestrator, which can pause the primary agent before further damage compounds. The invariant violations are reported with the exact commit (or edit) that caused the breach and the specific assertion that failed.
+
+**Why it matters:** Current invariant checking is post-hoc: you verify after all changes are complete. Continuous sandboxed monitoring catches violations at the moment of introduction, preventing the common failure mode where an early mistake is buried under subsequent changes that make it harder to diagnose and fix.
