@@ -465,6 +465,216 @@ Memory MCP structural + claude-mem session architecture.
 
 ---
 
+## 12. High-Impact Feature Merges & Extensions
+
+### 12.1 Role-Per-Container Orchestration ("Bureau Hive")
+
+Assign each of Bureau's 66 agent roles its own dedicated Memoh container with a
+tailored filesystem, toolset, and memory collection. The architect container
+carries design docs and diagramming tools; the debugger container carries core
+dumps, profilers, and sanitizer runtimes; the security-compliance container
+carries CVE databases and Semgrep rulesets. Bureau's orchestrator dispatches
+tasks to the correct container by role, and each container's fact-extraction
+pipeline builds a role-specialized memory corpus over time.
+
+**Why it matters:** No existing platform gives every agent persona its own
+isolated OS environment with persistent, role-scoped long-term memory. This
+turns Bureau's role system from a prompt-level abstraction into a
+hardware-level one.
+
+---
+
+### 12.2 Code-Review Fact Crystallization
+
+Wire Bureau's Assess Mode output (comprehension model + per-file audit
+findings) into Memoh's fact-extraction pipeline. Each review cycle produces
+structured memory entries: "Module X violates single-responsibility since
+commit abc123", "The retry logic in api_client.py silently swallows
+ConnectionError". These crystallized facts are compacted, deduplicated, and
+made retrievable via hybrid search on subsequent reviews and coding sessions.
+
+**Why it matters:** Today, code review findings evaporate after the
+conversation ends. Crystallizing them into searchable long-term memory means
+the agent never re-discovers the same issue twice — and can proactively warn
+when a new change risks re-introducing a previously identified defect.
+
+---
+
+### 12.3 Semantic Code Memory with Hybrid Retrieval ("CodeBrain")
+
+Index an entire codebase into Memoh's hybrid retrieval stack: dense embeddings
+for semantic similarity (e.g., "functions that handle authentication"),
+neural sparse vectors for structural code patterns, and BM25 for exact
+symbol/identifier lookup. Bureau agents query this unified index instead of
+juggling separate Sourcegraph, Serena, and Qdrant tools. Compaction merges
+stale entries when files are refactored, and rebuild reindexes after major
+refactors or branch switches.
+
+**Why it matters:** Current code search is fragmented across three disjoint
+backends with no cross-query capability. A single hybrid retrieval pipeline
+that understands both natural-language intent and exact symbol names would
+collapse Bureau's tool-selection overhead and dramatically improve recall on
+complex architectural queries.
+
+---
+
+### 12.4 Disposable Exploit Sandboxes ("Red Container")
+
+When Scrimmage Mode generates attack vectors, execute each attack in a
+purpose-built Memoh container that mirrors the target application's runtime
+(same OS packages, same language version, same dependencies) but is fully
+disposable. The container runs the exploit attempt, captures stdout/stderr,
+filesystem diffs, and network traffic, then self-destructs. Results are
+extracted and fed back to Bureau's security-compliance agent for verdict.
+
+**Why it matters:** Running adversarial attack vectors in the same environment
+as the development workspace is reckless — a successful exploit could corrupt
+project state. Disposable containers let Bureau run genuine, unrestricted
+penetration tests against its own code without any risk to the host.
+
+---
+
+### 12.5 Architecture Decision Records as Living Memory ("ADR-Mem")
+
+Intercept architecture decisions made during Bureau sessions (detected via the
+architect role, spec-kit plans, or explicit user declarations) and persist
+them as first-class Memoh memory entries with structured metadata: decision
+rationale, alternatives considered, constraints, date, and affected
+components. On future queries, hybrid retrieval surfaces relevant past
+decisions — e.g., when a developer asks "why don't we use Redis here?", the
+agent retrieves the 3-month-old decision record explaining the choice of
+PostgreSQL advisory locks instead.
+
+**Why it matters:** Architecture decisions are the highest-leverage knowledge
+in a codebase, yet they are the most likely to be lost. Encoding them into a
+compactable, searchable memory system means the project's institutional
+knowledge survives developer turnover, context switches, and the passage of
+time.
+
+---
+
+### 12.6 Multi-Agent Parallel Debugging Swarm
+
+When a complex bug is reported, Bureau's orchestrator spawns N Memoh
+containers simultaneously — each running a different debugging strategy. One
+container does binary git-bisect with test execution; another performs
+backward taint analysis from the crash site; a third fuzzes the suspect
+function with generated inputs; a fourth examines recent commit diffs for
+suspicious changes. Each container's fact-extraction pipeline captures
+findings. Bureau's orchestrator collects all containers' memory entries,
+cross-references them, and synthesizes a unified diagnosis.
+
+**Why it matters:** Sequential debugging is the bottleneck in complex
+investigations. Parallel, isolated debugging containers turn a 45-minute
+linear investigation into a 5-minute concurrent one — and the cross-referencing
+step catches causal chains that any single strategy would miss.
+
+---
+
+### 12.7 Container-Isolated MCP Server Vetting
+
+Before connecting a new, untrusted MCP server to Bureau's main process, first
+spin up a Memoh container, install the MCP server there, and run a behavioral
+audit: monitor its network calls, filesystem access patterns, resource
+consumption, and response schemas across a battery of synthetic tool
+invocations. The security-compliance agent analyzes the captured telemetry
+and produces a trust score. Only servers that pass the audit get promoted to
+Bureau's production MCP mesh.
+
+**Why it matters:** MCP servers are arbitrary code that Bureau grants tool-call
+access to. The current trust model is binary (installed or not). Container-
+isolated vetting creates a graduated trust pipeline — try before you trust —
+that is absent from every competing agent platform.
+
+---
+
+### 12.8 Cross-Session Debug Context Persistence ("Immortal Stacktrace")
+
+When a debugging session ends without resolution, serialize the full
+diagnostic context — stack traces, variable snapshots, hypotheses explored,
+dead ends, partial fixes attempted — into Memoh's memory store as a
+structured fact cluster. When the developer (or a different developer) returns
+to the same issue days later, hybrid retrieval reconstructs the prior
+investigation state, including which hypotheses were already eliminated.
+
+**Why it matters:** Resuming an interrupted debugging session currently means
+starting from scratch. Persisting diagnostic state as retrievable memory
+eliminates redundant investigation and makes debugging progress cumulative
+rather than ephemeral.
+
+---
+
+### 12.9 Blast Radius Simulation in Cloned Containers
+
+Before Bureau's Blast Radius Mode marks a change as "safe" or "breaking",
+actually prove it: clone the project into a Memoh container, apply the
+proposed diff, run the full test suite, and compare results against a
+baseline container running the unmodified code. The delta (new failures, new
+warnings, performance regressions) is fed back to the blast-radius assessment
+as empirical evidence rather than static analysis speculation.
+
+**Why it matters:** Static impact analysis is inherently approximate — it
+reasons about what *might* break. Running the change in a cloned container
+measures what *actually* breaks. The combination of static analysis (fast,
+broad) and dynamic proof (slow, precise) produces assessments that neither
+approach achieves alone.
+
+---
+
+### 12.10 Per-User Knowledge Silos in Shared Projects
+
+In multi-developer environments, leverage Memoh's cross-platform identity
+binding and per-user context to maintain separate memory collections for each
+team member. Developer A's preferences (coding style, review strictness,
+preferred libraries) are stored in their silo; Developer B's in theirs.
+Bureau's orchestrator selects the appropriate silo based on the authenticated
+user, producing agent behavior that adapts per-developer without leaking
+personal context across the team.
+
+**Why it matters:** Current multi-user agent platforms are either fully shared
+(everyone sees everything) or fully isolated (no shared project context). Per-
+user silos within a shared project achieve both personalization and privacy —
+a combination no existing coding agent offers.
+
+---
+
+### 12.11 Heartbeat-Driven Codebase Health Monitor
+
+Configure Memoh's heartbeat scheduler to periodically wake a Bureau health-
+monitor bot that runs lightweight codebase checks inside its container:
+dependency audit (`npm audit` / `pip-audit`), dead code detection, test
+coverage delta since last heartbeat, TODO/FIXME accumulation rate, and
+security scan via Semgrep. Findings are extracted as memory entries and
+compacted over time, building a longitudinal health profile. When thresholds
+are breached, the bot proactively notifies the developer via Telegram,
+Discord, or email.
+
+**Why it matters:** Codebase health degrades silently between active
+development sessions. A heartbeat-driven monitor that runs in an isolated
+container, remembers historical trends, and alerts proactively closes the gap
+between CI/CD (which runs only on push) and continuous awareness (which runs
+always).
+
+---
+
+### 12.12 Provenance-Tracked Tool Execution Chains
+
+Every tool invocation inside a Memoh container (shell command, file edit, MCP
+call, browser action) is logged with full provenance: which Bureau agent role
+initiated it, what memory entries informed the decision, what the input and
+output were, and what downstream actions it triggered. This execution trace is
+itself stored as a compactable memory graph. On future similar tasks, hybrid
+retrieval over the provenance graph lets the agent replay or adapt prior
+successful tool chains rather than re-discovering them from scratch.
+
+**Why it matters:** Agent tool use today is memoryless — every session
+rediscovers the same command sequences. Provenance-tracked execution chains
+create a reusable "muscle memory" for tool use, accelerating repeated
+workflows and enabling post-hoc audit of any agent action back to its
+root cause.
+
+---
+
 ## Sources
 
 - [Memoh GitHub Repository](https://github.com/memohai/Memoh)

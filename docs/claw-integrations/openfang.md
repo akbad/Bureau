@@ -356,3 +356,191 @@ Priority integration tasks:
    which may need a PR upstream).
 4. **Security pattern adoption** -- Implement prompt injection scanning and loop
    guards in Bureau, inspired by OpenFang's designs.
+
+---
+
+## 12. High-Impact Feature Merges & Extensions
+
+Brainstormed capabilities that combine Bureau's 66-role coding orchestration with
+OpenFang's autonomous Hands, 40 channel adapters, and 16-layer security model in
+ways neither system could achieve alone.
+
+### 12.1 Researcher-Informed Architecture Decisions ("Deep Arch")
+
+The Researcher Hand runs scheduled deep-dives on technologies relevant to the
+current project (framework release notes, RFC drafts, benchmark comparisons,
+academic papers) and deposits CRAAP-scored, APA-cited briefs into a shared Qdrant
+collection. When Bureau's `architect` role is spawned, it automatically retrieves
+these briefs via semantic search, grounding its design decisions in vetted,
+up-to-date evidence rather than stale training data.
+
+**Why it matters:** Architecture decisions are the highest-leverage choices in a
+codebase. Feeding the architect agent continuously curated, credibility-scored
+research eliminates the "hallucinated best practice" failure mode that plagues
+LLM-driven design work.
+
+### 12.2 Dependency Sentinel ("CVE Watchdog")
+
+The Collector Hand monitors upstream repositories, CVE databases (NVD, OSV),
+package registries (PyPI, npm, crates.io), and API changelogs on a configurable
+schedule. When it detects a breaking change, deprecation, or vulnerability
+affecting a tracked dependency, it files a structured alert into Bureau's pipeline.
+Bureau's `security-compliance` role triages the alert, generates a remediation
+plan, and optionally spawns a `debugger` subagent to draft the patch -- all before
+the developer's next morning standup.
+
+**Why it matters:** Most dependency-related incidents are preventable with early
+detection. This turns reactive "oh no, left-pad broke" firefighting into proactive,
+agent-driven maintenance that runs 24/7 without human attention.
+
+### 12.3 Sprint Risk Forecaster ("Velocity Oracle")
+
+The Predictor Hand ingests Bureau's commit history, PR merge cadence, test failure
+rates, and code churn metrics to produce calibrated sprint-level forecasts with
+explicit confidence intervals and Brier-scored track records. Forecasts are
+delivered to the team's channel of choice (Slack, Discord, Teams -- any of the 40
+adapters) at sprint boundaries and on-demand via natural language queries.
+
+**Why it matters:** Engineering managers currently estimate velocity by gut feel.
+A continuously calibrated forecaster that improves its own accuracy over time --
+and can explain its reasoning in a Slack thread -- replaces guesswork with
+quantified risk assessment.
+
+### 12.4 WASM-Sandboxed Code Execution in Agent Workflows ("SafeExec")
+
+Wrap Bureau's shell-execution steps (test runs, build scripts, code generation
+validation) in OpenFang's WASM dual-metered sandbox (fuel + epoch interruption).
+Each agent role declares its maximum fuel budget and allowed syscall surface in its
+role YAML. The sandbox enforces these limits at the Wasm runtime level, preventing
+runaway processes, fork bombs, or filesystem escapes -- even when the LLM generates
+adversarial code.
+
+**Why it matters:** Bureau currently executes agent-generated code with the user's
+full privileges. WASM sandboxing creates a hard security boundary that makes
+multi-agent code generation safe by default, which is a prerequisite for running
+Bureau unattended or in multi-tenant environments.
+
+### 12.5 Omnichannel Coding Request Intake ("Code From Anywhere")
+
+Leverage OpenFang's 40 channel adapters to accept coding requests from any
+platform -- a Slack message, a WhatsApp voice note (transcribed), a Discord thread,
+a Telegram group, an email, a Discourse post. Each incoming request is normalized
+into a canonical session, enriched with project context from Qdrant, and routed to
+the appropriate Bureau agent role based on intent classification. Results are
+delivered back through the originating channel with syntax-highlighted diffs and
+one-tap approval buttons.
+
+**Why it matters:** Developers think of tasks in Slack, on their phones, in
+meetings. Forcing them to context-switch to a terminal to engage a coding agent
+means most ideas evaporate. Omnichannel intake captures intent at the moment of
+thought, from whatever surface the developer is already using.
+
+### 12.6 Merkle-Audited Code Provenance ("ChainOfCode")
+
+Extend OpenFang's Merkle hash-chain audit trail to cover every code mutation in
+Bureau's pipeline: which agent role proposed a change, which model generated it,
+what context was in the prompt, which human approved it, and what tests passed
+before merge. Each link in the chain is cryptographically chained to the previous
+one, producing a tamper-evident, append-only provenance log that can be verified
+independently by any auditor.
+
+**Why it matters:** As AI-generated code enters regulated industries (finance,
+healthcare, automotive), organizations will need to prove exactly how each line was
+produced and reviewed. A Merkle-chain provenance trail is the gold standard for
+this -- it is what `git` does for source history, applied to the agent decision
+history that produced the source.
+
+### 12.7 Multi-Agent Taint Tracking ("DataFlow Shield")
+
+Apply OpenFang's information-flow taint tracking (security system #3) across
+Bureau's multi-agent pipelines. Every piece of data entering the system (user
+input, API responses, file contents, secrets) is tagged with a taint label at its
+source. As data flows through agent roles -- architect to implementer to reviewer
+-- taint propagates automatically. Sink policies prevent tainted data from reaching
+forbidden destinations: secrets cannot appear in commit messages, user PII cannot
+be sent to third-party APIs, and untrusted web content cannot be injected into
+system prompts without sanitization.
+
+**Why it matters:** Multi-agent pipelines are inherently vulnerable to data
+laundering -- sensitive information gets passed through enough agents that its
+origin is lost and it ends up somewhere it should not. Source-to-sink taint
+tracking is the only systematic defense, and no other coding agent framework
+implements it.
+
+### 12.8 Self-Healing Dependency Graph ("Collector-Driven Lockfile")
+
+The Collector Hand continuously monitors every direct and transitive dependency in
+the project's lockfile, building a living knowledge graph of compatibility
+constraints, known-good version ranges, and inter-package conflict history. When a
+`dependabot`-style update is proposed, Bureau's `architect` role consults this
+knowledge graph to predict whether the upgrade will break the build -- before
+running a single test. If risk is high, it can spawn a `debugger` agent in a WASM
+sandbox to trial the upgrade in isolation.
+
+**Why it matters:** Dependency upgrades are the #1 source of CI breakage in
+large monorepos. A knowledge graph that remembers which version combinations have
+historically failed -- and a sandboxed pre-flight check -- turns upgrades from a
+gamble into a calculated decision.
+
+### 12.9 Cross-Platform Agent Reputation System ("Trust Scores")
+
+Track every Bureau agent role's historical performance: how often its code passes
+review, how frequently its tests fail, how many iterations it needs to converge.
+Store these metrics in OpenFang's SQLite operational memory with Brier-scored
+calibration (borrowed from the Predictor Hand's methodology). The orchestrator uses
+trust scores to make dispatch decisions -- a role with a poor track record on
+concurrency tasks gets a more restrictive WASM fuel budget, mandatory Scrimmage
+Mode, or is bypassed in favor of a higher-trust role on a different model.
+
+**Why it matters:** Not all model-role combinations perform equally on all task
+types. An empirical reputation system turns agent orchestration from static
+role assignment into adaptive, evidence-based delegation -- the orchestrator
+literally learns which agents to trust with what.
+
+### 12.10 Predictive Deployment Risk Gate ("Ship-or-Wait")
+
+Before a release, the Predictor Hand analyzes the diff against historical incident
+data (rollback frequency, hotfix cadence, post-deploy error spikes) and produces a
+calibrated probability that this deploy will require a rollback within 24 hours.
+The prediction, with confidence interval and reasoning chain, is posted to the
+team's channel. If risk exceeds a configurable threshold, the deploy is
+automatically held for human review. Over time, the Predictor's Brier scores
+provide a verifiable track record of its accuracy.
+
+**Why it matters:** "Should we ship this on Friday afternoon?" is one of the
+most consequential and least data-driven decisions in software engineering. A
+calibrated predictor with a transparent track record replaces deploy-day anxiety
+with quantified risk.
+
+### 12.11 Context-Preserving Agent Handoff via Canonical Sessions ("Seamless Relay")
+
+When Bureau hands a task from one agent role to another (e.g. `architect` to
+`implementer` to `reviewer`), the handoff currently loses conversational context.
+By adopting OpenFang's canonical session model with session compaction, each
+handoff preserves a compressed-but-complete context of all prior agent reasoning.
+The receiving agent sees not just the task spec, but the salient decisions,
+tradeoffs, and rejected alternatives from every upstream agent -- all within its
+context window budget thanks to compaction.
+
+**Why it matters:** Context loss at agent handoff boundaries is the #1 cause of
+multi-agent pipeline failures (repeated work, contradictory decisions, lost
+requirements). Canonical sessions with compaction solve this systematically rather
+than relying on ad-hoc summary prompts.
+
+### 12.12 Adversarial Red-Team Pipeline ("Fang & Bureau War Games")
+
+Combine Bureau's Scrimmage Mode skill with OpenFang's Browser Hand and prompt
+injection scanner to create an automated red-team pipeline. After every significant
+code change: (1) Bureau's Scrimmage Mode generates attack vectors across 5
+categories, (2) OpenFang's Browser Hand executes web-facing attacks against a
+staging deployment using Playwright with session persistence, (3) the prompt
+injection scanner tests all user-facing text inputs for injection vulnerabilities,
+and (4) results are compiled into a security report delivered via any of the 40
+channel adapters. The entire pipeline runs autonomously on a schedule, with
+findings feeding back into the Collector Hand's knowledge graph for trend analysis.
+
+**Why it matters:** Security testing is typically a manual, periodic activity that
+happens too late in the development cycle. An always-on adversarial pipeline that
+combines static analysis, dynamic browser-based attacks, and prompt injection
+scanning -- and remembers what it has found before -- is a capability that does not
+exist in any shipping product today.
