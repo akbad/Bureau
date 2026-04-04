@@ -29,12 +29,29 @@ If sharing Qdrant between Bureau and Mem0:
 - **Mitigation:** If collision risk exists, run a second Qdrant instance (lightweight — ~200MB RAM).
 - **Verification step:** Check Mem0's Qdrant collection naming. Verify it doesn't conflict with Bureau's.
 
-### 4. Neo4j resource usage on MacBook Pro
+### 4. Neo4j vs Kuzu for graph store
 
-- **Question:** What is Neo4j's steady-state RAM usage with 10K+ entities?
-- **Question:** Does it degrade performance when the Mac is under load (compilation, multiple agents)?
-- **Risk:** Neo4j defaults to aggressive memory allocation. May need tuning (`NEO4J_server_memory_heap_initial__size`, `NEO4J_server_memory_heap_max__size`).
-- **Verification step:** Run Neo4j for a week with active use, monitor RAM and disk growth.
+Mem0 supports both Neo4j (server) and **Kuzu** (embedded, like SQLite for graphs).
+
+- **Neo4j:** ~500MB-1GB RAM (JVM baseline). Full Cypher queries, ACID transactions. Production-grade but resource-heavy.
+- **Kuzu:** Negligible overhead. Embedded, single file. No server, no Docker container. Supports Cypher-like queries.
+- **Recommendation:** Start with Kuzu for simplicity. Migrate to Neo4j only if you need full Cypher, ACID transactions, or complex multi-hop graph reasoning.
+- **Verification step:** Run Mem0 with Kuzu, add 1000 memories, check graph query speed and entity deduplication quality.
+
+### 4b. Qdrant server vs Qdrant file mode
+
+Mem0 supports both Qdrant server (localhost:6333) and Qdrant local file mode (`path="/path/to/qdrant"`).
+
+- **Server mode:** Needed if Bureau and Mem0 share the same Qdrant instance. More capable (concurrent access, filtering).
+- **File mode:** Zero infrastructure. Good if Mem0 is the only consumer.
+- **Recommendation:** If Bureau already runs Qdrant, share it (server mode). Otherwise, start with file mode.
+
+### 4c. PostHog telemetry
+
+Mem0 includes PostHog analytics that phones home to `https://us.i.posthog.com`.
+
+- **Action:** Set `MEM0_TELEMETRY=false` in environment before first run.
+- **Note:** The `posthog` and `openai` Python packages are hard dependencies in `pyproject.toml` even when not used. They are imported unconditionally but do not phone home without keys / with telemetry disabled.
 
 ### 5. Memory deduplication quality with local models
 

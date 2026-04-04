@@ -46,20 +46,39 @@ This document assumes the agent platform recommendation from Task 02: Hermes Age
 - **Shared Qdrant:** Reduces operational overhead
 - **MCP integration:** Claude Code and other MCP clients get persistent memory "for free"
 
+### Minimal-infrastructure variant (Kuzu + Qdrant file mode)
+
+Mem0 supports **Kuzu** as an embedded graph DB (like SQLite for graphs) and **Qdrant local file mode** (no server needed). This eliminates both Neo4j and the Qdrant server:
+
+```python
+config = {
+    "llm": {"provider": "ollama", "config": {"model": "llama3.1:latest"}},
+    "embedder": {"provider": "ollama", "config": {"model": "nomic-embed-text"}},
+    "vector_store": {"provider": "qdrant", "config": {"path": "/path/to/local/qdrant"}},
+    "graph_store": {"provider": "kuzu", "config": {"db": "/path/to/kuzu.db"}}
+}
+```
+
+With this config, Mem0 requires **zero Docker containers** for its own storage — everything is file-based. Only Ollama needs to be running (which the agent platform likely already requires).
+
 ### Operational cost
 
 | Component | RAM | Disk | Notes |
 |---|---|---|---|
-| Qdrant (existing) | ~200MB | Depends on data | Already running |
-| Neo4j | ~500MB | ~1GB | New addition |
+| Qdrant (existing, shared) | ~200MB | Depends on data | Already running; or use Qdrant file mode (no server) |
+| Neo4j (if using Neo4j) | ~500MB | ~1GB | Optional; can use Kuzu embedded instead (negligible overhead) |
+| Kuzu (if using Kuzu) | Negligible | Minimal | Embedded graph DB, no server, single file |
 | Mem0 API server | ~100MB | Minimal | Lightweight FastAPI |
 | Ollama (if used for extraction) | 8–16GB | Model-dependent | May already be running for agent platform |
 
 ### Risks
 
 - Ollama must be available for fact extraction — if Ollama is down, memory writes fail
-- Neo4j adds maintenance burden (backup, disk growth)
-- Two entity-relation systems (Neo4j via Mem0 + Memory MCP via Bureau) — need clear ownership boundaries
+- If using Neo4j: adds maintenance burden (backup, disk growth)
+- Two entity-relation systems (Mem0 graph + Memory MCP via Bureau) — need clear ownership boundaries
+- **PostHog telemetry:** Mem0 includes PostHog analytics. Set `MEM0_TELEMETRY=false` to prevent data from being sent. The `posthog` library remains a hard dependency even when disabled.
+- Memory extraction quality depends on LLM tool-calling capability — the Ollama model must support function calling (llama3.1 does, many smaller models do not)
+- No automatic memory decay — memories accumulate forever unless you build cleanup logic
 
 ---
 

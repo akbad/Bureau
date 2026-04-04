@@ -6,8 +6,8 @@
 
 No other platform matches Mem0's combination of:
 - fully self-hostable with zero API keys (Ollama for LLM + embeddings)
-- production-grade graph memory (Neo4j for entity-relation extraction)
-- semantic vector memory (Qdrant for retrieval)
+- production-grade graph memory (Neo4j or **Kuzu embedded** — zero-infrastructure graph DB, like SQLite for graphs)
+- semantic vector memory (Qdrant server or **Qdrant local file mode** — no server needed)
 - 11-tool MCP server that integrates directly with Claude Code
 - existing OpenClaw plugin (`openclaw-mem0`)
 - auto-use of Claude Code's session token (reads `~/.claude/.credentials.json`) when you want frontier model quality without managing a separate API key
