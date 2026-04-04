@@ -276,20 +276,30 @@ Four knowledge types:
 
 **Embedding hard-block:** The `embedding_client.py` only supports three providers: `openai`, `gemini`, `openrouter`. There is no `ollama`, `vllm`, or `custom` option for embeddings. If `EMBED_MESSAGES=true` (the default), you MUST have a cloud API key for one of those three.
 
-**Workaround:** Set `EMBED_MESSAGES=false` — this disables semantic search over messages. You can still use all other features (sessions, messages, representations, summaries, dialectic, dreams) because the LLM features can use the `custom` or `vllm` provider (Ollama-compatible).
+**Workaround attempt:** Set `EMBED_MESSAGES=false` — this disables message-level vector search. **However, code-level analysis reveals this does NOT fully disable embeddings.** The observation/document embedding system (`search_memory`, observation creation in the deriver, dialectic tools) still calls `embedding_client.embed()` directly, and these calls are NOT gated by `EMBED_MESSAGES`. The entire memory retrieval pipeline for the dialectic, deriver, and dreamer agents still requires a working embedding API.
 
-**What you lose with EMBED_MESSAGES=false:**
-- No semantic search across past messages
-- Collections/Documents RAG functionality is unavailable
-- Must rely on summaries, dialectic, and explicit recalls instead
+**What you actually lose — even with EMBED_MESSAGES=false:**
+- The core dialectic agent's `search_memory` tool still needs embeddings
+- The deriver's observation embedding still needs embeddings
+- Dream specialists' observation search still needs embeddings
+- In practice, **you cannot avoid embeddings entirely without losing the core value of Honcho**
+
+**Theoretical workaround via "openrouter" provider:** The "openrouter" embedding path creates an OpenAI-compatible client with a configurable `base_url`, which could point to Ollama. However:
+- It still requires a non-empty `LLM_OPENAI_COMPATIBLE_API_KEY` (dummy value works)
+- The model name is hardcoded to `openai/text-embedding-3-small` — name mismatch with Ollama models
+- Uses `tiktoken` with `o200k_base` encoding (OpenAI-specific tokenizer) — produces incorrect token counts for non-OpenAI models
+- Estimated ~30-50 lines of code changes needed to properly add local embedding support
 
 ### What makes Honcho unique
 
 No other platform in this comparison offers:
-- **Dialectic API:** Natural language Q&A about any peer — "What learning styles does this user prefer?" "How does this user typically approach debugging?"
-- **Dreams:** Background deep reasoning that generates inductive/deductive insights about users
-- **Peer modeling:** Both humans AND AI agents are modeled as "peers" with representations
-- **Peer cards:** Auto-generated personality/behavior profiles
+- **Dialectic API:** Not just vector search — an agentic retrieval system where an LLM agent iteratively uses tools (`search_memory`, `grep_messages`, `get_reasoning_chain`, `get_messages_by_date_range`) to research and answer questions about peers. Five reasoning levels (minimal through max) control depth. Genuinely novel architecture.
+- **Dreams:** Asynchronous background consolidation inspired by sleep consolidation. Two specialist agents (deductive + inductive) explore observations, prune redundancies, and create consolidated insights. Includes "surprisal sampling" — finding embedding-space outliers that might be interesting. Runs after sufficient observations accumulate + idle period.
+- **Peer modeling:** Both humans AND AI agents are modeled as "peers" with directional relationships. Observer A's model of peer B is separate from B's model of A.
+- **Peer cards:** Auto-generated biographical summaries updated by the dream system.
+- **Reasoning chains:** Observations can have `source_ids` linking to premises, enabling reasoning chain traversal.
+
+**Model quality requirements:** The dialectic requires multi-step tool calling (1-10+ iterations per query). Dreams require 15-20 iterations of autonomous exploration. The third-party [honcho-self-hosted](https://github.com/elkimek/honcho-self-hosted) project recommends 30B+ parameter models for reliable function calling (GLM-4.7 Flash or Llama 3.3 70B suggested).
 
 ### Integration
 
