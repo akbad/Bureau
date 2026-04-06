@@ -227,12 +227,13 @@ Capture the context that exists **only** in the conversation and cannot be recov
 
 After completing all collection steps, assemble the data and write the dossier using the CLI. The CLI handles all file creation, hash generation, schema setup, and metadata — you never touch the database or write frontmatter directly.
 
-### Step 6: Assemble the JSON input file
+### Step 6: Assemble the JSON input payload
 
-Create a JSON file containing all structured data collected in Steps 1-5. The digest is inlined directly in the JSON.
+Assemble a single JSON payload containing all structured data collected in Steps 1-5. The digest is inlined directly in the JSON.
 
-```bash
-cat > /tmp/fold-input.json << 'ENDJSON'
+You will pass this payload directly to the CLI via stdin. This avoids shared temp files when multiple agents fold concurrently.
+
+```json
 {
   "name": "<user-provided name or auto-generated>",
   "agent": "<agent-identifier>",
@@ -250,7 +251,6 @@ cat > /tmp/fold-input.json << 'ENDJSON'
     {"path": "/absolute/path/to/file.py", "action": "modified", "annotation": "edited lines 40-60"}
   ]
 }
-ENDJSON
 ```
 
 > [!IMPORTANT]
@@ -275,18 +275,50 @@ ENDJSON
 
 ### Step 7: Run the CLI
 
-Run **one** command to create or update the dossier:
+Run **one** command to create or update the dossier by piping the JSON payload to stdin:
 
 **For a new dossier:**
 
 ```bash
-bureau-dossiers fold --input-file /tmp/fold-input.json
+bureau-dossiers fold --input-file - << 'ENDJSON'
+{
+  "name": "<user-provided name or auto-generated>",
+  "agent": "<agent-identifier>",
+  "project": "<git repo root path>",
+  "branch": "<current branch>",
+  "commit": "<short HEAD>",
+  "digest": "<the exhaustive brain dump covering ALL FIVE mandatory aspects>",
+  "tasks": [
+    {"subject": "Task subject", "status": "pending", "owner": null, "description": "Task description", "blocked_by": null}
+  ],
+  "decisions": [
+    {"what": "What was decided", "why": "Why this option was chosen", "alternatives": "JSON-encoded array of rejected alternatives", "decided_by": "user directive"}
+  ],
+  "files": [
+    {"path": "/absolute/path/to/file.py", "action": "modified", "annotation": "edited lines 40-60"}
+  ]
+}
+ENDJSON
 ```
 
 **For re-folding an existing dossier** (when a prior slug is known):
 
 ```bash
-bureau-dossiers fold --slug <existing-slug> --input-file /tmp/fold-input.json
+bureau-dossiers fold --slug <existing-slug> --input-file - << 'ENDJSON'
+{
+  "agent": "<agent-identifier>",
+  "project": "<git repo root path>",
+  "branch": "<current branch>",
+  "commit": "<short HEAD>",
+  "digest": "<the exhaustive brain dump covering ALL FIVE mandatory aspects>",
+  "decisions": [
+    {"what": "What was decided", "why": "Why this option was chosen", "alternatives": "JSON-encoded array of rejected alternatives", "decided_by": "user directive"}
+  ],
+  "files": [
+    {"path": "/absolute/path/to/file.py", "action": "modified", "annotation": "edited lines 40-60"}
+  ]
+}
+ENDJSON
 ```
 
 The CLI automatically:

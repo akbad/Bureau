@@ -4,6 +4,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
 
@@ -42,13 +43,39 @@ def _relative_time(iso_str: str) -> str:
         return iso_str
 
 
+def _load_fold_input(args: argparse.Namespace) -> dict[str, Any]:
+    """Load structured fold input from a file path or stdin.
+
+    ``--input-file -`` follows standard Unix CLI behavior and reads the full
+    JSON payload from stdin. This avoids shared scratch files when multiple
+    agents fold concurrently.
+    """
+    if args.input_file == "-":
+        raw_input = sys.stdin.read()
+        if not raw_input.strip():
+            raise ValueError("stdin payload is required when using --input-file -")
+        input_label = "stdin"
+    else:
+        input_path = Path(args.input_file)
+        try:
+            raw_input = input_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(f"failed to read input file {input_path}: {exc}") from exc
+        input_label = str(input_path)
+
+    try:
+        return json.loads(raw_input)
+    except JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON in {input_label}: {exc.msg}") from exc
+
+
 def cmd_fold(args: argparse.Namespace) -> int:
     dossiers_dir = _get_dossiers_dir(args)
     dossiers_dir.mkdir(parents=True, exist_ok=True)
 
     # --input-file: single JSON blob with all fields (recommended)
     if args.input_file:
-        input_data = json.loads(Path(args.input_file).read_text(encoding="utf-8"))
+        input_data = _load_fold_input(args)
         name = input_data.get("name", args.name)
         slug = input_data.get("slug", args.slug)
         agent = input_data.get("agent", args.agent)
@@ -387,7 +414,10 @@ def main() -> int:
     p_fold.add_argument("--branch", help="Current git branch")
     p_fold.add_argument("--commit", help="Short HEAD hash")
     p_fold.add_argument("--digest-file", help="Path to digest markdown file")
-    p_fold.add_argument("--input-file", help="JSON file with all fold fields (recommended)")
+    p_fold.add_argument(
+        "--input-file",
+        help="JSON file with all fold fields, or '-' to read JSON from stdin (recommended)",
+    )
     p_fold.add_argument("--tasks-json", help="JSON array of tasks")
     p_fold.add_argument("--decisions-json", help="JSON array of decisions")
     p_fold.add_argument("--files-json", help="JSON array of file interactions")

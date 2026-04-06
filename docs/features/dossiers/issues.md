@@ -100,7 +100,7 @@ escape_md(d['decided_by']) if d['decided_by'] else 'unknown'
 
 ### K3. Fold SKILL tells agents to write digest to `/tmp/`
 
-> **Fixed** (2026-04-01). SKILL now uses inline `"digest"` field instead of `"digest_file"`. Step count reduced from 9 to 8.
+> **Fixed** (2026-04-06). SKILL now uses inline `"digest"` and pipes the full JSON payload to `bureau-dossiers fold --input-file -`, eliminating the shared `/tmp` staging file from the first-party fold path.
 
 **Auditor:** SKILL/CLI coherence
 

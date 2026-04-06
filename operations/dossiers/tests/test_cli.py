@@ -22,26 +22,39 @@ def dossiers_dir(tmp_path: Path) -> Path:
 
 def _fold_via_cli(
     dossiers_dir: Path,
-    tmp_path: Path,
     name: str = "Test",
     agent: str = "claude-code",
     digest: str = "Digest content.",
-    tasks_json: str | None = None,
+    tasks: list[dict[str, str]] | None = None,
+    decisions: list[dict[str, str]] | None = None,
+    files: list[dict[str, str]] | None = None,
+    slug: str | None = None,
 ) -> tuple[subprocess.CompletedProcess, str]:
-    """Helper: fold a dossier via CLI, return (result, slug)."""
-    digest_file = tmp_path / "digest.md"
-    digest_file.write_text(digest)
+    """Helper: fold a dossier via CLI over structured stdin, return (result, slug)."""
+    payload: dict[str, object] = {
+        "agent": agent,
+        "digest": digest,
+        "tasks": tasks or [],
+        "decisions": decisions or [],
+        "files": files or [],
+    }
+    if slug:
+        payload["slug"] = slug
+    else:
+        payload["name"] = name
+
     cmd = [
         sys.executable, "-m", "operations.dossiers",
         "fold",
-        "--name", name,
-        "--agent", agent,
-        "--digest-file", str(digest_file),
+        "--input-file", "-",
         "--dossiers-dir", str(dossiers_dir),
     ]
-    if tasks_json:
-        cmd += ["--tasks-json", tasks_json]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        input=json.dumps(payload),
+    )
     slug = ""
     if result.returncode == 0:
         slug_match = _re.search(r"`([^`]+)`", result.stdout)
@@ -51,14 +64,84 @@ def _fold_via_cli(
 
 
 class TestCliFold:
-    def test_fold_creates_dossier(self, dossiers_dir: Path, tmp_path: Path):
-        digest_file = tmp_path / "digest.md"
-        digest_file.write_text("Test digest content.")
+    def test_fold_creates_dossier_from_structured_stdin(self, dossiers_dir: Path):
+        result, _ = _fold_via_cli(
+            dossiers_dir,
+            name="CLI Test",
+            digest="Test digest content.",
+        )
+        assert result.returncode == 0
+        assert "Dossier saved:" in result.stdout
+        # Should have created a .db file
+        db_files = list(dossiers_dir.glob("*.db"))
+        assert len(db_files) == 1
+
+    def test_fold_refold_from_structured_stdin_appends_session(self, dossiers_dir: Path):
+        first_result, slug = _fold_via_cli(
+            dossiers_dir,
+            name="CLI Test",
+            digest="Session 1",
+        )
+        assert first_result.returncode == 0, first_result.stderr
+
+        second_result, _ = _fold_via_cli(
+            dossiers_dir,
+            digest="Session 2",
+            slug=slug,
+        )
+        assert second_result.returncode == 0, second_result.stderr
+
+        unfold_result = subprocess.run(
+            [
+                sys.executable, "-m", "operations.dossiers",
+                "unfold", slug,
+                "--full",
+                "--dossiers-dir", str(dossiers_dir),
+            ],
+            capture_output=True, text=True,
+        )
+        assert unfold_result.returncode == 0
+        assert "Session 1" in unfold_result.stdout
+        assert "Session 2" in unfold_result.stdout
+
+    def test_fold_input_file_dash_requires_valid_json(self, dossiers_dir: Path):
         result = subprocess.run(
             [
                 sys.executable, "-m", "operations.dossiers",
                 "fold",
-                "--name", "CLI Test",
+                "--input-file", "-",
+                "--dossiers-dir", str(dossiers_dir),
+            ],
+            capture_output=True,
+            text=True,
+            input="{not json",
+        )
+        assert result.returncode == 1
+        assert "invalid JSON" in result.stderr
+
+    def test_fold_input_file_dash_requires_stdin_payload(self, dossiers_dir: Path):
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "operations.dossiers",
+                "fold",
+                "--input-file", "-",
+                "--dossiers-dir", str(dossiers_dir),
+            ],
+            capture_output=True,
+            text=True,
+            input="",
+        )
+        assert result.returncode == 1
+        assert "stdin payload is required" in result.stderr
+
+    def test_fold_legacy_digest_file_path_still_works(self, dossiers_dir: Path, tmp_path: Path):
+        digest_file = tmp_path / "digest.md"
+        digest_file.write_text("Legacy digest content.")
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "operations.dossiers",
+                "fold",
+                "--name", "Legacy CLI Test",
                 "--agent", "claude-code",
                 "--digest-file", str(digest_file),
                 "--dossiers-dir", str(dossiers_dir),
@@ -67,33 +150,16 @@ class TestCliFold:
         )
         assert result.returncode == 0
         assert "Dossier saved:" in result.stdout
-        # Should have created a .db file
-        db_files = list(dossiers_dir.glob("*.db"))
-        assert len(db_files) == 1
 
 
 class TestCliUnfold:
-    def test_unfold_renders_context(self, dossiers_dir: Path, tmp_path: Path):
-        # First, fold something
-        digest_file = tmp_path / "digest.md"
-        digest_file.write_text("Important context here.")
-        fold_result = subprocess.run(
-            [
-                sys.executable, "-m", "operations.dossiers",
-                "fold",
-                "--name", "CLI Test",
-                "--agent", "claude-code",
-                "--digest-file", str(digest_file),
-                "--dossiers-dir", str(dossiers_dir),
-            ],
-            capture_output=True, text=True,
+    def test_unfold_renders_context(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(
+            dossiers_dir,
+            name="CLI Test",
+            digest="Important context here.",
         )
         assert fold_result.returncode == 0, fold_result.stderr
-        # Extract slug from output: "Dossier saved: `<slug>` (..."
-        import re as _re
-        slug_match = _re.search(r"`([^`]+)`", fold_result.stdout)
-        assert slug_match, f"Could not parse slug from: {fold_result.stdout}"
-        slug = slug_match.group(1)
 
         result = subprocess.run(
             [
@@ -120,17 +186,16 @@ class TestCliList:
         )
         assert result.returncode == 0
 
-    def test_list_json_format(self, dossiers_dir: Path, tmp_path: Path):
-        digest_file = tmp_path / "digest.md"
-        digest_file.write_text("D.")
+    def test_list_json_format(self, dossiers_dir: Path):
         subprocess.run(
             [
                 sys.executable, "-m", "operations.dossiers",
-                "fold", "--name", "Test", "--agent", "a",
-                "--digest-file", str(digest_file),
+                "fold", "--input-file", "-",
                 "--dossiers-dir", str(dossiers_dir),
             ],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
+            input=json.dumps({"name": "Test", "agent": "a", "digest": "D.", "tasks": [], "decisions": [], "files": []}),
         )
         result = subprocess.run(
             [
@@ -148,8 +213,8 @@ class TestCliList:
 class TestCliUnfoldFork:
     """M7: unfold --fork creates a fork then renders it."""
 
-    def test_unfold_with_fork(self, dossiers_dir: Path, tmp_path: Path):
-        fold_result, slug = _fold_via_cli(dossiers_dir, tmp_path)
+    def test_unfold_with_fork(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(dossiers_dir)
         assert fold_result.returncode == 0, fold_result.stderr
 
         result = subprocess.run(
@@ -173,8 +238,8 @@ class TestCliUnfoldFork:
 class TestCliUnfoldClaim:
     """M7: unfold --claim acquires the advisory lock."""
 
-    def test_unfold_with_claim(self, dossiers_dir: Path, tmp_path: Path):
-        fold_result, slug = _fold_via_cli(dossiers_dir, tmp_path)
+    def test_unfold_with_claim(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(dossiers_dir)
         assert fold_result.returncode == 0, fold_result.stderr
 
         result = subprocess.run(
@@ -201,8 +266,8 @@ class TestCliUnfoldClaim:
         )
         assert "test-agent" in lock_result.stdout
 
-    def test_unfold_claim_without_agent_fails(self, dossiers_dir: Path, tmp_path: Path):
-        fold_result, slug = _fold_via_cli(dossiers_dir, tmp_path)
+    def test_unfold_claim_without_agent_fails(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(dossiers_dir)
         assert fold_result.returncode == 0, fold_result.stderr
 
         result = subprocess.run(
@@ -217,8 +282,8 @@ class TestCliUnfoldClaim:
         assert result.returncode == 1
         assert "--agent is required" in result.stderr
 
-    def test_unfold_claim_conflict(self, dossiers_dir: Path, tmp_path: Path):
-        fold_result, slug = _fold_via_cli(dossiers_dir, tmp_path)
+    def test_unfold_claim_conflict(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(dossiers_dir)
         assert fold_result.returncode == 0, fold_result.stderr
 
         # first claim succeeds
@@ -249,13 +314,13 @@ class TestCliUnfoldClaim:
 class TestCliContext:
     """M7: context sub-command extracts task-scoped context."""
 
-    def test_context_basic(self, dossiers_dir: Path, tmp_path: Path):
-        tasks_json = json.dumps([
+    def test_context_basic(self, dossiers_dir: Path):
+        tasks = [
             {"subject": "Implement auth", "status": "pending"},
             {"subject": "Write tests", "status": "pending", "blocked_by": "1"},
-        ])
+        ]
         fold_result, slug = _fold_via_cli(
-            dossiers_dir, tmp_path, tasks_json=tasks_json,
+            dossiers_dir, tasks=tasks,
         )
         assert fold_result.returncode == 0, fold_result.stderr
 
@@ -278,12 +343,12 @@ class TestCliContext:
 class TestCliWorker:
     """M7: unfold --worker claims a task and renders focused context."""
 
-    def test_worker_mode(self, dossiers_dir: Path, tmp_path: Path):
-        tasks_json = json.dumps([
+    def test_worker_mode(self, dossiers_dir: Path):
+        tasks = [
             {"subject": "Build API", "status": "pending"},
-        ])
+        ]
         fold_result, slug = _fold_via_cli(
-            dossiers_dir, tmp_path, tasks_json=tasks_json,
+            dossiers_dir, tasks=tasks,
         )
         assert fold_result.returncode == 0, fold_result.stderr
 
@@ -313,8 +378,8 @@ class TestCliWorker:
         assert "in_progress" in task_result.stdout
         assert "worker-1" in task_result.stdout
 
-    def test_worker_without_agent_fails(self, dossiers_dir: Path, tmp_path: Path):
-        fold_result, slug = _fold_via_cli(dossiers_dir, tmp_path)
+    def test_worker_without_agent_fails(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(dossiers_dir)
         assert fold_result.returncode == 0, fold_result.stderr
 
         result = subprocess.run(
@@ -329,8 +394,8 @@ class TestCliWorker:
         assert result.returncode == 1
         assert "--agent is required" in result.stderr
 
-    def test_worker_with_fork_fails(self, dossiers_dir: Path, tmp_path: Path):
-        fold_result, slug = _fold_via_cli(dossiers_dir, tmp_path)
+    def test_worker_with_fork_fails(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(dossiers_dir)
         assert fold_result.returncode == 0, fold_result.stderr
 
         result = subprocess.run(
