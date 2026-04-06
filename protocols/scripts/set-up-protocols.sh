@@ -1,61 +1,95 @@
 #!/usr/bin/env bash
 #
 # Setup script for global/user-scoped config/context files
-# Deploys protocol files and configures SessionStart hooks for context delivery
+# Deploys protocol files, regenerates startup context files, and configures
+# supported hook-based reinforcement where available.
 #
 # Architecture: hub-and-spoke context routing
-# - ops-hub.md: minimal routing table (always loaded, re-injected via hooks)
+# - ops-hub.md: minimal routing table (loaded via generated context files and
+#   reinforced via hooks where the target CLI supports them)
 # - ops/*.md: task-specific spokes (read on-demand by agents)
 # See docs/plans/2026-03-29-context-hub-spoke-design.md for design details.
 #
 # Protocol deployment modes:
-#   (default)  First-run-only: deploy if directory is empty, skip if files exist
-#   --update   Re-copy Bureau-managed files; back up modified ones to .bak
-#   --force    Re-copy Bureau-managed files; overwrite without backup (implies --update)
-#   --bare     Remove all protocol files and hooks; user manages their own context
+#   replace            Reconcile Bureau-managed files in place without backup
+#   sync               Reconcile Bureau-managed files, backing up replaced files
+#   off                Remove Bureau-managed files, hooks, and context wiring
 
 set -euo pipefail
 
 # Retrieve absolute paths
 CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # protocols dir
 REPO_ROOT="$(cd "$CONFIGS_DIR/.." && pwd)"
+CONTEXT_DIR="$REPO_ROOT/protocols/context"
+CONTEXT_TEMPLATES="$CONTEXT_DIR/templates"
+CONTEXT_GENERATED="$CONTEXT_DIR/generated"
+mkdir -p "$CONTEXT_GENERATED"
 
 # Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
 source "$REPO_ROOT/bin/lib/logging.sh"
 
 # ── Parse deployment mode flags ─────────────────────────────────────────────
-MODE_UPDATE=false
-MODE_FORCE=false
-MODE_BARE=false
+MODE=""
 
-for arg in "$@"; do
-    case "$arg" in
-        --update) MODE_UPDATE=true ;;
-        --force)  MODE_FORCE=true; MODE_UPDATE=true ;;  # force implies update
-        --bare)   MODE_BARE=true ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --protocols|-p)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: --protocols/-p requires a mode: replace|r, sync|s, off|o" >&2
+                exit 1
+            fi
+            case "$2" in
+                replace|r) MODE="replace" ;;
+                sync|s) MODE="sync" ;;
+                off|o) MODE="off" ;;
+                *)
+                    echo "ERROR: invalid protocols mode '$2' (expected replace|r, sync|s, or off|o)" >&2
+                    exit 1
+                    ;;
+            esac
+            shift 2
+            ;;
+        *)
+            echo "ERROR: unknown option '$1' (expected --protocols/-p)" >&2
+            exit 1
+            ;;
     esac
 done
 
-# conflict check: update + bare is contradictory
-if [[ "$MODE_UPDATE" == true && "$MODE_BARE" == true ]]; then
-    echo "ERROR: --update/--force and --bare are contradictory" >&2
-    exit 1
+if [[ -z "$MODE" ]]; then
+    MODE="$(_get_config protocols.mode 2>/dev/null || echo "replace")"
 fi
+
+case "$MODE" in
+    replace|sync|off) ;;
+    *)
+        echo "ERROR: invalid protocols.mode '$MODE' in config (expected replace, sync, or off)" >&2
+        exit 1
+        ;;
+esac
 
 # Detect installed CLIs based on directory existence
 # (exits if none found, logs detected CLIs)
 discover_agents
 
 # Build --agent args for configure-hooks.py (expects lowercase config names,
-# not display names like "Claude Code"; only agents that support hooks)
-HOOK_SUPPORTED_AGENTS=(claude codex gemini)
-HOOK_AGENT_ARGS=()
+# not display names like "Claude Code")
+CONFIGURE_HOOK_SUPPORTED_AGENTS=(claude codex gemini)
+CONFIGURE_HOOK_AGENT_ARGS=()
+REMOVE_HOOK_SUPPORTED_AGENTS=(claude codex gemini)
+REMOVE_HOOK_AGENT_ARGS=()
 for agent in "${AGENTS[@]}"; do
     config_name="$(_agent_config_name "$agent")"
-    for supported in "${HOOK_SUPPORTED_AGENTS[@]}"; do
+    for supported in "${CONFIGURE_HOOK_SUPPORTED_AGENTS[@]}"; do
         if [[ "$config_name" == "$supported" ]]; then
-            HOOK_AGENT_ARGS+=(--agent "$config_name")
+            CONFIGURE_HOOK_AGENT_ARGS+=(--agent "$config_name")
+            break
+        fi
+    done
+    for supported in "${REMOVE_HOOK_SUPPORTED_AGENTS[@]}"; do
+        if [[ "$config_name" == "$supported" ]]; then
+            REMOVE_HOOK_AGENT_ARGS+=(--agent "$config_name")
             break
         fi
     done
@@ -64,15 +98,7 @@ done
 log_banner "User-level agent context files setup"
 echo "Repo root: $REPO_ROOT"
 echo "Selected agents: ${AGENTS[*]}"
-if [[ "$MODE_BARE" == true ]]; then
-    echo "Mode: bare (removing protocol files and hooks)"
-elif [[ "$MODE_FORCE" == true ]]; then
-    echo "Mode: force update (overwriting without backup)"
-elif [[ "$MODE_UPDATE" == true ]]; then
-    echo "Mode: update (backing up modified files)"
-else
-    echo "Mode: default (first-run-only)"
-fi
+echo "Mode: $MODE"
 log_empty_line
 
 # ============================================================================
@@ -85,7 +111,8 @@ STATIC_DIR="$REPO_ROOT/protocols/context/static"
 # Bureau-managed file manifest — single source of truth for what Bureau "owns"
 BUREAU_HUB_FILE="ops-hub.md"
 BUREAU_OUTPUT_STYLE="output-style.md"
-BUREAU_SPOKE_FILES=("session-start.md" "task-assessment.md" "task-execution.md" "task-completion.md" "code-standards.md")
+BUREAU_CODE_STANDARDS="code-standards.md"
+BUREAU_SPOKE_FILES=("session-start.md" "task-assessment.md" "task-execution.md" "task-completion.md")
 
 # resolve a single path to an absolute path
 # rules: ~ → $HOME, / → absolute, else → relative to $REPO_ROOT
@@ -96,6 +123,119 @@ resolve_path() {
         /*)    echo "$p" ;;
         *)     echo "$REPO_ROOT/$p" ;;
     esac
+}
+
+create_safe_symlink() {
+    local source="$1"
+    local target="$2"
+
+    mkdir -p "$(dirname "$target")"
+
+    if [[ -L "$target" ]]; then
+        local current_link
+        current_link="$(readlink "$target")"
+        if [[ "$current_link" == "$source" ]]; then
+            log_info "Symlink already up to date: $target -> $source"
+            return 0
+        fi
+        log_warning "Removing incorrect symlink: $target -> $current_link"
+        rm "$target"
+    elif [[ -f "$target" ]]; then
+        local backup
+        backup="${target}.backup.$(date +%Y%m%d_%H%M%S)"
+        log_warning "Backing up existing file: $target -> $backup"
+        mv "$target" "$backup"
+    elif [[ -e "$target" ]]; then
+        log_error "Cannot create symlink: $target exists and is not a file or symlink"
+        exit 1
+    fi
+
+    ln -s "$source" "$target"
+    log_success "Created symlink: $target -> $source"
+}
+
+remove_bureau_symlink_if_present() {
+    local target="$1"
+    local expected_source="$2"
+
+    if [[ -L "$target" ]]; then
+        local current_link
+        current_link="$(readlink "$target")"
+        if [[ "$current_link" == "$expected_source" ]]; then
+            rm "$target"
+            log_success "Removed Bureau symlink: $target"
+        fi
+    fi
+}
+
+generate_context_files() {
+    local output_style_enabled="${1:-true}"
+
+    if [[ ! -f "$CONTEXT_TEMPLATES/AGENTS.template.md" ]] || [[ ! -f "$CONTEXT_TEMPLATES/CLAUDE.template.md" ]]; then
+        log_error "Cannot find context templates in $CONTEXT_TEMPLATES"
+        exit 1
+    fi
+
+    mkdir -p "$CONTEXT_GENERATED"
+
+    AGENTS_TEMPLATE_PATH="$CONTEXT_TEMPLATES/AGENTS.template.md" \
+    AGENTS_OUTPUT_PATH="$CONTEXT_GENERATED/AGENTS.md" \
+    PROTOCOLS_DIR="$BUREAU_PROTOCOLS_DIR" \
+    OUTPUT_STYLE_ENABLED="$output_style_enabled" \
+    python - <<'PY'
+from pathlib import Path
+import os
+import re
+
+template_path = Path(os.environ["AGENTS_TEMPLATE_PATH"])
+output_path = Path(os.environ["AGENTS_OUTPUT_PATH"])
+protocols_dir = os.environ["PROTOCOLS_DIR"]
+text = template_path.read_text(encoding="utf-8").replace("{{PROTOCOLS_DIR}}", protocols_dir)
+
+if os.environ["OUTPUT_STYLE_ENABLED"] != "true":
+    text = re.sub(
+        r"### \[Output style\]\(.*?\)\n\n> \*\*Read\*\*: `@.*?`\n\n",
+        "",
+        text,
+        count=1,
+        flags=re.S,
+    )
+    text = text.replace(
+        "The output style shapes always-on response behavior for this session.\n\n",
+        "",
+    )
+
+output_path.write_text(text, encoding="utf-8")
+PY
+    log_success "Generated $CONTEXT_GENERATED/AGENTS.md"
+
+    sed "s|{{PROTOCOLS_DIR}}|$BUREAU_PROTOCOLS_DIR|g" \
+        "$CONTEXT_TEMPLATES/CLAUDE.template.md" > "$CONTEXT_GENERATED/CLAUDE.md"
+    log_success "Generated $CONTEXT_GENERATED/CLAUDE.md"
+}
+
+wire_context_symlinks() {
+    if agent_enabled "Gemini CLI"; then
+        create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$HOME/.gemini/GEMINI.md"
+    fi
+
+    if agent_enabled "Codex"; then
+        create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$HOME/.codex/AGENTS.md"
+    fi
+
+    if agent_enabled "Claude Code"; then
+        create_safe_symlink "$CONTEXT_GENERATED/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+    fi
+}
+
+remove_context_symlinks() {
+    remove_bureau_symlink_if_present "$HOME/.gemini/GEMINI.md" "$CONTEXT_GENERATED/AGENTS.md"
+    remove_bureau_symlink_if_present "$HOME/.codex/AGENTS.md" "$CONTEXT_GENERATED/AGENTS.md"
+    remove_bureau_symlink_if_present "$HOME/.claude/CLAUDE.md" "$CONTEXT_GENERATED/CLAUDE.md"
+}
+
+remove_generated_context_files() {
+    rm -f "$CONTEXT_GENERATED/AGENTS.md" "$CONTEXT_GENERATED/CLAUDE.md"
 }
 
 # ── Migration: move old-structure files to .deprecated/ ──────────────────────
@@ -117,103 +257,132 @@ migrate_old_files() {
     fi
 }
 
-# ── Copy a single Bureau-managed file with optional backup ───────────────────
+# ── Reconcile one Bureau-managed file with mode-aware backup behavior ────────
 # Args: $1=source $2=destination
-# Behavior depends on MODE_UPDATE and MODE_FORCE globals
-_copy_managed_file() {
+_install_managed_file() {
     local src="$1" dest="$2"
 
+    mkdir -p "$(dirname "$dest")"
+
+    if [[ -f "$dest" ]] && cmp -s "$src" "$dest"; then
+        return 0
+    fi
+
     if [[ -f "$dest" ]]; then
-        # for hub file: resolve placeholder in-memory before comparing
-        local resolved_src
-        if [[ "$(basename "$src")" == "$BUREAU_HUB_FILE" ]]; then
-            resolved_src=$(sed "s|{{PROTOCOLS_DIR}}|$BUREAU_PROTOCOLS_DIR|g" "$src")
-        else
-            resolved_src=$(cat "$src")
-        fi
-
-        # compare source (resolved) vs destination
-        if echo "$resolved_src" | diff -q - "$dest" > /dev/null 2>&1; then
-            # identical — overwrite silently (no-op effectively)
-            cp "$src" "$dest"
-            return
-        fi
-
-        # files differ
-        if [[ "$MODE_FORCE" == true ]]; then
-            log_warning "Overwriting (force): $(basename "$dest")"
-        else
-            # backup mode — save .bak before overwriting
+        if [[ "$MODE" == "sync" ]]; then
             cp "$dest" "${dest}.bak"
-            log_warning "Backed up modified file: $(basename "$dest") → $(basename "$dest").bak"
+            log_warning "Backed up replaced file: $(basename "$dest") → $(basename "$dest").bak"
+        else
+            log_warning "Replacing Bureau-managed file: $(basename "$dest")"
         fi
     fi
 
     cp "$src" "$dest"
 }
 
-compile_output_style_artifact() {
-    local output_style_raw
-    local -a configured_sources
-    local -a output_style_sources
-    local -a command
+remove_managed_file() {
+    local dest="$1"
 
-    output_style_raw=$(uv run python -m operations.config_cli output_style 2>/dev/null || echo "")
-    if [[ -n "$output_style_raw" ]]; then
-        read -ra configured_sources <<< "$output_style_raw"
-        for raw_path in "${configured_sources[@]}"; do
-            output_style_sources+=("$(resolve_path "$raw_path")")
-        done
+    if [[ ! -e "$dest" ]]; then
+        return 0
     fi
 
-    if [[ ${#output_style_sources[@]} -eq 0 ]]; then
-        output_style_sources=("$STATIC_DIR/ops/$BUREAU_OUTPUT_STYLE")
+    if [[ "$MODE" == "sync" ]]; then
+        cp "$dest" "${dest}.bak"
+        log_warning "Backed up removed file: $(basename "$dest") → $(basename "$dest").bak"
     fi
 
-    command=(
-        uv run python "$REPO_ROOT/protocols/scripts/configure-output-style.py"
-        --runtime-output "$BUREAU_PROTOCOLS_DIR/$BUREAU_OUTPUT_STYLE"
+    rm -f "$dest"
+}
+
+reconcile_protocol_artifact() {
+    local setting="$1"
+    local destination="$2"
+    local label="$3"
+    local tmp_artifact
+    local status
+
+    tmp_artifact="$(mktemp)"
+    if uv run python "$REPO_ROOT/protocols/scripts/compile-protocol-artifact.py" \
+        --setting "$setting" \
+        --destination "$tmp_artifact"; then
+        _install_managed_file "$tmp_artifact" "$destination"
+        rm -f "$tmp_artifact"
+        log_success "Compiled Bureau $label to $destination"
+        return 0
+    fi
+
+    status=$?
+    rm -f "$tmp_artifact"
+
+    if [[ "$status" -eq 3 ]]; then
+        remove_managed_file "$destination"
+        log_info "Disabled Bureau $label runtime artifact"
+        return 1
+    fi
+
+    return "$status"
+}
+
+tailor_deployed_hub() {
+    local output_style_enabled="$1"
+    local code_standards_enabled="$2"
+    local hub_path="$BUREAU_PROTOCOLS_DIR/$BUREAU_HUB_FILE"
+
+    HUB_PATH="$hub_path" \
+    OUTPUT_STYLE_ENABLED="$output_style_enabled" \
+    CODE_STANDARDS_ENABLED="$code_standards_enabled" \
+    python - <<'PY'
+from pathlib import Path
+import os
+import re
+
+hub_path = Path(os.environ["HUB_PATH"])
+text = hub_path.read_text(encoding="utf-8")
+
+if os.environ["CODE_STANDARDS_ENABLED"] != "true":
+    text = re.sub(
+        r'(?m)^  <read-file-when task="writing or editing code" path="[^"]+/code-standards\.md" />\n',
+        "",
+        text,
     )
-    for source in "${output_style_sources[@]}"; do
-        command+=(--source "$source")
-    done
-    if agent_enabled "Claude Code"; then
-        command+=(--install-claude)
-    fi
 
-    "${command[@]}"
-    log_success "Compiled Bureau output style to $BUREAU_PROTOCOLS_DIR/$BUREAU_OUTPUT_STYLE"
+if os.environ["OUTPUT_STYLE_ENABLED"] != "true":
+    text = re.sub(
+        r"\n?    <output-style-reminder>.*?</output-style-reminder>\n",
+        "\n",
+        text,
+        flags=re.S,
+    )
+
+hub_path.write_text(text, encoding="utf-8")
+PY
 }
 
 # ── Deploy hub and spoke files ───────────────────────────────────────────────
 deploy_protocols() {
+    local rendered_hub
+
     mkdir -p "$BUREAU_PROTOCOLS_DIR/ops"
 
     # migrate old files if upgrading from pre-hub-spoke structure
     migrate_old_files
 
-    if [[ "$MODE_UPDATE" == true ]]; then
-        # update mode: use manifest-based copy with backup logic
-        _copy_managed_file "$STATIC_DIR/$BUREAU_HUB_FILE" "$BUREAU_PROTOCOLS_DIR/$BUREAU_HUB_FILE"
-        for spoke in "${BUREAU_SPOKE_FILES[@]}"; do
-            _copy_managed_file "$STATIC_DIR/ops/$spoke" "$BUREAU_PROTOCOLS_DIR/ops/$spoke"
-        done
-    else
-        # default mode: fresh copy (only reached when directory was empty)
-        cp "$STATIC_DIR/$BUREAU_HUB_FILE" "$BUREAU_PROTOCOLS_DIR/$BUREAU_HUB_FILE"
-        for spoke in "${BUREAU_SPOKE_FILES[@]}"; do
-            cp "$STATIC_DIR/ops/$spoke" "$BUREAU_PROTOCOLS_DIR/ops/$spoke"
-        done
-    fi
+    rendered_hub="$(mktemp)"
+    sed "s|{{PROTOCOLS_DIR}}|$BUREAU_PROTOCOLS_DIR|g" \
+        "$STATIC_DIR/$BUREAU_HUB_FILE" > "$rendered_hub"
+    _install_managed_file "$rendered_hub" "$BUREAU_PROTOCOLS_DIR/$BUREAU_HUB_FILE"
+    rm -f "$rendered_hub"
 
-    # resolve {{PROTOCOLS_DIR}} placeholder in deployed hub
-    sed -i '' "s|{{PROTOCOLS_DIR}}|$BUREAU_PROTOCOLS_DIR|g" "$BUREAU_PROTOCOLS_DIR/$BUREAU_HUB_FILE"
+    for spoke in "${BUREAU_SPOKE_FILES[@]}"; do
+        _install_managed_file "$STATIC_DIR/ops/$spoke" "$BUREAU_PROTOCOLS_DIR/ops/$spoke"
+    done
 
     log_success "Deployed hub + spoke files to $BUREAU_PROTOCOLS_DIR"
 }
 
-# ── Bare mode: remove all protocol files and hooks ───────────────────────────
-bare_protocols() {
+# ── Off mode: remove all protocol files and hooks ────────────────────────────
+remove_protocols() {
     if [[ -d "$BUREAU_PROTOCOLS_DIR" ]]; then
         rm -rf "$BUREAU_PROTOCOLS_DIR"
         log_success "Removed protocols directory: $BUREAU_PROTOCOLS_DIR"
@@ -225,11 +394,14 @@ bare_protocols() {
     log_action "Removing Bureau hooks from agent configurations..."
     if uv run python "$REPO_ROOT/protocols/scripts/configure-hooks.py" \
         --remove \
-        "${HOOK_AGENT_ARGS[@]}"; then
+        "${REMOVE_HOOK_AGENT_ARGS[@]}"; then
         log_success "Bureau hooks removed"
     else
         log_warning "Failed to remove some hooks"
     fi
+
+    remove_context_symlinks
+    remove_generated_context_files
 
     if uv run python "$REPO_ROOT/protocols/scripts/configure-output-style.py" --remove-claude; then
         log_success "Removed Bureau Claude output style"
@@ -239,96 +411,68 @@ bare_protocols() {
 }
 
 # ── Mode dispatch ────────────────────────────────────────────────────────────
-if [[ "$MODE_BARE" == true ]]; then
-    bare_protocols
-elif [[ "$MODE_UPDATE" == true ]]; then
-    # update/force: always re-deploy
-    deploy_protocols
+OUTPUT_STYLE_ENABLED=false
+CODE_STANDARDS_ENABLED=false
+
+if [[ "$MODE" == "off" ]]; then
+    remove_protocols
 else
-    # default: deploy only if directory is empty or missing
-    if [[ ! -d "$BUREAU_PROTOCOLS_DIR" ]] || [[ -z "$(ls -A "$BUREAU_PROTOCOLS_DIR" 2>/dev/null)" ]]; then
-        deploy_protocols
+    deploy_protocols
+
+    if reconcile_protocol_artifact \
+        "output_style" \
+        "$BUREAU_PROTOCOLS_DIR/$BUREAU_OUTPUT_STYLE" \
+        "output style"; then
+        OUTPUT_STYLE_ENABLED=true
+        if agent_enabled "Claude Code"; then
+            uv run python "$REPO_ROOT/protocols/scripts/configure-output-style.py" \
+                --runtime-output "$BUREAU_PROTOCOLS_DIR/$BUREAU_OUTPUT_STYLE" \
+                --install-claude
+        fi
     else
-        # still run migration for old-structure files
-        migrate_old_files
-        log_info "Protocol files already exist; skipping deployment (use --update to refresh)"
-    fi
-fi
-
-# ============================================================================
-# Compile output-style runtime artifact (and Claude native wrapper)
-# Skipped in bare mode
-# ============================================================================
-
-if [[ "$MODE_BARE" != true ]]; then
-    compile_output_style_artifact
-fi
-
-# ============================================================================
-# Inject custom code_standards paths into hub (if configured)
-# Skipped in bare mode (hub file doesn't exist)
-# ============================================================================
-
-if [[ "$MODE_BARE" != true ]]; then
-    CODE_STANDARDS_RAW=$(uv run python -m operations.config_cli code_standards 2>/dev/null || echo "")
-
-    if [[ -n "$CODE_STANDARDS_RAW" ]]; then
-        read -ra CODE_STANDARDS_PATHS <<< "$CODE_STANDARDS_RAW"
-        for raw_path in "${CODE_STANDARDS_PATHS[@]}"; do
-            resolved="$(resolve_path "$raw_path")"
-            # skip if it points to the default code-standards already in ops/
-            if [[ "$resolved" == "$BUREAU_PROTOCOLS_DIR/ops/code-standards.md" ]] || \
-               [[ "$resolved" == "$BUREAU_PROTOCOLS_DIR/code-standards.md" ]] || \
-               [[ "$resolved" == "$STATIC_DIR/ops/code-standards.md" ]]; then
-                continue
-            fi
-            # inject additional read-file-when entry before closing tag
-            sed -i '' "s|</bureau:required-context-by-task>|  <read-file-when task=\"writing or editing code (additional standards)\" path=\"$resolved\" />\n\n</bureau:required-context-by-task>|" \
-                "$BUREAU_PROTOCOLS_DIR/ops-hub.md"
-        done
-        log_success "Added custom code_standards paths to ops-hub.md"
-    fi
-fi
-
-# ============================================================================
-# Clean up stale context file symlinks from previous Bureau versions
-# (context is now delivered via hooks, not symlinked files)
-# ============================================================================
-
-STALE_SYMLINK_PATHS=(
-    "$HOME/.claude/CLAUDE.md"
-    "$HOME/.gemini/GEMINI.md"
-    "$HOME/.codex/AGENTS.md"
-)
-
-for symlink_path in "${STALE_SYMLINK_PATHS[@]}"; do
-    if [[ -L "$symlink_path" ]]; then
-        link_target="$(readlink "$symlink_path")"
-        if [[ "$link_target" == *bureau-concierge* ]]; then
-            log_warning "Removing stale Bureau symlink: $symlink_path -> $link_target"
-            rm "$symlink_path"
+        if uv run python "$REPO_ROOT/protocols/scripts/configure-output-style.py" --remove-claude; then
+            log_success "Removed Bureau Claude output style"
+        else
+            log_warning "Failed to remove Bureau Claude output style"
         fi
     fi
-done
+
+    if reconcile_protocol_artifact \
+        "code_standards" \
+        "$BUREAU_PROTOCOLS_DIR/$BUREAU_CODE_STANDARDS" \
+        "code standards"; then
+        CODE_STANDARDS_ENABLED=true
+    fi
+
+    tailor_deployed_hub "$OUTPUT_STYLE_ENABLED" "$CODE_STANDARDS_ENABLED"
+
+    log_action "Generating startup context files"
+    generate_context_files "$OUTPUT_STYLE_ENABLED"
+    log_action "Linking generated context files"
+    wire_context_symlinks
+fi
 
 # ============================================================================
-# Configure per-prompt hub re-injection hooks
-# Skipped in bare mode (hooks already removed by bare_protocols)
+# Configure hook-based hub reinforcement where the CLI supports it.
+# Codex uses hooks.json plus the codex_hooks feature flag.
 # ============================================================================
-if [[ "$MODE_BARE" != true ]]; then
-    log_action "Configuring per-prompt hub re-injection hooks"
+if [[ "$MODE" != "off" ]]; then
+    if [[ ${#CONFIGURE_HOOK_AGENT_ARGS[@]} -gt 0 ]]; then
+        log_action "Configuring hook-based hub reinforcement"
 
-    if uv run python "$REPO_ROOT/protocols/scripts/configure-hooks.py" \
-        --protocols-dir "$BUREAU_PROTOCOLS_DIR" \
-        "${HOOK_AGENT_ARGS[@]}"; then
-        log_success "Hub re-injection hooks configured"
+        if uv run python "$REPO_ROOT/protocols/scripts/configure-hooks.py" \
+            --protocols-dir "$BUREAU_PROTOCOLS_DIR" \
+            "${CONFIGURE_HOOK_AGENT_ARGS[@]}"; then
+            log_success "Hook-based hub reinforcement configured"
+        else
+            log_warning "Failed to configure supported hooks - agents will still read generated context files at session start"
+        fi
     else
-        log_warning "Failed to configure hooks - agents will still read hub at session start"
+        log_info "No hook-capable CLIs detected; skipping hook-based reinforcement"
     fi
 
     echo ""
 
-    # Show verification steps only for enabled agents
     if agent_enabled "Claude Code"; then
         echo "Verification for Claude Code:"
         echo "  - Start a new session and ask 'What operational context were you given?'"
@@ -339,25 +483,32 @@ if [[ "$MODE_BARE" != true ]]; then
     if agent_enabled "Gemini CLI"; then
         echo "Verification for Gemini CLI:"
         echo "  - Start a new session and ask 'What operational context were you given?'"
-        echo "    (should mention ops-hub and Bureau protocols)"
+        echo "    (should mention output-style and ops-hub via GEMINI.md)"
         echo ""
     fi
 
     if agent_enabled "Codex"; then
         echo "Verification for Codex:"
         echo "  - Start a new session and ask 'What operational context were you given?'"
-        echo "    (should mention ops-hub and Bureau protocols)"
+        echo "    (should mention output-style and ops-hub via ~/.codex/AGENTS.md)"
         echo ""
     fi
 
-    echo "Configured CLIs now have access to (via SessionStart hooks):"
+    echo "Configured CLIs now have access to:"
+    echo "  - Generated startup context files: $CONTEXT_GENERATED"
     echo "  - Hub routing table: $BUREAU_PROTOCOLS_DIR/ops-hub.md"
+    if [[ "$OUTPUT_STYLE_ENABLED" == true ]]; then
+        echo "  - Runtime output style: $BUREAU_PROTOCOLS_DIR/$BUREAU_OUTPUT_STYLE"
+    fi
+    if [[ "$CODE_STANDARDS_ENABLED" == true ]]; then
+        echo "  - Runtime code standards: $BUREAU_PROTOCOLS_DIR/$BUREAU_CODE_STANDARDS"
+    fi
     echo "  - Task-specific spokes: $BUREAU_PROTOCOLS_DIR/ops/"
     echo ""
-    echo "To customize agent context:"
-    echo "  1. Edit spoke files in $BUREAU_PROTOCOLS_DIR/ops/"
+    echo "To customize Bureau-managed protocol content:"
+    echo "  1. Update protocols.output_style and/or protocols.code_standards in your config"
     echo "  2. Re-run this script (or bin/open-bureau)"
-    echo "  To restore defaults: bin/reset-protocols"
+    echo "  To restore Bureau defaults: bin/reset-protocols"
     echo ""
 fi
 

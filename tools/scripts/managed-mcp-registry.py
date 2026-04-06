@@ -102,11 +102,17 @@ def normalize_entry(cli: str, raw_entry: dict[str, Any]) -> dict[str, Any]:
 
     if cli == "codex":
         transport = raw_entry.get("transport")
+        if transport is None:
+            if "url" in raw_entry:
+                transport = "http"
+            elif "command" in raw_entry:
+                transport = "stdio"
         if transport == "http":
             return _drop_none(
                 {
                     "transport": "http",
                     "url": raw_entry.get("url"),
+                    "bearer_token_env_var": raw_entry.get("bearer_token_env_var"),
                 }
             )
         if transport == "stdio":
@@ -180,6 +186,8 @@ def normalize_desired_entry(cli: str, desired_entry: dict[str, Any]) -> dict[str
         }
         if cli in {"claude", "gemini"}:
             payload["headers"] = desired_entry.get("headers")
+        if cli == "codex":
+            payload["bearer_token_env_var"] = desired_entry.get("bearer_token_env_var")
         return _drop_none(payload)
 
     if transport == "stdio":

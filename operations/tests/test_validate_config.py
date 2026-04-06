@@ -4,6 +4,7 @@ from operations.validate_config import (
     validate_placeholder_cycles,
     validate_service_dependency_cycles,
     validate_dependency_requires_cycles,
+    validate_protocol_settings,
     _collect_placeholder_refs,
     _collect_service_dep_graph,
     _collect_dependency_requires_graph,
@@ -210,3 +211,70 @@ class TestCollectDependencyRequiresGraph:
         }}}
         graph = _collect_dependency_requires_graph(config)
         assert graph == {"a": set()}
+
+
+class TestProtocolSettingsValidation:
+    """Tests for the consolidated protocols schema."""
+
+    def test_accepts_default_protocol_settings(self):
+        config = {
+            "protocols": {
+                "mode": "replace",
+                "output_style": "default",
+                "code_standards": "default",
+            }
+        }
+
+        assert validate_protocol_settings(config) == []
+
+    def test_accepts_off_and_custom_path_lists(self):
+        config = {
+            "protocols": {
+                "mode": "sync",
+                "output_style": ["~/styles/base.md", "/tmp/style extension.md"],
+                "code_standards": "off",
+            }
+        }
+
+        assert validate_protocol_settings(config) == []
+
+    def test_rejects_unknown_protocol_mode(self):
+        config = {
+            "protocols": {
+                "mode": "first-run-only",
+                "output_style": "default",
+                "code_standards": "default",
+            }
+        }
+
+        errors = validate_protocol_settings(config)
+
+        assert any("protocols.mode" in error for error in errors)
+
+    def test_rejects_empty_custom_protocol_document_list(self):
+        config = {
+            "protocols": {
+                "mode": "replace",
+                "output_style": [],
+                "code_standards": "default",
+            }
+        }
+
+        errors = validate_protocol_settings(config)
+
+        assert any("protocols.output_style" in error for error in errors)
+
+    def test_rejects_legacy_protocol_keys(self):
+        config = {
+            "protocols": {
+                "update": True,
+                "force": False,
+                "bare": False,
+            }
+        }
+
+        errors = validate_protocol_settings(config)
+
+        assert any("protocols.update" in error for error in errors)
+        assert any("protocols.force" in error for error in errors)
+        assert any("protocols.bare" in error for error in errors)

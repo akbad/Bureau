@@ -7,9 +7,8 @@
 # Options:
 #   --concierge, -c                Enable ML classifier setup (install deps + train model)
 #                                  Persisted via `concierge.enabled: true` in config
-#   -u, --update-protocols         Re-copy Bureau-managed protocol files (backs up modified ones)
-#   -f, --force                    Overwrite protocol files without backup (implies -u)
-#   -b, --bare                     Remove all protocol files and hooks
+#   --protocols, -p <mode>         Protocol deployment mode
+#                                  Modes: replace|r, sync|s, off|o
 #
 # For configuration details, see docs/CONFIGURATION.md
 
@@ -21,26 +20,37 @@ cd "$REPO_ROOT" || exit 1
 
 # Parse open-bureau-specific flags (before passing $@ to subscripts)
 CONCIERGE=false
-PROTO_UPDATE=false
-PROTO_FORCE=false
-PROTO_BARE=false
+PROTO_MODE=""
 PASSTHROUGH_ARGS=()
-for arg in "$@"; do
-    case "$arg" in
-        --concierge|-c)          CONCIERGE=true ;;
-        --update-protocols|-u)   PROTO_UPDATE=true ;;
-        --force|-f)              PROTO_FORCE=true; PROTO_UPDATE=true ;;
-        --bare|-b)               PROTO_BARE=true ;;
-        *) PASSTHROUGH_ARGS+=("$arg") ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --concierge|-c)
+            CONCIERGE=true
+            shift
+            ;;
+        --protocols|-p)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: --protocols/-p requires a mode: replace|r, sync|s, off|o" >&2
+                exit 1
+            fi
+            case "$2" in
+                replace|r) PROTO_MODE="replace" ;;
+                sync|s) PROTO_MODE="sync" ;;
+                off|o) PROTO_MODE="off" ;;
+                *)
+                    echo "ERROR: invalid protocols mode '$2' (expected replace|r, sync|s, or off|o)" >&2
+                    exit 1
+                    ;;
+            esac
+            shift 2
+            ;;
+        *)
+            PASSTHROUGH_ARGS+=("$1")
+            shift
+            ;;
     esac
 done
 set -- "${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}"
-
-# Validate protocol mode conflicts
-if [[ "$PROTO_UPDATE" == true && "$PROTO_BARE" == true ]]; then
-    echo "ERROR: --update-protocols/--force and --bare are contradictory" >&2
-    exit 1
-fi
 
 # Check dependencies, install correct Python version packages and set up env
 bin/ensure-prereqs
@@ -57,22 +67,34 @@ if [[ "$CONCIERGE" == false ]]; then
     fi
 fi
 
-# Check config for protocols.* if no CLI flags were set
-# CLI flags take full precedence — config is only consulted when no flags are present
-if [[ "$PROTO_UPDATE" == false && "$PROTO_BARE" == false ]]; then
-    proto_bare_cfg=$(_get_config protocols.bare 2>/dev/null || echo "false")
-    proto_update_cfg=$(_get_config protocols.update 2>/dev/null || echo "false")
-    proto_force_cfg=$(_get_config protocols.force 2>/dev/null || echo "false")
-
-    if [[ "$proto_bare_cfg" == "true" || "$proto_bare_cfg" == "True" ]]; then
-        PROTO_BARE=true
-    elif [[ "$proto_force_cfg" == "true" || "$proto_force_cfg" == "True" ]]; then
-        PROTO_FORCE=true
-        PROTO_UPDATE=true
-    elif [[ "$proto_update_cfg" == "true" || "$proto_update_cfg" == "True" ]]; then
-        PROTO_UPDATE=true
-    fi
+# Check config for protocols.mode if no CLI flag was set
+if [[ -z "$PROTO_MODE" ]]; then
+    proto_mode_cfg=$(_get_config protocols.mode 2>/dev/null || echo "replace")
+    case "$proto_mode_cfg" in
+        replace) PROTO_MODE="replace" ;;
+        sync) PROTO_MODE="sync" ;;
+        off) PROTO_MODE="off" ;;
+        *)
+            echo "ERROR: invalid protocols.mode '$proto_mode_cfg' in config (expected replace, sync, or off)" >&2
+            exit 1
+            ;;
+    esac
 fi
+
+if [[ -z "$PROTO_MODE" ]]; then
+    PROTO_MODE="replace"
+fi
+
+log_info "Protocol deployment mode: $PROTO_MODE"
+
+if [[ "$PROTO_MODE" == "off" ]]; then
+    log_info "Bureau-managed protocol files will be removed for this run"
+elif [[ "$PROTO_MODE" == "sync" ]]; then
+    log_info "Bureau-managed protocol files will be refreshed with backups for replaced artifacts"
+else
+    log_info "Bureau-managed protocol files will be refreshed in place without backup"
+fi
+    
 
 log_banner "Bureau bootstrap & startup"
 log_empty_line
@@ -107,16 +129,7 @@ log_empty_line
 log_action "Setting up config files..."
 log_empty_line
 
-# build protocol mode flags for passthrough
-PROTO_ARGS=()
-if [[ "$PROTO_BARE" == true ]]; then
-    PROTO_ARGS+=("--bare")
-elif [[ "$PROTO_FORCE" == true ]]; then
-    PROTO_ARGS+=("--force")
-elif [[ "$PROTO_UPDATE" == true ]]; then
-    PROTO_ARGS+=("--update")
-fi
-protocols/scripts/set-up-protocols.sh "${PROTO_ARGS[@]+"${PROTO_ARGS[@]}"}"
+protocols/scripts/set-up-protocols.sh --protocols "$PROTO_MODE"
 
 # Run tools setup & startup, passing along CLI options received
 #   - Configures MCPs for each supported coding CLI
@@ -125,7 +138,7 @@ log_action "Setting up tools..."
 log_empty_line
 
 TOOLS_ARGS=("${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}")
-if [[ "$PROTO_BARE" == true ]]; then
+if [[ "$PROTO_MODE" == "off" ]]; then
     TOOLS_ARGS+=("--bare")
 fi
 tools/scripts/set-up-tools.sh "${TOOLS_ARGS[@]+"${TOOLS_ARGS[@]}"}"

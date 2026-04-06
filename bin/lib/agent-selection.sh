@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
 
 # Agent selection library
-# > Determines enabled agents (based on YML configs)
-# > Used across all setup scripts to determine agents to configure
-
-# Agent name constants
-CLAUDE="Claude Code"
-CODEX="Codex"
-GEMINI="Gemini CLI"
-OPENCODE="OpenCode"
+# - Determines enabled agents (based on YML configs)
+# - Used across all setup scripts to determine agents to configure
 
 # Colors for logging (define individually if not already set)
 [[ -z "${GREEN:-}" ]] && GREEN='\033[0;32m'
@@ -59,28 +53,26 @@ _get_config() {
     (cd "$repo_root" && uv run get-config "$@")
 }
 
-declare -A AGENT_MAP=(
-  ["Claude Code"]="claude"
-  ["Gemini CLI"]="gemini"
-  ["Codex"]="codex"
-  ["OpenCode"]="opencode"
-)
-
 _agent_config_name() {
     local agent_name="$1"
-    echo "${AGENT_MAP[$agent_name]:-}"
+    case "$agent_name" in
+        "Claude Code") echo "claude" ;;
+        "Gemini CLI") echo "gemini" ;;
+        "Codex") echo "codex" ;;
+        "OpenCode") echo "opencode" ;;
+        *) echo "" ;;
+    esac
 }
 
 _agent_display_name() {
     local config_name="$1"
-    local name
-    for name in "${!AGENT_MAP[@]}"; do
-        if [[ "${AGENT_MAP[$name]}" == "$config_name" ]]; then
-            echo "$name"
-            return
-        fi
-    done
-    echo ""
+    case "$config_name" in
+        "claude") echo "Claude Code" ;;
+        "gemini") echo "Gemini CLI" ;;
+        "codex") echo "Codex" ;;
+        "opencode") echo "OpenCode" ;;
+        *) echo "" ;;
+    esac
 }
 
 # Check if an agent is enabled in defaults.yml

@@ -14,15 +14,15 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 RESET_SCRIPT = REPO_ROOT / "bin" / "reset-protocols"
 STATIC_DIR = REPO_ROOT / "protocols" / "context" / "static"
 
-# hub file at top level, spokes inside ops/
+# hub file and generated runtime artifacts at top level, spokes inside ops/
 HUB_FILE = "ops-hub.md"
 OUTPUT_STYLE_FILE = "output-style.md"
+CODE_STANDARDS_FILE = "code-standards.md"
 OPS_SPOKE_FILES = [
     "session-start.md",
     "task-assessment.md",
     "task-execution.md",
     "task-completion.md",
-    "code-standards.md",
 ]
 
 
@@ -49,9 +49,11 @@ class TestResetProtocols:
         assert protocols_dir.exists()
         assert (protocols_dir / HUB_FILE).exists()
         assert (protocols_dir / OUTPUT_STYLE_FILE).exists()
+        assert (protocols_dir / CODE_STANDARDS_FILE).exists()
         assert (protocols_dir / "ops").is_dir()
         for spoke in OPS_SPOKE_FILES:
             assert (protocols_dir / "ops" / spoke).exists(), f"Missing spoke: {spoke}"
+        assert not (protocols_dir / "ops" / CODE_STANDARDS_FILE).exists()
 
     def test_deploys_hub_and_spokes(self, tmp_path: Path) -> None:
         protocols_dir = tmp_path / ".config" / "bureau" / "protocols"
@@ -73,12 +75,17 @@ class TestResetProtocols:
         output_style_source = STATIC_DIR / "ops" / OUTPUT_STYLE_FILE
         assert output_style_dest.exists()
         assert output_style_source.read_text() in output_style_dest.read_text()
+        code_standards_dest = protocols_dir / CODE_STANDARDS_FILE
+        code_standards_source = STATIC_DIR / "ops" / CODE_STANDARDS_FILE
+        assert code_standards_dest.exists()
+        assert code_standards_source.read_text() in code_standards_dest.read_text()
         # all spokes should match source content
         for spoke in OPS_SPOKE_FILES:
             dest = protocols_dir / "ops" / spoke
             source = STATIC_DIR / "ops" / spoke
             assert dest.exists(), f"Missing spoke: {spoke}"
             assert dest.read_text() == source.read_text(), f"Content mismatch: {spoke}"
+        assert not (protocols_dir / "ops" / CODE_STANDARDS_FILE).exists()
 
     def test_removes_existing_files(self, tmp_path: Path) -> None:
         protocols_dir = tmp_path / ".config" / "bureau" / "protocols"
@@ -250,7 +257,8 @@ class TestHubSpokeDeployment:
     mkdir -p "$BUREAU_PROTOCOLS_DIR/ops"
     cp "$STATIC_DIR/ops-hub.md" "$BUREAU_PROTOCOLS_DIR/ops-hub.md"
     cp "$STATIC_DIR/ops/output-style.md" "$BUREAU_PROTOCOLS_DIR/output-style.md"
-    for spoke in session-start.md task-assessment.md task-execution.md task-completion.md code-standards.md; do
+    cp "$STATIC_DIR/ops/code-standards.md" "$BUREAU_PROTOCOLS_DIR/code-standards.md"
+    for spoke in session-start.md task-assessment.md task-execution.md task-completion.md; do
         cp "$STATIC_DIR/ops/$spoke" "$BUREAU_PROTOCOLS_DIR/ops/$spoke"
     done
     sed -i '' "s|{{{{PROTOCOLS_DIR}}}}|$BUREAU_PROTOCOLS_DIR|g" "$BUREAU_PROTOCOLS_DIR/ops-hub.md"
@@ -268,9 +276,11 @@ class TestHubSpokeDeployment:
         assert "DEPLOYED" in result.stdout
         assert (protocols_dir / "ops-hub.md").exists()
         assert (protocols_dir / "output-style.md").exists()
+        assert (protocols_dir / "code-standards.md").exists()
         assert (protocols_dir / "ops").is_dir()
         for spoke in OPS_SPOKE_FILES:
             assert (protocols_dir / "ops" / spoke).exists(), f"Missing: {spoke}"
+        assert not (protocols_dir / "ops" / CODE_STANDARDS_FILE).exists()
 
     def test_hub_paths_resolved(self, tmp_path: Path) -> None:
         protocols_dir = tmp_path / "protocols"

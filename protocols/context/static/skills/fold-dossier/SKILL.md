@@ -5,7 +5,7 @@ description: Save the current conversation as a Bureau dossier for seamless cros
 
 # Bureau Fold: save conversation as dossier
 
-> <ins>***Goal:** capture the full state of the current conversation — decisions, reasoning, context, preferences, and tasks — into a portable dossier that any Bureau agent can resume without losing a single insight.*</ins>
+> ***Goal:** capture the full state of the current conversation — decisions, reasoning, context, preferences, and tasks — into a portable dossier that any Bureau agent can resume without losing a single insight.*
 
 > [!IMPORTANT]
 >
@@ -35,8 +35,6 @@ When the user says anything like:
 
 This skill is a one-shot operation. It activates, executes the protocol, writes the dossier, and completes. There is no persistent mode to exit.
 
----
-
 ## CLI access
 
 All dossier operations use the `bureau-dossiers` CLI. A self-locating wrapper is bundled with this skill:
@@ -53,8 +51,6 @@ If that path is not resolvable from your environment, you can invoke it directly
 
 This wrapper works from **any working directory** — it resolves the Bureau repo root automatically.
 
----
-
 ## Dossier identification
 
 All CLI commands that take a dossier identifier accept **two formats**:
@@ -65,8 +61,6 @@ All CLI commands that take a dossier identifier accept **two formats**:
 | **Full slug** (name + hash) | `reverb-threats-1caea7` | The complete slug shown in the `**Slug:**` metadata field |
 
 Use **one of these two formats** whenever a CLI command requires a dossier identifier (e.g., `--slug` on re-fold, or the positional `slug` argument for `tasks`). Do **not** use the bare name (e.g., `reverb-threats`) without the hash suffix.
-
----
 
 ## Collection protocol
 
@@ -139,8 +133,6 @@ This is the most critical step in the entire protocol. The digest is the **core 
 > Be exhaustive. Be explicit. Be specific. Never summarize when you can enumerate.
 
 You **MUST** include **ALL FIVE** of the following mandatory aspects. Omitting any single one constitutes a failed fold.
-
----
 
 #### Mandatory Aspect 1: Full reasoning chains
 
@@ -231,8 +223,6 @@ Capture the context that exists **only** in the conversation and cannot be recov
 - **Future plans** discussed but not yet acted on
 - **Concerns or risks** identified but not yet addressed
 
----
-
 ## Dossier assembly and writing
 
 After completing all collection steps, assemble the data and write the dossier using the CLI. The CLI handles all file creation, hash generation, schema setup, and metadata — you never touch the database or write frontmatter directly.
@@ -317,8 +307,6 @@ Resume with `/unfold-dossier <hash>` or `/unfold-dossier <name>`
 
 If the CLI exits with a non-zero status, report the error clearly. The CLI is atomic — a failed fold leaves no partial state.
 
----
-
 ## Explicit prohibitions
 
 - **Do NOT** save the raw conversation transcript — the digest replaces it
@@ -330,8 +318,6 @@ If the CLI exits with a non-zero status, report the error clearly. The CLI is at
 - **Do NOT** run raw `sqlite3` commands or write YAML frontmatter manually — all database and file operations go through the CLI
 - **Do NOT** run `openssl rand` for hash generation — the CLI generates hashes automatically
 - **Do NOT** include inherited decisions from prior sessions in the `decisions` array when re-folding — only include decisions made during the current session
-
----
 
 ## Task state management during sessions
 

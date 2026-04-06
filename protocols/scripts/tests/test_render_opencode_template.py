@@ -72,6 +72,10 @@ def test_replaces_protocols_dir_placeholder(tmp_path: Path) -> None:
     template = tmp_path / "template.json"
     mcp = tmp_path / "mcp.json"
     out = tmp_path / "out.json"
+    protocols_dir = tmp_path / "protocols"
+    protocols_dir.mkdir()
+    (protocols_dir / "output-style.md").write_text("style", encoding="utf-8")
+    (protocols_dir / "ops-hub.md").write_text("hub", encoding="utf-8")
     template.write_text(
         '{"instructions": ["{{PROTOCOLS_DIR}}/output-style.md", "{{PROTOCOLS_DIR}}/ops-hub.md"], "mcp": {}}',
         encoding="utf-8",
@@ -88,7 +92,7 @@ def test_replaces_protocols_dir_placeholder(tmp_path: Path) -> None:
                 "--repo-root",
                 "/tmp/repo",
                 "--protocols-dir",
-                "/tmp/protocols",
+                str(protocols_dir),
                 "--mcp",
                 str(mcp),
             ]
@@ -98,5 +102,41 @@ def test_replaces_protocols_dir_placeholder(tmp_path: Path) -> None:
 
     rendered = out.read_text(encoding="utf-8")
     assert "{{PROTOCOLS_DIR}}" not in rendered
-    assert "/tmp/protocols/output-style.md" in rendered
-    assert "/tmp/protocols/ops-hub.md" in rendered
+    assert str(protocols_dir / "output-style.md") in rendered
+    assert str(protocols_dir / "ops-hub.md") in rendered
+
+
+def test_skips_output_style_instruction_when_runtime_artifact_is_missing(tmp_path: Path) -> None:
+    template = tmp_path / "template.json"
+    mcp = tmp_path / "mcp.json"
+    out = tmp_path / "out.json"
+    protocols_dir = tmp_path / "protocols"
+    protocols_dir.mkdir()
+    (protocols_dir / "ops-hub.md").write_text("hub", encoding="utf-8")
+    template.write_text(
+        '{"instructions": ["{{PROTOCOLS_DIR}}/output-style.md", "{{PROTOCOLS_DIR}}/ops-hub.md"], "mcp": {}}',
+        encoding="utf-8",
+    )
+    mcp.write_text('{"mcp": {"x": 1}}', encoding="utf-8")
+
+    assert (
+        _run_main(
+            [
+                "--template",
+                str(template),
+                "--output",
+                str(out),
+                "--repo-root",
+                "/tmp/repo",
+                "--protocols-dir",
+                str(protocols_dir),
+                "--mcp",
+                str(mcp),
+            ]
+        )
+        == 0
+    )
+
+    rendered = out.read_text(encoding="utf-8")
+    assert str(protocols_dir / "ops-hub.md") in rendered
+    assert str(protocols_dir / "output-style.md") not in rendered

@@ -9,6 +9,38 @@ spec.loader.exec_module(module)
 render_setup_plan = module.render_setup_plan
 
 
+def test_warns_when_server_skipped_for_missing_requires_env(capsys, monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    config = {
+        "agents": ["claude", "codex"],
+        "mcp": {
+            "client_configs": {
+                "tavily": {
+                    "enabled": True,
+                    "requires_env": ["TAVILY_API_KEY", "OPENAI_API_KEY"],
+                    "clients": {
+                        "default": {
+                            "transport": "http",
+                            "url": "https://tavily/mcp",
+                        }
+                    },
+                }
+            }
+        },
+    }
+
+    plan = render_setup_plan(config)
+    captured = capsys.readouterr()
+
+    assert "tavily" not in plan["client_configs"]["claude"]
+    assert "tavily" not in plan["client_configs"]["codex"]
+    assert "Skipping MCP server 'tavily'" in captured.err
+    assert "OPENAI_API_KEY" in captured.err
+    assert "TAVILY_API_KEY" in captured.err
+
+
 def test_renders_servers_for_all_clis():
     config = {
         "agents": ["claude", "gemini", "codex", "opencode"],

@@ -1107,7 +1107,7 @@ for agent in "${AGENTS[@]}"; do
             # add_http_mcp_to_agent can extract the env var name uniformly
             bearer_token_env_var=$(echo "$client_cfg" | jq -r '.bearer_token_env_var // empty')
             if [[ -n "$bearer_token_env_var" ]]; then
-                local has_auth=false
+                has_auth=false
                 for h in "${headers[@]}"; do
                     [[ "$h" == Authorization:* ]] && has_auth=true && break
                 done

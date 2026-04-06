@@ -17,6 +17,17 @@ def load_json_strict(path: Path) -> dict:
     return load_json_config(str(path), create_backup=False)
 
 
+def filter_missing_protocol_instructions(instructions: list[str]) -> list[str]:
+    """Drop optional Bureau instructions whose runtime artifacts are disabled."""
+    filtered: list[str] = []
+    for instruction in instructions:
+        path = Path(instruction).expanduser()
+        if path.name == "output-style.md" and not path.exists():
+            continue
+        filtered.append(instruction)
+    return filtered
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Render OpenCode config template")
     parser.add_argument("--template", required=True)
@@ -38,6 +49,12 @@ def main() -> int:
     raw = raw.replace("{{REPO_ROOT}}", repo_root)
     raw = raw.replace("{{PROTOCOLS_DIR}}", protocols_dir)
     data = load_json_text(raw, source=str(template_path))
+
+    instructions = data.get("instructions")
+    if isinstance(instructions, list):
+        data["instructions"] = filter_missing_protocol_instructions(
+            [str(item) for item in instructions]
+        )
 
     data["mcp"] = load_json_strict(mcp_path)
 

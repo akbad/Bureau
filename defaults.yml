@@ -401,41 +401,29 @@ prune_disabled_mcps: true
 # Protocol file deployment
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Controls how hub/spoke protocol files are installed to the user-scoped Bureau
-# protocols dir (~/.config/bureau/protocols/)
-# Default behavior: all false => install on first run, skip if files already exist
+# Controls how Bureau-owned protocol runtime files are reconciled in the
+# user-scoped protocols directory (~/.config/bureau/protocols/).
 #
-# Equivalent flags that can be used with open-bureau, respectively: 
-# -u/--update-protocols, -f/--force, -b/--bare
-# NOTE: passing the above flags to open-bureau will override these config settings
+# Equivalent CLI flag:
+#   open-bureau --protocols|-p <replace|r|sync|s|off|o>
+# CLI flags override these config settings for a single run.
 protocols:
-  # always re-copy Bureau-managed protocol files to the user-scoped Bureau protocols 
-  # dir (backs up modified files)
-  update: false   
+  # Protocol deployment mode:
+  # - replace: always reconcile Bureau-owned protocol files without backup
+  # - sync:    always reconcile Bureau-owned protocol files, backing up replaced files
+  # - off:     remove Bureau-owned protocol files, hooks, and generated context wiring
+  mode: replace
 
-  # overwrite Bureau-managed protocol files without backup (implies that `update`
-  # as mentioned above)
-  force: false   
-  
-  # do not install any of the Bureau protocol files to the user-scoped Bureau 
-  # protocols dir, and remove any (including their context injection hooks)
-  # if they are present
-  bare: false
+  # Output-style sources compiled into ~/.config/bureau/protocols/output-style.md
+  # Values:
+  # - default: use Bureau's shipped default source file
+  # - off:     disable this feature and remove the runtime artifact
+  # - [paths]: merge one or more Markdown files into the runtime artifact
+  output_style: default
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Coding standards
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Coding standards documents read by agents at startup and used by assess mode
-# Override: provide custom files in local.yml to replace these defaults
-# code_standards:
-#   - protocols/context/static/code-standards.md
-
-# Output-style documents compiled into a single always-on session artifact.
-# Override in local.yml with one or more markdown files to replace the default.
-output_style:
-  - protocols/context/static/ops/output-style.md
+  # Coding standards sources compiled into ~/.config/bureau/protocols/code-standards.md
+  # Values match protocols.output_style above.
+  code_standards: default
 
 # Assess mode skill configuration
 assess_mode:
@@ -460,13 +448,18 @@ conversations:
     save:
       - "save this"
       - "fold this"
-      - "brain dump"
+      - "fold conversation"
+      - "create dossier"
+      - "update dossier"
     resume:
       - "pick up where I left off"
       - "resume"
       - "unfold"
       - "my dossiers"
+      - "folded dossiers"
+      - "folded conversations"
       - "saved conversations"
+      - "saved with Bureau"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

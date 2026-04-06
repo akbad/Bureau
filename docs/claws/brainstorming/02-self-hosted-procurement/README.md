@@ -14,3 +14,4 @@ This analysis evaluates the full landscape of self-hosted always-on agent platfo
 5. [Final recommendation](05-final-recommendation.md)
 6. [Installation risk and unknowns](06-installation-risk.md)
 7. [Decision matrix](07-decision-matrix.md)
+8. [Composite architecture — detailed design](08-composite-architecture.md)

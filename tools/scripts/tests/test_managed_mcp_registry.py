@@ -61,6 +61,32 @@ def test_normalize_entries_across_clis():
     }
 
     assert normalize_entry(
+        "codex",
+        {
+            "url": "http://x",
+            "bearer_token_env_var": "GITHUB_PAT",
+        },
+    ) == {
+        "transport": "http",
+        "url": "http://x",
+        "bearer_token_env_var": "GITHUB_PAT",
+    }
+
+    assert normalize_entry(
+        "codex",
+        {
+            "command": "uvx",
+            "args": ["mcp"],
+            "env": {"A": "b"},
+        },
+    ) == {
+        "transport": "stdio",
+        "command": "uvx",
+        "args": ["mcp"],
+        "env": {"A": "b"},
+    }
+
+    assert normalize_entry(
         "opencode",
         {
             "type": "local",
@@ -127,6 +153,23 @@ def test_normalize_desired_entry_for_codex_stdio():
         "env": {"A": "b"},
         "startup_timeout_sec": 5,
         "tool_timeout_sec": 9,
+    }
+
+
+def test_normalize_desired_entry_for_codex_http():
+    desired = normalize_desired_entry(
+        "codex",
+        {
+            "transport": "http",
+            "url": "https://api.githubcopilot.com/mcp/",
+            "bearer_token_env_var": "GITHUB_PAT",
+        },
+    )
+
+    assert desired == {
+        "transport": "http",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "bearer_token_env_var": "GITHUB_PAT",
     }
 
 
@@ -224,6 +267,43 @@ def test_record_registry_tracks_only_desired_entries():
     assert recorded["version"] == 1
     assert recorded["updated_at"] == "2026-01-01T00:00:00+00:00"
     assert list(recorded["servers"].keys()) == ["keep"]
+
+
+def test_record_registry_tracks_legacy_codex_entries():
+    plan = {
+        "client_configs": {
+            "codex": {
+                "github": {
+                    "transport": "http",
+                    "url": "https://api.githubcopilot.com/mcp/",
+                    "bearer_token_env_var": "GITHUB_PAT",
+                },
+                "filesystem": {
+                    "transport": "stdio",
+                    "command": ["/tmp/mcp-filter", "--include", "read_multiple_files"],
+                },
+            }
+        }
+    }
+    current_entries = {
+        "github": {
+            "url": "https://api.githubcopilot.com/mcp/",
+            "bearer_token_env_var": "GITHUB_PAT",
+        },
+        "filesystem": {
+            "command": "/tmp/mcp-filter",
+            "args": ["--include", "read_multiple_files"],
+        },
+    }
+
+    recorded = record_registry(
+        "codex",
+        plan,
+        current_entries,
+        now="2026-01-01T00:00:00+00:00",
+    )
+
+    assert list(recorded["servers"].keys()) == ["filesystem", "github"]
 
 
 def test_load_codex_entries_from_toml(tmp_path):

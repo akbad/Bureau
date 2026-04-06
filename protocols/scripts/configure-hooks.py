@@ -2,18 +2,20 @@
 # ─────────────────────────────────────────────────────────────────────
 # Design rationale
 #
-# Two-tier hook architecture for three coding-agent CLIs (Claude Code,
-# Codex, Gemini CLI):
+# Two-tier hook architecture for supported coding-agent CLIs, including Codex:
 #
 #   1. SessionStart hooks: run `cat ops-hub.md` once at session start to
 #      inject the full ops-hub content into the agent's context.
 #   2. Per-prompt hooks: echo a short XML-tagged reminder on every prompt
 #      so the agent remembers the ops-hub was already loaded, without
 #      re-reading the entire file each turn.
+#   3. Codex routing: enable the `features.codex_hooks` flag in
+#      `config.toml`, write Bureau hook entries to `hooks.json`, and migrate
+#      away any legacy top-level `[[hooks.*]]` TOML blocks.
 #
 # Each CLI stores its config in a different format (JSON or TOML) and
 # uses a different hook schema, so the script dispatches to a per-agent
-# handler.  The per-prompt handler internally calls the session-start
+# handler. Supported per-prompt handlers internally call the session-start
 # handler so that a single dispatch sets up both tiers.
 #
 # Key invariants:
@@ -24,8 +26,11 @@
 #     both old-style ("ops-hub.md" in command) and new-style
 #     ("bureau-reminder" in command) patterns are matched so that
 #     re-running upgrades the old hook in place.
-#   - No third-party deps: stdlib only (no tomli/toml).  The Codex TOML
-#     handler uses line-oriented string operations instead of a TOML lib.
+#   - Codex-safe: configuring Codex enables the supported feature flag,
+#     preserves unrelated hooks in `hooks.json`, and removes only Bureau's
+#     legacy TOML hook blocks.
+#   - No third-party deps: stdlib only (no tomli/toml). The Codex TOML
+#     cleanup handler uses line-oriented string operations instead of a TOML lib.
 # ─────────────────────────────────────────────────────────────────────
 from __future__ import annotations
 
@@ -39,12 +44,15 @@ LOG = logging.getLogger("configure-hooks")
 
 # hook command timeout in milliseconds, shared across all CLIs
 HOOK_TIMEOUT_MS = 5000
+HOOK_TIMEOUT_SECONDS = max(1, HOOK_TIMEOUT_MS // 1000)
 
 # sentinel used to identify our per-prompt hook in lists that may contain other hooks
 BUREAU_HOOK_NAME = "bureau-ops-hub"
 
 # sentinel used to identify the session-start hook (distinct from per-prompt)
 BUREAU_SESSION_HOOK_NAME = "bureau-ops-hub-session"
+CODEX_SESSION_STATUS_MESSAGE = "Loading Bureau ops hub"
+CODEX_PROMPT_STATUS_MESSAGE = "Loading Bureau reminder"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -94,6 +102,17 @@ def _load_json_config(path: Path) -> dict[str, Any]:
 def _write_json_config(path: Path, data: dict[str, Any], *, dry_run: bool) -> None:
     """Write a dict to a JSON config file with a trailing newline."""
     rendered = json.dumps(data, indent=2) + "\n"
+    if dry_run:
+        LOG.info("[dry-run] would write %s:\n%s", path, rendered)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(rendered, encoding="utf-8")
+    LOG.info("wrote %s", path)
+
+
+def _write_text_config(path: Path, text: str, *, dry_run: bool) -> None:
+    """Write plain text config content with parent creation and dry-run support."""
+    rendered = text if not text or text.endswith("\n") else f"{text}\n"
     if dry_run:
         LOG.info("[dry-run] would write %s:\n%s", path, rendered)
         return
@@ -198,160 +217,276 @@ def _configure_claude(ops_hub_path: Path, *, dry_run: bool) -> None:
 # Codex
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _configure_codex_session_start(ops_hub_path: Path, *, dry_run: bool) -> None:
-    """Append or update the [[hooks.sessionstart]] block in Codex TOML config.
 
-    Same line-oriented TOML approach as the per-prompt handler.  The Bureau
-    hook is identified by "ops-hub.md" in the command line.
-    """
-    config_path = Path.home() / ".codex" / "config.toml"
-    command = _session_start_command(ops_hub_path)
+def _codex_config_path() -> Path:
+    return Path.home() / ".codex" / "config.toml"
 
-    if config_path.exists():
-        text = config_path.read_text(encoding="utf-8")
-    else:
-        text = ""
 
-    # check if a sessionstart block with ops-hub.md already exists
-    if "[[hooks.sessionstart]]" in text and "ops-hub.md" in text:
-        # walk lines to see if the ops-hub ref is inside a sessionstart block
-        in_session_block = False
-        found = False
-        new_lines: list[str] = []
-        changed = False
-        for line in text.splitlines(keepends=True):
-            stripped = line.strip()
-            if stripped == "[[hooks.sessionstart]]":
-                in_session_block = True
-                new_lines.append(line)
+def _codex_hooks_path() -> Path:
+    return Path.home() / ".codex" / "hooks.json"
+
+
+def _normalize_text_config(text: str) -> str:
+    return f"{text.rstrip()}\n" if text.strip() else ""
+
+
+def _remove_codex_toml_hook_blocks(
+    text: str,
+    *,
+    header: str,
+    block_predicate: Any,
+) -> tuple[str, bool]:
+    """Remove matching legacy Codex TOML hook blocks from *text*."""
+    if not text.strip():
+        return "", False
+
+    lines = text.splitlines(keepends=True)
+    result: list[str] = []
+    in_target_block = False
+    block_buffer: list[str] = []
+    removed = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if stripped == header:
+            in_target_block = True
+            block_buffer = [line]
+            continue
+
+        if in_target_block:
+            if stripped.startswith("[") and stripped != header:
+                if block_predicate("".join(block_buffer)):
+                    removed = True
+                else:
+                    result.extend(block_buffer)
+                in_target_block = False
+                result.append(line)
                 continue
-            if in_session_block and stripped.startswith("["):
-                in_session_block = False
-            if in_session_block and stripped.startswith("command") and "ops-hub.md" in stripped:
-                found = True
-                expected = f'command = "{command}"'
-                if stripped != expected:
-                    indent = line[: len(line) - len(line.lstrip())]
-                    new_lines.append(f"{indent}{expected}\n")
-                    changed = True
-                    continue
-            new_lines.append(line)
 
-        if found:
-            if changed:
-                LOG.info("codex: updating sessionstart ops-hub command path")
-                rendered = "".join(new_lines)
-                if dry_run:
-                    LOG.info("[dry-run] would write %s:\n%s", config_path, rendered)
-                    return
-                config_path.write_text(rendered, encoding="utf-8")
-                LOG.info("wrote %s", config_path)
-            else:
-                LOG.info("codex: sessionstart hook already configured, nothing to do")
-            return
+            block_buffer.append(line)
+            continue
 
-    # no existing sessionstart hook; append the block
-    block = (
-        "\n"
-        "[[hooks.sessionstart]]\n"
-        'type = "command"\n'
-        f'command = "{command}"\n'
-        f"timeout = {HOOK_TIMEOUT_MS}\n"
-    )
-    LOG.info("codex: added sessionstart hook")
+        result.append(line)
 
-    if dry_run:
-        LOG.info("[dry-run] would append to %s:\n%s", config_path, block)
+    if in_target_block:
+        if block_predicate("".join(block_buffer)):
+            removed = True
+        else:
+            result.extend(block_buffer)
+
+    return _normalize_text_config("".join(result)), removed
+
+
+def _is_codex_table_header(stripped: str) -> bool:
+    return stripped.startswith("[")
+
+
+def _ensure_codex_feature_flag(text: str) -> str:
+    """Ensure [features].codex_hooks = true exists in Codex config TOML."""
+    if not text.strip():
+        return "[features]\ncodex_hooks = true\n"
+
+    lines = text.splitlines(keepends=True)
+    result: list[str] = []
+    in_features = False
+    features_seen = False
+    codex_hooks_seen = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if _is_codex_table_header(stripped):
+            if in_features and not codex_hooks_seen:
+                result.append("codex_hooks = true\n")
+                codex_hooks_seen = True
+            in_features = stripped == "[features]"
+            if in_features:
+                features_seen = True
+            result.append(line)
+            continue
+
+        if in_features and stripped.startswith("codex_hooks"):
+            result.append("codex_hooks = true\n")
+            codex_hooks_seen = True
+            continue
+
+        result.append(line)
+
+    if in_features and not codex_hooks_seen:
+        result.append("codex_hooks = true\n")
+        codex_hooks_seen = True
+
+    if not features_seen:
+        if result and result[-1].strip():
+            result.append("\n")
+        result.extend(["[features]\n", "codex_hooks = true\n"])
+
+    return _normalize_text_config("".join(result))
+
+
+def _update_codex_config(
+    *,
+    ensure_feature_flag: bool,
+    remove_sessionstart_block: bool,
+    remove_userpromptsubmit_block: bool,
+    dry_run: bool,
+) -> None:
+    """Update Codex config.toml in place, migrating away legacy hook blocks."""
+    config_path = _codex_config_path()
+    text = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+    original = text
+
+    if remove_sessionstart_block:
+        text, removed = _remove_codex_toml_hook_blocks(
+            text,
+            header="[[hooks.sessionstart]]",
+            block_predicate=lambda block: "ops-hub.md" in block,
+        )
+        if removed:
+            LOG.info("codex: removed legacy sessionstart TOML hook block")
+
+    if remove_userpromptsubmit_block:
+        text, removed = _remove_codex_toml_hook_blocks(
+            text,
+            header="[[hooks.userpromptsubmit]]",
+            block_predicate=lambda block: (
+                "ops-hub.md" in block or "bureau-reminder" in block
+            ),
+        )
+        if removed:
+            LOG.info("codex: removed legacy userpromptsubmit TOML hook block")
+
+    if ensure_feature_flag:
+        text = _ensure_codex_feature_flag(text)
+
+    if text == original and not (ensure_feature_flag and not config_path.exists()):
         return
 
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    with config_path.open("a", encoding="utf-8") as fh:
-        fh.write(block)
-    LOG.info("wrote %s", config_path)
+    _write_text_config(config_path, text, dry_run=dry_run)
+
+
+def _codex_session_entry(ops_hub_path: Path) -> dict[str, Any]:
+    return {
+        "matcher": "startup|resume",
+        "hooks": [
+            {
+                "type": "command",
+                "command": _session_start_command(ops_hub_path),
+                "timeout": HOOK_TIMEOUT_SECONDS,
+                "statusMessage": CODEX_SESSION_STATUS_MESSAGE,
+            }
+        ],
+    }
+
+
+def _codex_prompt_entry(ops_hub_path: Path) -> dict[str, Any]:
+    return {
+        "hooks": [
+            {
+                "type": "command",
+                "command": _reminder_command(ops_hub_path),
+                "timeout": HOOK_TIMEOUT_SECONDS,
+                "statusMessage": CODEX_PROMPT_STATUS_MESSAGE,
+            }
+        ],
+    }
+
+
+def _is_codex_session_hook_entry(entry: dict[str, Any]) -> bool:
+    for hook in entry.get("hooks", []):
+        command = hook.get("command", "")
+        if "ops-hub.md" in command or hook.get("statusMessage") == CODEX_SESSION_STATUS_MESSAGE:
+            return True
+    return False
+
+
+def _is_codex_prompt_hook_entry(entry: dict[str, Any]) -> bool:
+    for hook in entry.get("hooks", []):
+        command = hook.get("command", "")
+        if _is_bureau_per_prompt_hook(command) or hook.get("statusMessage") == CODEX_PROMPT_STATUS_MESSAGE:
+            return True
+    return False
+
+
+def _upsert_codex_hooks_json(
+    event_name: str,
+    entry: dict[str, Any],
+    *,
+    is_bureau_entry: Any,
+    dry_run: bool,
+) -> None:
+    """Insert or replace the Bureau matcher group for a Codex hook event."""
+    hooks_path = _codex_hooks_path()
+    data = _load_json_config(hooks_path)
+    hooks_section: dict[str, Any] = data.setdefault("hooks", {})
+    event_entries: list[Any] = hooks_section.get(event_name, [])
+    filtered = [existing for existing in event_entries if not is_bureau_entry(existing)]
+    filtered.append(entry)
+    hooks_section[event_name] = filtered
+    _write_json_config(hooks_path, data, dry_run=dry_run)
+
+
+def _remove_codex_hooks_json_entries(
+    event_name: str,
+    *,
+    is_bureau_entry: Any,
+    dry_run: bool,
+) -> None:
+    """Remove Bureau-managed entries for a Codex hook event from hooks.json."""
+    hooks_path = _codex_hooks_path()
+    if not hooks_path.exists():
+        LOG.info("codex: no hooks.json found, nothing to remove for %s", event_name)
+        return
+
+    data = _load_json_config(hooks_path)
+    hooks_section: dict[str, Any] = data.setdefault("hooks", {})
+    event_entries: list[Any] = hooks_section.get(event_name, [])
+    filtered = [existing for existing in event_entries if not is_bureau_entry(existing)]
+
+    if len(filtered) == len(event_entries):
+        LOG.info("codex: no Bureau %s hook found in hooks.json", event_name.lower())
+        return
+
+    if filtered:
+        hooks_section[event_name] = filtered
+    else:
+        hooks_section.pop(event_name, None)
+
+    _write_json_config(hooks_path, data, dry_run=dry_run)
+
+
+def _configure_codex_session_start(ops_hub_path: Path, *, dry_run: bool) -> None:
+    """Configure Codex SessionStart via hooks.json and migrate old TOML hooks."""
+    _update_codex_config(
+        ensure_feature_flag=True,
+        remove_sessionstart_block=True,
+        remove_userpromptsubmit_block=False,
+        dry_run=dry_run,
+    )
+    _upsert_codex_hooks_json(
+        "SessionStart",
+        _codex_session_entry(ops_hub_path),
+        is_bureau_entry=_is_codex_session_hook_entry,
+        dry_run=dry_run,
+    )
 
 
 def _configure_codex(ops_hub_path: Path, *, dry_run: bool) -> None:
-    """Append or update the per-prompt reminder hook and session-start hook.
-
-    Codex uses plain TOML.  Rather than pulling in a TOML library we
-    operate on the raw text.  For migration safety, both "ops-hub.md"
-    (old style) and "bureau-reminder" (new style) are matched when
-    searching for existing per-prompt hooks.
-    """
-    # configure both tiers
+    """Configure both Codex Bureau hooks via hooks.json and migrate old TOML hooks."""
     _configure_codex_session_start(ops_hub_path, dry_run=dry_run)
-
-    config_path = Path.home() / ".codex" / "config.toml"
-    command = _reminder_command(ops_hub_path)
-
-    if config_path.exists():
-        text = config_path.read_text(encoding="utf-8")
-    else:
-        text = ""
-
-    # check for existing per-prompt hook (old-style or new-style) in
-    # userpromptsubmit blocks
-    has_old = "ops-hub.md" in text and "[[hooks.userpromptsubmit]]" in text
-    has_new = "bureau-reminder" in text and "[[hooks.userpromptsubmit]]" in text
-
-    if has_old or has_new:
-        # walk lines to find the command inside a userpromptsubmit block
-        in_prompt_block = False
-        new_lines: list[str] = []
-        changed = False
-        for line in text.splitlines(keepends=True):
-            stripped = line.strip()
-            if stripped == "[[hooks.userpromptsubmit]]":
-                in_prompt_block = True
-                new_lines.append(line)
-                continue
-            if in_prompt_block and stripped.startswith("["):
-                in_prompt_block = False
-            if in_prompt_block and stripped.startswith("command"):
-                # check if this is a Bureau hook command (old or new style)
-                cmd_val = stripped.split("=", 1)[1].strip().strip('"') if "=" in stripped else ""
-                if _is_bureau_per_prompt_hook(cmd_val):
-                    expected = f'command = "{command}"'
-                    if stripped != expected:
-                        indent = line[: len(line) - len(line.lstrip())]
-                        new_lines.append(f"{indent}{expected}\n")
-                        changed = True
-                        continue
-            new_lines.append(line)
-
-        if changed:
-            LOG.info("codex: updating per-prompt hook to reminder")
-            rendered = "".join(new_lines)
-        else:
-            LOG.info("codex: per-prompt hook already configured, nothing to do")
-            rendered = text
-
-        if dry_run:
-            LOG.info("[dry-run] would write %s:\n%s", config_path, rendered)
-            return
-        config_path.write_text(rendered, encoding="utf-8")
-        if changed:
-            LOG.info("wrote %s", config_path)
-        return
-
-    # no existing per-prompt hook; append the block
-    block = (
-        "\n"
-        "[[hooks.userpromptsubmit]]\n"
-        'type = "command"\n'
-        f'command = "{command}"\n'
-        f"timeout = {HOOK_TIMEOUT_MS}\n"
+    _update_codex_config(
+        ensure_feature_flag=True,
+        remove_sessionstart_block=False,
+        remove_userpromptsubmit_block=True,
+        dry_run=dry_run,
     )
-    LOG.info("codex: added userpromptsubmit reminder hook")
-
-    if dry_run:
-        LOG.info("[dry-run] would append to %s:\n%s", config_path, block)
-        return
-
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    with config_path.open("a", encoding="utf-8") as fh:
-        fh.write(block)
-    LOG.info("wrote %s", config_path)
+    _upsert_codex_hooks_json(
+        "UserPromptSubmit",
+        _codex_prompt_entry(ops_hub_path),
+        is_bureau_entry=_is_codex_prompt_hook_entry,
+        dry_run=dry_run,
+    )
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -527,127 +662,34 @@ def _remove_claude(*, dry_run: bool) -> None:
 
 
 def _remove_codex_session_start(*, dry_run: bool) -> None:
-    """Remove the Bureau [[hooks.sessionstart]] block from Codex TOML config."""
-    config_path = Path.home() / ".codex" / "config.toml"
-    if not config_path.exists():
-        LOG.info("codex: no config file found, nothing to remove (sessionstart)")
-        return
-
-    text = config_path.read_text(encoding="utf-8")
-    if "ops-hub.md" not in text or "[[hooks.sessionstart]]" not in text:
-        LOG.info("codex: no Bureau sessionstart hook found, nothing to remove")
-        return
-
-    lines = text.splitlines(keepends=True)
-    result: list[str] = []
-    in_bureau_block = False
-    found_ops_hub = False
-    block_buffer: list[str] = []
-
-    for line in lines:
-        stripped = line.strip()
-
-        if stripped == "[[hooks.sessionstart]]":
-            in_bureau_block = True
-            found_ops_hub = False
-            block_buffer = [line]
-            continue
-
-        if in_bureau_block:
-            if stripped.startswith("[") and stripped != "[[hooks.sessionstart]]":
-                if found_ops_hub:
-                    LOG.info("codex: removed Bureau sessionstart hook block")
-                else:
-                    result.extend(block_buffer)
-                in_bureau_block = False
-                result.append(line)
-                continue
-
-            block_buffer.append(line)
-            if "ops-hub.md" in stripped:
-                found_ops_hub = True
-            continue
-
-        result.append(line)
-
-    if in_bureau_block:
-        if not found_ops_hub:
-            result.extend(block_buffer)
-        else:
-            LOG.info("codex: removed Bureau sessionstart hook block")
-
-    rendered = "".join(result)
-    rendered = rendered.rstrip("\n") + "\n" if rendered.strip() else ""
-
-    if dry_run:
-        LOG.info("[dry-run] would write %s:\n%s", config_path, rendered)
-        return
-    config_path.write_text(rendered, encoding="utf-8")
-    LOG.info("wrote %s", config_path)
+    """Remove the Bureau SessionStart hook from Codex hooks.json and legacy TOML."""
+    _update_codex_config(
+        ensure_feature_flag=False,
+        remove_sessionstart_block=True,
+        remove_userpromptsubmit_block=False,
+        dry_run=dry_run,
+    )
+    _remove_codex_hooks_json_entries(
+        "SessionStart",
+        is_bureau_entry=_is_codex_session_hook_entry,
+        dry_run=dry_run,
+    )
 
 
 def _remove_codex(*, dry_run: bool) -> None:
-    """Remove both Bureau hooks (sessionstart + per-prompt) from Codex TOML config."""
+    """Remove both Bureau hooks from Codex hooks.json and legacy TOML."""
     _remove_codex_session_start(dry_run=dry_run)
-
-    config_path = Path.home() / ".codex" / "config.toml"
-    if not config_path.exists():
-        LOG.info("codex: no config file found, nothing to remove")
-        return
-
-    text = config_path.read_text(encoding="utf-8")
-    # match both old-style (ops-hub.md) and new-style (bureau-reminder)
-    if "ops-hub.md" not in text and "bureau-reminder" not in text:
-        LOG.info("codex: no Bureau per-prompt hook found, nothing to remove")
-        return
-
-    # remove [[hooks.userpromptsubmit]] blocks containing Bureau commands
-    lines = text.splitlines(keepends=True)
-    result: list[str] = []
-    in_bureau_block = False
-    found_bureau = False
-    block_buffer: list[str] = []
-
-    for line in lines:
-        stripped = line.strip()
-
-        if stripped == "[[hooks.userpromptsubmit]]":
-            in_bureau_block = True
-            found_bureau = False
-            block_buffer = [line]
-            continue
-
-        if in_bureau_block:
-            if stripped.startswith("[") and stripped != "[[hooks.userpromptsubmit]]":
-                if found_bureau:
-                    LOG.info("codex: removed Bureau per-prompt hook block")
-                else:
-                    result.extend(block_buffer)
-                in_bureau_block = False
-                result.append(line)
-                continue
-
-            block_buffer.append(line)
-            if "ops-hub.md" in stripped or "bureau-reminder" in stripped:
-                found_bureau = True
-            continue
-
-        result.append(line)
-
-    if in_bureau_block:
-        if not found_bureau:
-            result.extend(block_buffer)
-        else:
-            LOG.info("codex: removed Bureau per-prompt hook block")
-
-    rendered = "".join(result)
-    rendered = rendered.rstrip("\n") + "\n" if rendered.strip() else ""
-
-    if dry_run:
-        LOG.info("[dry-run] would write %s:\n%s", config_path, rendered)
-        return
-    config_path.write_text(rendered, encoding="utf-8")
-    LOG.info("wrote %s", config_path)
+    _update_codex_config(
+        ensure_feature_flag=False,
+        remove_sessionstart_block=False,
+        remove_userpromptsubmit_block=True,
+        dry_run=dry_run,
+    )
+    _remove_codex_hooks_json_entries(
+        "UserPromptSubmit",
+        is_bureau_entry=_is_codex_prompt_hook_entry,
+        dry_run=dry_run,
+    )
 
 
 def _remove_gemini_session_start(*, dry_run: bool) -> None:
@@ -722,8 +764,9 @@ VALID_AGENTS = sorted(AGENT_HANDLERS)
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Configure per-prompt hooks that re-inject ops-hub.md "
-            "for coding-agent CLIs."
+            "Configure Bureau hook-based ops-hub reinforcement for supported "
+            "coding-agent CLIs, including Codex hooks.json plus legacy TOML "
+            "migration."
         ),
     )
     parser.add_argument(

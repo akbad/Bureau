@@ -4,7 +4,7 @@
   <read-file-when task="deciding to delegate, choosing model/tool, parallelizing" path="{{PROTOCOLS_DIR}}/ops/task-assessment.md" />
   <read-file-when task="executing: searching, editing, storing memories" path="{{PROTOCOLS_DIR}}/ops/task-execution.md" />
   <read-file-when task="finishing: approvals, memory persistence, handoff" path="{{PROTOCOLS_DIR}}/ops/task-completion.md" />
-  <read-file-when task="writing or editing code" path="{{PROTOCOLS_DIR}}/ops/code-standards.md" />
+  <read-file-when task="writing or editing code" path="{{PROTOCOLS_DIR}}/code-standards.md" />
 
   <bureau-rules>
     <output-style-reminder>

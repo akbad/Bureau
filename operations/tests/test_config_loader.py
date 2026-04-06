@@ -213,13 +213,20 @@ class TestMergePrecedence:
 
         assert config["trash"]["grace_period"] == "7d"
 
-    def test_output_style_can_be_overridden_as_a_list(self, tmp_path, monkeypatch):
-        """output_style should follow normal four-tier merge precedence."""
+    def test_protocol_document_settings_can_be_overridden(self, tmp_path, monkeypatch):
+        """protocols.* document settings should follow normal four-tier merge precedence."""
         self._write_yaml(tmp_path / "defaults.yml", {
-            "output_style": ["protocols/context/static/ops/output-style.md"],
+            "protocols": {
+                "mode": "replace",
+                "output_style": "default",
+                "code_standards": "default",
+            },
         })
         self._write_yaml(tmp_path / "local.yml", {
-            "output_style": ["~/custom-style.md", "/tmp/extra-style.md"],
+            "protocols": {
+                "output_style": ["~/custom-style.md", "/tmp/extra-style.md"],
+                "code_standards": "off",
+            },
         })
 
         monkeypatch.setattr(
@@ -235,5 +242,30 @@ class TestMergePrecedence:
 
         config = get_config()
 
-        assert config["output_style"] == ["~/custom-style.md", "/tmp/extra-style.md"]
+        assert config["protocols"]["mode"] == "replace"
+        assert config["protocols"]["output_style"] == ["~/custom-style.md", "/tmp/extra-style.md"]
+        assert config["protocols"]["code_standards"] == "off"
 
+    def test_protocols_mode_can_be_overridden(self, tmp_path, monkeypatch):
+        """protocols.mode should merge like other nested config values."""
+        self._write_yaml(tmp_path / "defaults.yml", {
+            "protocols": {"mode": "replace"},
+        })
+        self._write_yaml(tmp_path / "local.yml", {
+            "protocols": {"mode": "sync"},
+        })
+
+        monkeypatch.setattr(
+            "operations.config_loader.find_repo_root",
+            lambda *_a, **_kw: tmp_path,
+        )
+        monkeypatch.setattr(
+            "operations.config_loader.find_project_config",
+            lambda: None,
+        )
+        monkeypatch.chdir(tmp_path)
+        clear_config_cache()
+
+        config = get_config()
+
+        assert config["protocols"]["mode"] == "sync"

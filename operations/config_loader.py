@@ -17,7 +17,7 @@ import re
 from datetime import timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, TypeAlias, TypedDict, cast
+from typing import Any, Literal, TypeAlias, TypedDict, cast
 
 import yaml
 
@@ -168,12 +168,16 @@ class MCPConfig(TypedDict, total=False):
     client_configs: dict[str, MCPClientConfig]
 
 
+ProtocolDocumentSetting: TypeAlias = Literal["default", "off"] | list[str]
+ProtocolMode: TypeAlias = Literal["replace", "sync", "off"]
+
+
 class ProtocolsConfig(TypedDict, total=False):
     """Protocol file deployment mode configuration."""
 
-    update: bool   # -u: re-copy Bureau-managed protocol files
-    force: bool    # -f: overwrite without backup (implies update)
-    bare: bool     # -b: remove all protocol files and hooks
+    mode: ProtocolMode
+    output_style: ProtocolDocumentSetting
+    code_standards: ProtocolDocumentSetting
 
 
 class ConversationsConciergeConfig(TypedDict, total=False):
@@ -208,7 +212,6 @@ class Config(TypedDict, total=False):
     path_to: PathToConfig
     roles: NativeAgentsConfig
     protocols: ProtocolsConfig
-    output_style: list[str]
     mcp: MCPConfig
     conversations: ConversationsConfig
 
@@ -419,6 +422,13 @@ def get_config() -> Config:
             path_to["mcp_clones"] = str(get_main_repo_root() / mcp_clones)
 
     config["path_to"] = path_to
+
+    from .validate_config import ConfigurationError, validate_protocol_settings
+
+    protocol_errors = validate_protocol_settings(config)
+    if protocol_errors:
+        error_msg = "Configuration validation failed:\n  - " + "\n  - ".join(protocol_errors)
+        raise ConfigurationError(error_msg)
 
     return config  # type: ignore[return-value]
 

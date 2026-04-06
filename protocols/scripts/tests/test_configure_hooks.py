@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
+# import the module under test (filename uses hyphens, so importlib is needed)
+import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
-
-# import the module under test (filename uses hyphens, so importlib is needed)
-import importlib
-import sys
 
 _scripts_dir = str(Path(__file__).resolve().parents[1])
 if _scripts_dir not in sys.path:
@@ -20,6 +19,8 @@ _loader = importlib.util.spec_from_file_location(
     "configure_hooks",
     Path(__file__).resolve().parents[1] / "configure-hooks.py",
 )
+if _loader is None or _loader.loader is None:
+    raise ImportError("Could not load configure-hooks.py")
 _mod = importlib.util.module_from_spec(_loader)
 _loader.loader.exec_module(_mod)
 
@@ -41,6 +42,10 @@ _reminder_command = _mod._reminder_command
 main = _mod.main
 
 
+def _load_hooks_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Claude Code per-prompt hooks
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -49,7 +54,9 @@ main = _mod.main
 class TestClaudeHook:
     """Tests for Claude Code UserPromptSubmit (per-prompt) and SessionStart hooks."""
 
-    def test_creates_settings_if_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_creates_settings_if_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -74,7 +81,9 @@ class TestClaudeHook:
         assert len(session_hooks) == 1
         assert "ops-hub.md" in session_hooks[0]["hooks"][0]["command"]
 
-    def test_preserves_existing_hooks(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_existing_hooks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir(parents=True)
@@ -82,7 +91,15 @@ class TestClaudeHook:
         existing = {
             "hooks": {
                 "UserPromptSubmit": [
-                    {"hooks": [{"type": "command", "command": "echo existing", "timeout": 3000}]}
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "echo existing",
+                                "timeout": 3000,
+                            }
+                        ]
+                    }
                 ]
             }
         }
@@ -116,7 +133,9 @@ class TestClaudeHook:
 
         assert first == second
 
-    def test_updates_path_when_changed(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_updates_path_when_changed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir(parents=True)
@@ -144,7 +163,9 @@ class TestClaudeHook:
         assert len(session_hooks) == 1
         assert str(new_hub) in session_hooks[0]["hooks"][0]["command"]
 
-    def test_migrates_old_cat_to_reminder(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_migrates_old_cat_to_reminder(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """An old-style cat hook should be upgraded to a reminder in place."""
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         settings_dir = tmp_path / ".claude"
@@ -157,7 +178,15 @@ class TestClaudeHook:
         old_data = {
             "hooks": {
                 "UserPromptSubmit": [
-                    {"hooks": [{"type": "command", "command": f"cat {ops_hub}", "timeout": 5000}]}
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": f"cat {ops_hub}",
+                                "timeout": 5000,
+                            }
+                        ]
+                    }
                 ]
             }
         }
@@ -181,7 +210,9 @@ class TestClaudeHook:
 class TestClaudeSessionStart:
     """Tests for Claude Code SessionStart hook configuration."""
 
-    def test_creates_settings_if_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_creates_settings_if_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -199,14 +230,24 @@ class TestClaudeSessionStart:
         assert "ops-hub.md" in hooks[0]["hooks"][0]["command"]
         assert hooks[0]["hooks"][0]["command"].startswith("cat ")
 
-    def test_preserves_existing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_existing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir(parents=True)
         existing = {
             "hooks": {
                 "SessionStart": [
-                    {"hooks": [{"type": "command", "command": "echo other", "timeout": 3000}]}
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "echo other",
+                                "timeout": 3000,
+                            }
+                        ]
+                    }
                 ]
             }
         }
@@ -239,7 +280,9 @@ class TestClaudeSessionStart:
 
         assert first == second
 
-    def test_updates_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_updates_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         old_hub = tmp_path / "old" / "ops-hub.md"
         old_hub.parent.mkdir(parents=True)
@@ -265,9 +308,11 @@ class TestClaudeSessionStart:
 
 
 class TestCodexHook:
-    """Tests for Codex userpromptsubmit (per-prompt) and sessionstart hooks."""
+    """Tests for Codex hooks.json configuration plus legacy TOML migration."""
 
-    def test_creates_config_if_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_creates_config_and_hooks_if_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -276,20 +321,48 @@ class TestCodexHook:
         _configure_codex(ops_hub, dry_run=False)
 
         config = tmp_path / ".codex" / "config.toml"
-        assert config.exists()
-        text = config.read_text()
-        # per-prompt hook should contain bureau-reminder
-        assert "[[hooks.userpromptsubmit]]" in text
-        assert "bureau-reminder" in text
-        # session-start hook should contain ops-hub.md
-        assert "[[hooks.sessionstart]]" in text
-        assert "ops-hub.md" in text
+        hooks_path = tmp_path / ".codex" / "hooks.json"
 
-    def test_preserves_existing_content(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        assert config.exists()
+        assert "[features]" in config.read_text()
+        assert "codex_hooks = true" in config.read_text()
+
+        assert hooks_path.exists()
+        hooks_data = _load_hooks_json(hooks_path)
+
+        session_start = hooks_data["hooks"]["SessionStart"]
+        assert len(session_start) == 1
+        assert session_start[0]["matcher"] == "startup|resume"
+        assert session_start[0]["hooks"][0]["command"] == _session_start_command(
+            ops_hub
+        )
+        assert session_start[0]["hooks"][0]["timeout"] == 5
+
+        prompt_submit = hooks_data["hooks"]["UserPromptSubmit"]
+        assert len(prompt_submit) == 1
+        assert prompt_submit[0]["hooks"][0]["command"] == _reminder_command(ops_hub)
+        assert prompt_submit[0]["hooks"][0]["timeout"] == 5
+
+    def test_removes_existing_hooks_and_preserves_other_content(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir(parents=True)
-        (codex_dir / "config.toml").write_text('approval_policy = "never"\n')
+        old_text = (
+            'approval_policy = "never"\n'
+            "\n"
+            "[[hooks.userpromptsubmit]]\n"
+            'type = "command"\n'
+            'command = "echo bureau-reminder"\n'
+            "timeout = 5000\n"
+            "\n"
+            "[[hooks.sessionstart]]\n"
+            'type = "command"\n'
+            'command = "cat /tmp/ops-hub.md"\n'
+            "timeout = 5000\n"
+        )
+        (codex_dir / "config.toml").write_text(old_text)
 
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -299,65 +372,96 @@ class TestCodexHook:
 
         text = (codex_dir / "config.toml").read_text()
         assert 'approval_policy = "never"' in text
-        assert "bureau-reminder" in text
-        assert "ops-hub.md" in text
+        assert "codex_hooks = true" in text
+        assert "[[hooks.userpromptsubmit]]" not in text
+        assert "[[hooks.sessionstart]]" not in text
 
-    def test_idempotent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        ops_hub = tmp_path / "protocols" / "ops-hub.md"
-        ops_hub.parent.mkdir(parents=True)
-        ops_hub.touch()
+        hooks_data = _load_hooks_json(codex_dir / "hooks.json")
+        assert hooks_data["hooks"]["SessionStart"][0]["hooks"][0][
+            "command"
+        ] == _session_start_command(ops_hub)
+        assert hooks_data["hooks"]["UserPromptSubmit"][0]["hooks"][0][
+            "command"
+        ] == _reminder_command(ops_hub)
 
-        _configure_codex(ops_hub, dry_run=False)
-        first = (tmp_path / ".codex" / "config.toml").read_text()
-
-        _configure_codex(ops_hub, dry_run=False)
-        second = (tmp_path / ".codex" / "config.toml").read_text()
-
-        assert first == second
-
-    def test_updates_path_when_changed(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        old_hub = tmp_path / "old" / "ops-hub.md"
-        old_hub.parent.mkdir(parents=True)
-        old_hub.touch()
-
-        _configure_codex(old_hub, dry_run=False)
-
-        new_hub = tmp_path / "new" / "ops-hub.md"
-        new_hub.parent.mkdir(parents=True)
-        new_hub.touch()
-
-        _configure_codex(new_hub, dry_run=False)
-
-        text = (tmp_path / ".codex" / "config.toml").read_text()
-        assert str(new_hub) in text
-        assert str(old_hub) not in text
-
-    def test_migrates_old_cat_to_reminder(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """An old-style cat hook in userpromptsubmit should be upgraded to a reminder."""
+    def test_idempotent_cleanup(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir(parents=True)
+        config = codex_dir / "config.toml"
+        config.write_text(
+            'approval_policy = "never"\n'
+            "\n"
+            "[[hooks.userpromptsubmit]]\n"
+            'type = "command"\n'
+            'command = "echo bureau-reminder"\n'
+            "timeout = 5000\n"
+        )
+
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
         ops_hub.touch()
 
-        # simulate old-style config
-        old_text = (
-            '[[hooks.userpromptsubmit]]\n'
-            'type = "command"\n'
-            f'command = "cat {ops_hub}"\n'
-            'timeout = 5000\n'
+        _configure_codex(ops_hub, dry_run=False)
+        first_config = config.read_text()
+        first_hooks = (codex_dir / "hooks.json").read_text()
+
+        _configure_codex(ops_hub, dry_run=False)
+        second_config = config.read_text()
+        second_hooks = (codex_dir / "hooks.json").read_text()
+
+        assert first_config == second_config
+        assert first_hooks == second_hooks
+
+    def test_preserves_existing_non_bureau_hooks_json_entries(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir(parents=True)
+        config = codex_dir / "config.toml"
+        config.write_text('approval_policy = "never"\n')
+        (codex_dir / "hooks.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "Bash",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "echo existing-policy",
+                                        "timeout": 10,
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            )
         )
-        (codex_dir / "config.toml").write_text(old_text)
+
+        ops_hub = tmp_path / "protocols" / "ops-hub.md"
+        ops_hub.parent.mkdir(parents=True)
+        ops_hub.touch()
 
         _configure_codex(ops_hub, dry_run=False)
 
-        text = (codex_dir / "config.toml").read_text()
-        assert "bureau-reminder" in text
-        # sessionstart block should be appended
-        assert "[[hooks.sessionstart]]" in text
+        assert 'approval_policy = "never"' in config.read_text()
+        hooks_data = _load_hooks_json(codex_dir / "hooks.json")
+        assert (
+            hooks_data["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+            == "echo existing-policy"
+        )
+        assert hooks_data["hooks"]["SessionStart"][0]["hooks"][0][
+            "command"
+        ] == _session_start_command(ops_hub)
+        assert hooks_data["hooks"]["UserPromptSubmit"][0]["hooks"][0][
+            "command"
+        ] == _reminder_command(ops_hub)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -366,9 +470,11 @@ class TestCodexHook:
 
 
 class TestCodexSessionStart:
-    """Tests for Codex sessionstart hook configuration."""
+    """Tests for Codex SessionStart hooks.json configuration."""
 
-    def test_creates_config_if_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_creates_config_and_sessionstart_hook_if_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -377,16 +483,38 @@ class TestCodexSessionStart:
         _configure_codex_session_start(ops_hub, dry_run=False)
 
         config = tmp_path / ".codex" / "config.toml"
-        assert config.exists()
-        text = config.read_text()
-        assert "[[hooks.sessionstart]]" in text
-        assert "ops-hub.md" in text
+        hooks_path = tmp_path / ".codex" / "hooks.json"
 
-    def test_preserves_existing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        assert config.exists()
+        assert "codex_hooks = true" in config.read_text()
+
+        hooks_data = _load_hooks_json(hooks_path)
+        assert list(hooks_data["hooks"]) == ["SessionStart"]
+        assert hooks_data["hooks"]["SessionStart"][0]["matcher"] == "startup|resume"
+        assert hooks_data["hooks"]["SessionStart"][0]["hooks"][0][
+            "command"
+        ] == _session_start_command(ops_hub)
+
+    def test_removes_existing_sessionstart_hook_only(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir(parents=True)
-        (codex_dir / "config.toml").write_text('approval_policy = "never"\n')
+        old_text = (
+            'approval_policy = "never"\n'
+            "\n"
+            "[[hooks.sessionstart]]\n"
+            'type = "command"\n'
+            'command = "cat /tmp/ops-hub.md"\n'
+            "timeout = 5000\n"
+            "\n"
+            "[[hooks.userpromptsubmit]]\n"
+            'type = "command"\n'
+            'command = "echo bureau-reminder"\n'
+            "timeout = 5000\n"
+        )
+        (codex_dir / "config.toml").write_text(old_text)
 
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -396,39 +524,44 @@ class TestCodexSessionStart:
 
         text = (codex_dir / "config.toml").read_text()
         assert 'approval_policy = "never"' in text
-        assert "[[hooks.sessionstart]]" in text
+        assert "codex_hooks = true" in text
+        assert "[[hooks.sessionstart]]" not in text
+        assert "[[hooks.userpromptsubmit]]" in text
 
-    def test_idempotent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        hooks_data = _load_hooks_json(codex_dir / "hooks.json")
+        assert list(hooks_data["hooks"]) == ["SessionStart"]
+        assert hooks_data["hooks"]["SessionStart"][0]["hooks"][0][
+            "command"
+        ] == _session_start_command(ops_hub)
+
+    def test_idempotent_cleanup(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir(parents=True)
+        config = codex_dir / "config.toml"
+        config.write_text(
+            "[[hooks.sessionstart]]\n"
+            'type = "command"\n'
+            'command = "cat /tmp/ops-hub.md"\n'
+            "timeout = 5000\n"
+        )
+
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
         ops_hub.touch()
 
         _configure_codex_session_start(ops_hub, dry_run=False)
-        first = (tmp_path / ".codex" / "config.toml").read_text()
+        first_config = config.read_text()
+        first_hooks = (codex_dir / "hooks.json").read_text()
 
         _configure_codex_session_start(ops_hub, dry_run=False)
-        second = (tmp_path / ".codex" / "config.toml").read_text()
+        second_config = config.read_text()
+        second_hooks = (codex_dir / "hooks.json").read_text()
 
-        assert first == second
-
-    def test_updates_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        old_hub = tmp_path / "old" / "ops-hub.md"
-        old_hub.parent.mkdir(parents=True)
-        old_hub.touch()
-
-        _configure_codex_session_start(old_hub, dry_run=False)
-
-        new_hub = tmp_path / "new" / "ops-hub.md"
-        new_hub.parent.mkdir(parents=True)
-        new_hub.touch()
-
-        _configure_codex_session_start(new_hub, dry_run=False)
-
-        text = (tmp_path / ".codex" / "config.toml").read_text()
-        assert str(new_hub) in text
-        assert str(old_hub) not in text
+        assert first_config == second_config
+        assert first_hooks == second_hooks
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -439,7 +572,9 @@ class TestCodexSessionStart:
 class TestGeminiHook:
     """Tests for Gemini CLI BeforeAgent (per-prompt) and SessionStart hooks."""
 
-    def test_creates_settings_if_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_creates_settings_if_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -464,12 +599,16 @@ class TestGeminiHook:
         assert session_entry["name"] == "bureau-ops-hub-session"
         assert "ops-hub.md" in session_entry["hooks"][0]["command"]
 
-    def test_enables_hooks_feature(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_enables_hooks_feature(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Gemini hooks use hooksConfig.enabled — script must set it to true."""
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         gemini_dir = tmp_path / ".gemini"
         gemini_dir.mkdir(parents=True)
-        (gemini_dir / "settings.json").write_text(json.dumps({"hooksConfig": {"enabled": False}}))
+        (gemini_dir / "settings.json").write_text(
+            json.dumps({"hooksConfig": {"enabled": False}})
+        )
 
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -480,7 +619,9 @@ class TestGeminiHook:
         data = json.loads((gemini_dir / "settings.json").read_text())
         assert data["hooksConfig"]["enabled"] is True
 
-    def test_preserves_existing_hooks(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_existing_hooks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         gemini_dir = tmp_path / ".gemini"
         gemini_dir.mkdir(parents=True)
@@ -488,7 +629,10 @@ class TestGeminiHook:
             "hooksConfig": {"enabled": True},
             "hooks": {
                 "BeforeAgent": [
-                    {"name": "other-hook", "hooks": [{"type": "command", "command": "echo other"}]}
+                    {
+                        "name": "other-hook",
+                        "hooks": [{"type": "command", "command": "echo other"}],
+                    }
                 ],
             },
         }
@@ -521,7 +665,9 @@ class TestGeminiHook:
 
         assert first == second
 
-    def test_migrates_old_cat_to_reminder(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_migrates_old_cat_to_reminder(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """An old-style cat hook should be upgraded to a reminder in place."""
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         gemini_dir = tmp_path / ".gemini"
@@ -568,7 +714,9 @@ class TestGeminiHook:
 class TestGeminiSessionStart:
     """Tests for Gemini CLI SessionStart hook configuration."""
 
-    def test_creates_settings_if_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_creates_settings_if_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -585,7 +733,9 @@ class TestGeminiSessionStart:
         assert entry["name"] == "bureau-ops-hub-session"
         assert "ops-hub.md" in entry["hooks"][0]["command"]
 
-    def test_preserves_existing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_existing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         gemini_dir = tmp_path / ".gemini"
         gemini_dir.mkdir(parents=True)
@@ -593,7 +743,10 @@ class TestGeminiSessionStart:
             "hooksConfig": {"enabled": True},
             "hooks": {
                 "SessionStart": [
-                    {"name": "other-session-hook", "hooks": [{"type": "command", "command": "echo init"}]}
+                    {
+                        "name": "other-session-hook",
+                        "hooks": [{"type": "command", "command": "echo init"}],
+                    }
                 ],
             },
         }
@@ -626,7 +779,9 @@ class TestGeminiSessionStart:
 
         assert first == second
 
-    def test_updates_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_updates_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         old_hub = tmp_path / "old" / "ops-hub.md"
         old_hub.parent.mkdir(parents=True)
@@ -654,58 +809,116 @@ class TestGeminiSessionStart:
 class TestCLI:
     """Tests for the configure-hooks.py CLI."""
 
-    def test_dry_run_makes_no_changes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_dry_run_makes_no_changes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         protocols_dir = tmp_path / "protocols"
         protocols_dir.mkdir()
         (protocols_dir / "ops-hub.md").touch()
 
-        result = main([
-            "--protocols-dir", str(protocols_dir),
-            "--agent", "claude",
-            "--dry-run",
-        ])
+        result = main(
+            [
+                "--protocols-dir",
+                str(protocols_dir),
+                "--agent",
+                "claude",
+                "--dry-run",
+            ]
+        )
 
         assert result == 0
         # no settings.json should be created in dry-run
         assert not (tmp_path / ".claude" / "settings.json").exists()
 
     def test_rejects_relative_path(self, tmp_path: Path) -> None:
-        result = main([
-            "--protocols-dir", "relative/path",
-            "--agent", "claude",
-        ])
+        result = main(
+            [
+                "--protocols-dir",
+                "relative/path",
+                "--agent",
+                "claude",
+            ]
+        )
         assert result == 1
 
-    def test_remove_without_protocols_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_remove_without_protocols_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """--remove should work without --protocols-dir."""
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         result = main(["--remove", "--agent", "claude"])
         assert result == 0
 
-    def test_remove_all_agents(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_remove_all_agents(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """--remove should process all specified agents and remove both hook tiers."""
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         # first configure hooks for all agents
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
         ops_hub.touch()
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir(parents=True)
+        (codex_dir / "config.toml").write_text(
+            'approval_policy = "never"\n'
+            "\n"
+            "[[hooks.userpromptsubmit]]\n"
+            'type = "command"\n'
+            'command = "echo bureau-reminder"\n'
+            "timeout = 5000\n"
+            "\n"
+            "[[hooks.sessionstart]]\n"
+            'type = "command"\n'
+            'command = "cat /tmp/ops-hub.md"\n'
+            "timeout = 5000\n"
+        )
 
-        main([
-            "--protocols-dir", str(ops_hub.parent),
-            "--agent", "claude", "--agent", "codex", "--agent", "gemini",
-        ])
+        main(
+            [
+                "--protocols-dir",
+                str(ops_hub.parent),
+                "--agent",
+                "claude",
+                "--agent",
+                "codex",
+                "--agent",
+                "gemini",
+            ]
+        )
 
-        # verify hooks were added
+        # verify hooks were added for supported CLIs
         assert (tmp_path / ".claude" / "settings.json").exists()
         assert (tmp_path / ".codex" / "config.toml").exists()
+        assert (tmp_path / ".codex" / "hooks.json").exists()
         assert (tmp_path / ".gemini" / "settings.json").exists()
 
+        # Codex should be migrated to feature flag + hooks.json
+        codex_text = (tmp_path / ".codex" / "config.toml").read_text()
+        assert "codex_hooks = true" in codex_text
+        assert "[[hooks.userpromptsubmit]]" not in codex_text
+        assert "[[hooks.sessionstart]]" not in codex_text
+        codex_hooks = _load_hooks_json(tmp_path / ".codex" / "hooks.json")
+        assert codex_hooks["hooks"]["SessionStart"][0]["hooks"][0][
+            "command"
+        ] == _session_start_command(ops_hub)
+        assert codex_hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0][
+            "command"
+        ] == _reminder_command(ops_hub)
+
         # now remove
-        result = main([
-            "--remove",
-            "--agent", "claude", "--agent", "codex", "--agent", "gemini",
-        ])
+        result = main(
+            [
+                "--remove",
+                "--agent",
+                "claude",
+                "--agent",
+                "codex",
+                "--agent",
+                "gemini",
+            ]
+        )
         assert result == 0
 
         # verify Claude hooks removed (both tiers)
@@ -715,10 +928,11 @@ class TestCLI:
 
         # verify Codex hooks removed (both tiers)
         codex_text = (tmp_path / ".codex" / "config.toml").read_text()
-        assert "ops-hub.md" not in codex_text
-        assert "bureau-reminder" not in codex_text
+        assert "codex_hooks = true" in codex_text
         assert "[[hooks.userpromptsubmit]]" not in codex_text
         assert "[[hooks.sessionstart]]" not in codex_text
+        codex_hooks = _load_hooks_json(tmp_path / ".codex" / "hooks.json")
+        assert codex_hooks["hooks"] == {}
 
         # verify Gemini hooks removed (both tiers)
         gemini_data = json.loads((tmp_path / ".gemini" / "settings.json").read_text())
@@ -734,7 +948,9 @@ class TestCLI:
 class TestClaudeRemoval:
     """Tests for Claude Code hook removal (both tiers)."""
 
-    def test_removes_bureau_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_removes_bureau_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -747,7 +963,9 @@ class TestClaudeRemoval:
         assert len(data["hooks"]["UserPromptSubmit"]) == 0
         assert len(data["hooks"]["SessionStart"]) == 0
 
-    def test_preserves_other_hooks(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_other_hooks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir(parents=True)
@@ -758,12 +976,44 @@ class TestClaudeRemoval:
         existing = {
             "hooks": {
                 "UserPromptSubmit": [
-                    {"hooks": [{"type": "command", "command": "echo other", "timeout": 3000}]},
-                    {"hooks": [{"type": "command", "command": _reminder_command(ops_hub), "timeout": 5000}]},
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "echo other",
+                                "timeout": 3000,
+                            }
+                        ]
+                    },
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": _reminder_command(ops_hub),
+                                "timeout": 5000,
+                            }
+                        ]
+                    },
                 ],
                 "SessionStart": [
-                    {"hooks": [{"type": "command", "command": "echo session-other", "timeout": 3000}]},
-                    {"hooks": [{"type": "command", "command": f"cat {ops_hub}", "timeout": 5000}]},
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "echo session-other",
+                                "timeout": 3000,
+                            }
+                        ]
+                    },
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": f"cat {ops_hub}",
+                                "timeout": 5000,
+                            }
+                        ]
+                    },
                 ],
             }
         }
@@ -780,11 +1030,15 @@ class TestClaudeRemoval:
         assert len(session_hooks) == 1
         assert session_hooks[0]["hooks"][0]["command"] == "echo session-other"
 
-    def test_noop_when_no_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_noop_when_no_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir(parents=True)
-        (settings_dir / "settings.json").write_text(json.dumps({"hooks": {"UserPromptSubmit": []}}))
+        (settings_dir / "settings.json").write_text(
+            json.dumps({"hooks": {"UserPromptSubmit": []}})
+        )
 
         _remove_claude(dry_run=False)
         # should not crash, file unchanged
@@ -802,7 +1056,9 @@ class TestClaudeRemoval:
         second = (tmp_path / ".claude" / "settings.json").read_text()
         assert first == second
 
-    def test_removes_old_style_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_removes_old_style_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Removal should clean up old-style cat hooks too."""
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         settings_dir = tmp_path / ".claude"
@@ -811,7 +1067,15 @@ class TestClaudeRemoval:
         old_data = {
             "hooks": {
                 "UserPromptSubmit": [
-                    {"hooks": [{"type": "command", "command": f"cat {ops_hub}", "timeout": 5000}]},
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": f"cat {ops_hub}",
+                                "timeout": 5000,
+                            }
+                        ]
+                    },
                 ]
             }
         }
@@ -831,7 +1095,9 @@ class TestClaudeRemoval:
 class TestClaudeSessionStartRemoval:
     """Tests for Claude Code SessionStart hook removal."""
 
-    def test_removes_bureau_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_removes_bureau_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -843,7 +1109,9 @@ class TestClaudeSessionStartRemoval:
         data = json.loads((tmp_path / ".claude" / "settings.json").read_text())
         assert len(data["hooks"]["SessionStart"]) == 0
 
-    def test_preserves_others(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_others(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir(parents=True)
@@ -851,8 +1119,24 @@ class TestClaudeSessionStartRemoval:
         existing = {
             "hooks": {
                 "SessionStart": [
-                    {"hooks": [{"type": "command", "command": "echo other-session", "timeout": 3000}]},
-                    {"hooks": [{"type": "command", "command": f"cat {ops_hub}", "timeout": 5000}]},
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "echo other-session",
+                                "timeout": 3000,
+                            }
+                        ]
+                    },
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": f"cat {ops_hub}",
+                                "timeout": 5000,
+                            }
+                        ]
+                    },
                 ]
             }
         }
@@ -865,7 +1149,9 @@ class TestClaudeSessionStartRemoval:
         assert len(hooks) == 1
         assert hooks[0]["hooks"][0]["command"] == "echo other-session"
 
-    def test_noop_when_absent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_noop_when_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir(parents=True)
@@ -883,22 +1169,66 @@ class TestClaudeSessionStartRemoval:
 class TestCodexRemoval:
     """Tests for Codex hook removal (both tiers)."""
 
-    def test_removes_bureau_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_removes_bureau_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        ops_hub = tmp_path / "protocols" / "ops-hub.md"
-        ops_hub.parent.mkdir(parents=True)
-        ops_hub.touch()
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir(parents=True)
+        (codex_dir / "config.toml").write_text(
+            "[[hooks.userpromptsubmit]]\n"
+            'type = "command"\n'
+            'command = "echo bureau-reminder"\n'
+            "timeout = 5000\n"
+            "\n"
+            "[[hooks.sessionstart]]\n"
+            'type = "command"\n'
+            'command = "cat /tmp/ops-hub.md"\n'
+            "timeout = 5000\n"
+        )
+        (codex_dir / "hooks.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {
+                                "matcher": "startup|resume",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "cat /tmp/ops-hub.md",
+                                        "timeout": 5,
+                                    }
+                                ],
+                            }
+                        ],
+                        "UserPromptSubmit": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "echo bureau-reminder",
+                                        "timeout": 5,
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                }
+            )
+        )
 
-        _configure_codex(ops_hub, dry_run=False)
         _remove_codex(dry_run=False)
 
-        text = (tmp_path / ".codex" / "config.toml").read_text()
-        assert "ops-hub.md" not in text
-        assert "bureau-reminder" not in text
+        text = (codex_dir / "config.toml").read_text()
         assert "[[hooks.userpromptsubmit]]" not in text
         assert "[[hooks.sessionstart]]" not in text
+        hooks_data = _load_hooks_json(codex_dir / "hooks.json")
+        assert hooks_data["hooks"] == {}
 
-    def test_preserves_existing_content(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_existing_content(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir(parents=True)
@@ -913,10 +1243,13 @@ class TestCodexRemoval:
 
         text = (codex_dir / "config.toml").read_text()
         assert 'approval_policy = "never"' in text
-        assert "ops-hub.md" not in text
-        assert "bureau-reminder" not in text
+        assert "codex_hooks = true" in text
+        hooks_data = _load_hooks_json(codex_dir / "hooks.json")
+        assert hooks_data["hooks"] == {}
 
-    def test_noop_when_no_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_noop_when_no_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir(parents=True)
@@ -926,28 +1259,31 @@ class TestCodexRemoval:
         text = (codex_dir / "config.toml").read_text()
         assert 'approval_policy = "never"' in text
 
-    def test_noop_when_no_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_noop_when_no_config(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         _remove_codex(dry_run=False)  # should not crash
 
-    def test_removes_old_style_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_removes_old_style_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Removal should clean up old-style cat hooks from userpromptsubmit."""
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir(parents=True)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         old_text = (
-            '[[hooks.userpromptsubmit]]\n'
+            "[[hooks.userpromptsubmit]]\n"
             'type = "command"\n'
             f'command = "cat {ops_hub}"\n'
-            'timeout = 5000\n'
+            "timeout = 5000\n"
         )
         (codex_dir / "config.toml").write_text(old_text)
 
         _remove_codex(dry_run=False)
 
         text = (codex_dir / "config.toml").read_text()
-        assert "ops-hub.md" not in text
         assert "[[hooks.userpromptsubmit]]" not in text
 
 
@@ -959,20 +1295,64 @@ class TestCodexRemoval:
 class TestCodexSessionStartRemoval:
     """Tests for Codex sessionstart hook removal."""
 
-    def test_removes_bureau_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_removes_bureau_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        ops_hub = tmp_path / "protocols" / "ops-hub.md"
-        ops_hub.parent.mkdir(parents=True)
-        ops_hub.touch()
+        codex_dir = tmp_path / ".codex"
+        codex_dir.mkdir(parents=True)
+        (codex_dir / "config.toml").write_text(
+            "[[hooks.sessionstart]]\n"
+            'type = "command"\n'
+            'command = "cat /tmp/ops-hub.md"\n'
+            "timeout = 5000\n"
+        )
+        (codex_dir / "hooks.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {
+                                "matcher": "startup|resume",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "cat /tmp/ops-hub.md",
+                                        "timeout": 5,
+                                    }
+                                ],
+                            }
+                        ],
+                        "UserPromptSubmit": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "echo bureau-reminder",
+                                        "timeout": 5,
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                }
+            )
+        )
 
-        _configure_codex_session_start(ops_hub, dry_run=False)
         _remove_codex_session_start(dry_run=False)
 
-        text = (tmp_path / ".codex" / "config.toml").read_text()
-        assert "ops-hub.md" not in text
+        text = (codex_dir / "config.toml").read_text()
         assert "[[hooks.sessionstart]]" not in text
+        hooks_data = _load_hooks_json(codex_dir / "hooks.json")
+        assert "SessionStart" not in hooks_data["hooks"]
+        assert (
+            hooks_data["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+            == "echo bureau-reminder"
+        )
 
-    def test_preserves_others(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_others(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir(parents=True)
@@ -987,9 +1367,13 @@ class TestCodexSessionStartRemoval:
 
         text = (codex_dir / "config.toml").read_text()
         assert 'approval_policy = "never"' in text
-        assert "ops-hub.md" not in text
+        assert "codex_hooks = true" in text
+        hooks_data = _load_hooks_json(codex_dir / "hooks.json")
+        assert hooks_data["hooks"] == {}
 
-    def test_noop_when_absent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_noop_when_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir(parents=True)
@@ -1007,7 +1391,9 @@ class TestCodexSessionStartRemoval:
 class TestGeminiRemoval:
     """Tests for Gemini CLI hook removal (both tiers)."""
 
-    def test_removes_bureau_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_removes_bureau_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -1020,7 +1406,9 @@ class TestGeminiRemoval:
         assert len(data["hooks"]["BeforeAgent"]) == 0
         assert len(data["hooks"]["SessionStart"]) == 0
 
-    def test_preserves_other_hooks(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_other_hooks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         gemini_dir = tmp_path / ".gemini"
         gemini_dir.mkdir(parents=True)
@@ -1028,10 +1416,16 @@ class TestGeminiRemoval:
             "hooks": {
                 "enabled": True,
                 "BeforeAgent": [
-                    {"name": "other-hook", "hooks": [{"type": "command", "command": "echo other"}]},
+                    {
+                        "name": "other-hook",
+                        "hooks": [{"type": "command", "command": "echo other"}],
+                    },
                 ],
                 "SessionStart": [
-                    {"name": "other-session-hook", "hooks": [{"type": "command", "command": "echo session"}]},
+                    {
+                        "name": "other-session-hook",
+                        "hooks": [{"type": "command", "command": "echo session"}],
+                    },
                 ],
             }
         }
@@ -1053,7 +1447,9 @@ class TestGeminiRemoval:
         assert len(session_hooks) == 1
         assert session_hooks[0]["name"] == "other-session-hook"
 
-    def test_noop_when_no_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_noop_when_no_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         _remove_gemini(dry_run=False)  # should not crash (no settings file)
 
@@ -1066,7 +1462,9 @@ class TestGeminiRemoval:
 class TestGeminiSessionStartRemoval:
     """Tests for Gemini CLI SessionStart hook removal."""
 
-    def test_removes_bureau_hook(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_removes_bureau_hook(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         ops_hub = tmp_path / "protocols" / "ops-hub.md"
         ops_hub.parent.mkdir(parents=True)
@@ -1078,7 +1476,9 @@ class TestGeminiSessionStartRemoval:
         data = json.loads((tmp_path / ".gemini" / "settings.json").read_text())
         assert len(data["hooks"]["SessionStart"]) == 0
 
-    def test_preserves_others(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_others(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         gemini_dir = tmp_path / ".gemini"
         gemini_dir.mkdir(parents=True)
@@ -1086,7 +1486,10 @@ class TestGeminiSessionStartRemoval:
             "hooks": {
                 "enabled": True,
                 "SessionStart": [
-                    {"name": "other-session-hook", "hooks": [{"type": "command", "command": "echo init"}]},
+                    {
+                        "name": "other-session-hook",
+                        "hooks": [{"type": "command", "command": "echo init"}],
+                    },
                 ],
             }
         }
@@ -1104,7 +1507,9 @@ class TestGeminiSessionStartRemoval:
         assert len(hooks) == 1
         assert hooks[0]["name"] == "other-session-hook"
 
-    def test_noop_when_absent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_noop_when_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         _remove_gemini_session_start(dry_run=False)
         # should not crash (no settings file)

@@ -178,6 +178,62 @@ def validate_legacy_mcp_keys(config: Mapping[str, Any]) -> list[str]:
     return []
 
 
+def _validate_protocol_document_setting(value: Any, path: str) -> list[str]:
+    """Validate one protocol document setting value."""
+    if isinstance(value, str):
+        if value in {"default", "off"}:
+            return []
+        return [
+            f"Unsupported value for '{path}': {value!r}. Expected 'default', 'off', or a non-empty list of file paths."
+        ]
+
+    if isinstance(value, list):
+        if not value:
+            return [f"'{path}' must be a non-empty list when using custom file paths"]
+        errors = []
+        for index, item in enumerate(value):
+            if not isinstance(item, str) or not item.strip():
+                errors.append(
+                    f"'{path}[{index}]' must be a non-empty string file path"
+                )
+        return errors
+
+    return [
+        f"Unsupported value for '{path}': expected 'default', 'off', or a non-empty list of file paths"
+    ]
+
+
+def validate_protocol_settings(config: Mapping[str, Any]) -> list[str]:
+    """Validate the consolidated protocols schema."""
+    protocols = config.get("protocols")
+    if protocols is None:
+        return []
+    if not isinstance(protocols, dict):
+        return ["Expected dict for 'protocols'"]
+
+    errors: list[str] = []
+
+    for legacy_key in ("update", "force", "bare"):
+        if legacy_key in protocols:
+            errors.append(
+                f"Unsupported key: 'protocols.{legacy_key}'. Use 'protocols.mode' with one of 'replace', 'sync', or 'off'."
+            )
+
+    mode = protocols.get("mode")
+    if mode is not None and mode not in {"replace", "sync", "off"}:
+        errors.append(
+            f"Unsupported value for 'protocols.mode': {mode!r}. Expected 'replace', 'sync', or 'off'."
+        )
+
+    for key in ("output_style", "code_standards"):
+        if key in protocols:
+            errors.extend(
+                _validate_protocol_document_setting(protocols[key], f"protocols.{key}")
+            )
+
+    return errors
+
+
 def validate_and_raise(config: Mapping[str, Any]) -> None:
     """Validate config and raise ConfigurationError if invalid.
 
@@ -189,6 +245,7 @@ def validate_and_raise(config: Mapping[str, Any]) -> None:
     """
     errors = validate_config_schema(config)
     errors.extend(validate_legacy_mcp_keys(config))
+    errors.extend(validate_protocol_settings(config))
     if errors:
         error_msg = "Configuration validation failed:\n  - " + "\n  - ".join(errors)
         raise ConfigurationError(error_msg)

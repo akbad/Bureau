@@ -16,8 +16,7 @@ Bureau uses a YAML-based configuration system with a four-tier hierarchy that al
   - [`prune_disabled_mcps`](#prune_disabled_mcps)
   - [`mcp`](#mcp)
   - [`skills`](#skills)
-  - [`code_standards`](#code_standards)
-  - [`output_style`](#output_style)
+  - [`protocols`](#protocols)
   - [`assess_mode`](#assess_mode)
   - [`roles`](#roles)
   - [`retention_period_for`](#retention_period_for)
@@ -356,62 +355,39 @@ skills:
 > - Legacy `bureau-*` installs are also cleaned up during migration.
 > - If a canonical skill path already exists as foreign content, setup warns and skips it instead of overwriting it.
 
-### `code_standards`
+### `protocols`
 
 **Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
 
-List of markdown documents that describe coding standards, style preferences, and design principles. Used by the `assess-mode` skill during the quality-audit phase to check code against your documented standards.
-
-**Resolution order (for assess mode):**
-1. `code_standards` config key is set → use those files
-2. `~/.config/bureau/protocols/code-standards.md` exists → use that (convention default)
-3. Neither found → quality audit runs with internal consistency checks only
+Controls Bureau-owned protocol deployment plus the source material for the generated `output-style.md` and `code-standards.md` runtime artifacts in `~/.config/bureau/protocols/`.
 
 ```yaml
-code_standards:
-  - protocols/context/static/code-standards.md
+protocols:
+  mode: replace
+  output_style: default
+  code_standards: default
 ```
 
-Bureau ships with a default `code-standards.md` that covers commenting depth, naming, structure, error handling, logging, DRY/abstraction, types, correctness, testing, dependencies, and pragmatism. This file is copied to `~/.config/bureau/protocols/` on first run.
+**Fields:**
+- `mode`: one of `replace`, `sync`, or `off`.
+  - `replace`: always reconcile Bureau-owned protocol files without backup.
+  - `sync`: always reconcile Bureau-owned protocol files and back up replaced or removed artifacts to `.bak`.
+  - `off`: remove Bureau-owned protocol files, generated context wiring, and protocol hooks.
+- `output_style`: one of `default`, `off`, or a non-empty list of file paths.
+  - `default`: compile Bureau's shipped default source file into `~/.config/bureau/protocols/output-style.md`.
+  - `off`: disable the output-style feature and remove the runtime artifact.
+  - `[paths...]`: merge the listed Markdown files, in order, into the runtime artifact.
+- `code_standards`: one of `default`, `off`, or a non-empty list of file paths.
+  - `default`: compile Bureau's shipped default source file into `~/.config/bureau/protocols/code-standards.md`.
+  - `off`: disable the code-standards runtime artifact.
+  - `[paths...]`: merge the listed Markdown files, in order, into the runtime artifact.
 
-**Overriding:** Set `code_standards` in `local.yml` to point to your own files. If your override files live outside `~/.config/bureau/protocols/`, they are automatically added to the agent must-read list alongside files in the protocols directory.
+Bureau ships with default sources at:
 
-```yaml
-# local.yml — override with custom standards
-code_standards:
-  - ~/my-team/style-guide.md
-  - ~/my-team/design-principles.md
-```
+- `protocols/context/static/ops/output-style.md`
+- `protocols/context/static/ops/code-standards.md`
 
-**Path resolution:**
-- Paths starting with `~` → expanded to `$HOME`
-- Absolute paths (starting with `/`) → used as-is
-- Relative paths → resolved from the Bureau repository root
-
-> [!NOTE]
-> If no coding standards are found (no config key, no `code-standards.md` in protocols dir), agents skip the coding standards must-read at startup, and the assess mode skill limits its quality audit to internal consistency checks (DRYness, algorithmic efficiency, codebase pattern adherence).
-
-### `output_style`
-
-**Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
-
-List of markdown documents that define Bureau's always-on session output style. Bureau resolves these files in order, compiles them into `~/.config/bureau/protocols/output-style.md`, and then applies the resulting runtime artifact through each CLI's native or emulated integration path.
-
-```yaml
-output_style:
-  - protocols/context/static/ops/output-style.md
-```
-
-Bureau ships with a default seed file at `protocols/context/static/ops/output-style.md`. On setup, Bureau compiles the configured sources into `~/.config/bureau/protocols/output-style.md`.
-
-**Overriding:** Set `output_style` in `local.yml` to point to your own files. Bureau concatenates the files in list order and treats the result as the session-level style artifact.
-
-```yaml
-# local.yml — override with custom output style sources
-output_style:
-  - ~/my-team/voice.md
-  - ~/my-team/response-formatting.md
-```
+Setup compiles whichever sources are selected into the two root runtime artifacts in `~/.config/bureau/protocols/`. Bureau treats that directory as generated, Bureau-owned state.
 
 **Path resolution:**
 - Paths starting with `~` → expanded to `$HOME`
@@ -419,16 +395,16 @@ output_style:
 - Relative paths → resolved from the Bureau repository root
 
 **Runtime behavior:**
-- Claude Code: Bureau installs a native Claude output style and selects it in `~/.claude/settings.json`
-- Codex and Gemini: generated `AGENTS.md` loads `output-style.md` and `ops-hub.md` at session start
-- OpenCode: generated config includes `output-style.md` and `ops-hub.md` in its `instructions`
+- Claude Code: Bureau installs a native Claude output style and selects it in `~/.claude/settings.json` when `protocols.output_style` is enabled
+- Codex and Gemini: generated `AGENTS.md` loads `output-style.md` and `ops-hub.md` at session start when `protocols.output_style` is enabled
+- OpenCode: generated config includes `output-style.md` only when the runtime artifact exists, and always includes `ops-hub.md`
 - Changes take effect on a new session after re-running `bin/open-bureau`
 
 ### `assess_mode`
 
 **Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
 
-Runtime configuration for the [`assess-mode` skill](../protocols/context/static/skills/assess-mode/SKILL.md). These values are read by the skill at activation time to determine what to review. Standards for audit are configured via the top-level [`code_standards`](#code_standards) setting.
+Runtime configuration for the [`assess-mode` skill](../protocols/context/static/skills/assess-mode/SKILL.md). These values are read by the skill at activation time to determine what to review. Standards for audit are configured via [`protocols.code_standards`](#protocols).
 
 ```yaml
 assess_mode:
@@ -793,18 +769,20 @@ skills:
 
 ```yaml
 # local.yml
-code_standards:
-  - ~/my-team/style-guide.md
-  - ~/my-team/design-principles.md
+protocols:
+  code_standards:
+    - ~/my-team/style-guide.md
+    - ~/my-team/design-principles.md
 ```
 
 ### Provide a custom output style
 
 ```yaml
 # local.yml
-output_style:
-  - ~/my-team/voice.md
-  - ~/my-team/response-formatting.md
+protocols:
+  output_style:
+    - ~/my-team/voice.md
+    - ~/my-team/response-formatting.md
 ```
 
 ### Configure the assess mode skill
@@ -819,32 +797,27 @@ assess_mode:
 
 **Location:** `~/.config/bureau/protocols/`
 
-Bureau maintains a user-scoped directory of agent context files that are read at the start of every conversation. On first run, Bureau copies default files into this directory using a hub-and-spoke architecture:
+Bureau maintains a user-scoped directory of generated agent context files that are read at the start of every conversation. Setup reconciles this directory according to `protocols.mode`.
 
 | File | Purpose |
 |:-----|:--------|
 | `output-style.md` | Compiled session-level output style used by all supported CLIs |
+| `code-standards.md` | Compiled coding standards artifact used for code-writing context and assess mode |
 | `ops-hub.md` | Routing table pointing to task-specific context (the hub) |
 | `ops/session-start.md` | Memory retrieval, factual accuracy protocol |
 | `ops/task-assessment.md` | Delegation mechanisms, headless CLI invocation |
 | `ops/task-execution.md` | Tool selection, memory storage, limits |
 | `ops/task-completion.md` | Approval gates, conversation handoff |
-| `ops/code-standards.md` | Coding standards for writing and reviewing code |
 
 **How it works:**
-- Setup (`bin/open-bureau`) copies defaults to `~/.config/bureau/protocols/` only if the directory doesn't exist or is empty
-- Setup compiles the configured `output_style` sources into `~/.config/bureau/protocols/output-style.md`
-- Codex and Gemini load `output-style.md` and `ops-hub.md` at session start; Claude uses the compiled file to install a native output style; OpenCode includes both files in its generated `instructions`
-- You can edit the deployed protocols files directly, but generated artifacts like `output-style.md` will be regenerated on the next `bin/open-bureau` run
+- Setup (`bin/open-bureau`) reconciles Bureau-owned files in this directory according to `protocols.mode`
+- Setup compiles `protocols.output_style` into `~/.config/bureau/protocols/output-style.md` unless the feature is `off`
+- Setup compiles `protocols.code_standards` into `~/.config/bureau/protocols/code-standards.md` unless the feature is `off`
+- Codex and Gemini load `output-style.md` and `ops-hub.md` at session start when the output-style artifact exists; Claude uses the compiled file to install a native output style; OpenCode includes `output-style.md` only when the runtime artifact exists
+- Customize these generated artifacts through config, not by editing files in `~/.config/bureau/protocols/` directly
 
 > [!WARNING]
-> If you customize Bureau's MCP catalog (add, remove, or reconfigure tools), the default spoke files (particularly `ops/task-execution.md`) may no longer accurately reflect your setup. **You are responsible for updating or replacing protocols files in `~/.config/bureau/protocols/` to match your configuration.** Run `bin/reset-protocols` to restore defaults at any time.
-
-**Adding a custom context file:**
-```bash
-# Add a custom file — agents will read it at startup after next open-bureau run
-cp ~/my-team/onboarding-guide.md ~/.config/bureau/protocols/
-```
+> If you customize Bureau's MCP catalog (add, remove, or reconfigure tools), the default spoke files, particularly `ops/task-execution.md`, may no longer accurately reflect your setup. Update your configuration inputs or replace the shipped sources and then re-run `bin/open-bureau`.
 
 **Restoring defaults:**
 ```bash

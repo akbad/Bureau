@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 
 from operations import json_config_utils as cu
+from operations.protocol_artifacts import compile_runtime_artifact
 
 CLAUDE_STYLE_NAME = "Bureau"
 CLAUDE_STYLE_FILE = "bureau.md"
@@ -14,31 +15,7 @@ CLAUDE_STYLE_FILE = "bureau.md"
 
 def compile_output_style(sources: list[Path], destination: Path) -> None:
     """Compile ordered source files into one runtime artifact."""
-    if not sources:
-        raise SystemExit("At least one output style source is required")
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-
-    preamble_lines = [
-        "<!-- Bureau-generated output style",
-        "Source files:",
-    ]
-    preamble_lines.extend(f"- {source}" for source in sources)
-    preamble_lines.extend(
-        [
-            "Do not edit this runtime artifact directly.",
-            "-->",
-            "",
-        ]
-    )
-
-    body_parts: list[str] = []
-    for index, source in enumerate(sources):
-        body_parts.append(source.read_text(encoding="utf-8"))
-        if index < len(sources) - 1:
-            body_parts.append("\n\n<!-- Bureau source boundary -->\n\n")
-
-    destination.write_text("\n".join(preamble_lines) + "".join(body_parts), encoding="utf-8")
+    compile_runtime_artifact("output style", sources, destination)
 
 
 def _render_claude_output_style(runtime_body: str) -> str:
@@ -116,9 +93,14 @@ def main() -> int:
     if not args.runtime_output:
         raise SystemExit("--runtime-output is required unless --remove-claude is set")
 
-    sources = [Path(source).expanduser() for source in args.sources]
     runtime_output = Path(args.runtime_output).expanduser()
-    compile_output_style(sources, runtime_output)
+    sources = [Path(source).expanduser() for source in args.sources]
+    if sources:
+        compile_output_style(sources, runtime_output)
+    elif not runtime_output.exists():
+        raise SystemExit(
+            "--source is required unless an existing --runtime-output is being reused"
+        )
 
     if args.install_claude:
         install_claude_output_style(runtime_output, styles_dir, settings_path)
