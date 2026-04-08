@@ -1,11 +1,11 @@
 ---
 name: unfold-dossier
-description: Resume a previously saved Bureau dossier or list all saved dossiers. Activate when user says "unfold", "pick up where I left off", "resume", "my dossiers", or invokes /unfold-dossier. Supports hash lookup, fuzzy name matching, fork/claim collaboration, and CLI-managed task lists for multi-agent coordination.
+description: Pick up a previously saved Bureau dossier or list all saved dossiers. Activate when user says "unfold", "pick up where I left off", "resume", "my dossiers", or invokes /unfold-dossier. Supports hash lookup, fuzzy name matching, fork/claim collaboration, and CLI-managed task lists for multi-agent coordination.
 ---
 
-# Bureau Unfold: resume or list saved dossiers
+# Bureau Unfold: pick up or list saved dossiers
 
-> **Goal:** resume a previously saved conversation from a dossier, picking up from the exact point where it was folded — with full context, decisions, and task state intact. Alternatively, list all saved dossiers for selection.
+> **Goal:** pick up a conversation exactly where it was left off — with your own memory, decisions, reasoning, and task state intact — so seamlessly that neither you nor the user notice the seam. Alternatively, list all saved dossiers for selection.
 
 > [!IMPORTANT]
 >
@@ -124,7 +124,7 @@ Triggered when `/unfold-dossier` is invoked **with a hash or name argument**, or
 
 Run the unfold command with the appropriate flags based on the user's request:
 
-**Default (read-only resume):**
+**Default (read-only unfold):**
 
 ```bash
 bureau-dossiers unfold <hash-or-name>
@@ -136,7 +136,7 @@ The default unfold returns compact output: metadata, tasks, and decisions — se
 bureau-dossiers unfold <hash-or-name> --full
 ```
 
-Only use `--full` when the compact output is insufficient to resume work.
+Only use `--full` when the compact output is insufficient to pick up the work.
 
 **With `--claim` (exclusive access):**
 
@@ -169,36 +169,58 @@ No dossier found matching "<input>". Run /unfold-dossier to list all saved dossi
 The CLI outputs the dossier state as markdown. In compact mode (default), this includes metadata, task list, and decisions — session digests are omitted. Use `--full` if you need the full narrative. Read and internalize this output.
 
 If the unfold was a default (no `--claim`, no `--fork`):
-- **Read-only resume** — no lock is acquired
-- Other agents can also resume from the same dossier simultaneously
+- **Read-only unfold** — no lock is acquired
+- Other agents can also unfold the same dossier simultaneously
 - If you later need exclusive access, suggest `--claim`
 
 ### Step 3: Context injection directive
 
 After loading the dossier, follow this directive strictly:
 
-> You are resuming a conversation from a dossier. Read the entire dossier content above. Follow these rules:
+> You had this conversation. The notes below are your own memory being recalled, not a document handed to you by someone else. Read them as memory, not as a briefing.
 >
+> - Do **NOT** say "according to the dossier", "I see that previously", or "the previous session" — speak from your memory naturally, as you would from your own recollection
 > - Do **NOT** re-ask any question that has a decision recorded in the decisions section
-> - Do **NOT** re-explore or re-read files listed in file interactions unless you specifically need to verify something has changed since the dossier was created
-> - Pick up from the **EXACT** point described in the pending state section of the latest session digest
-> - Your task list is managed via the CLI — use it to track work items
-> - Use Bureau task CLI (`tasks claim`, `tasks complete`, `tasks add`) for ALL task operations during this session — do NOT use native task tools (TodoWrite/TodoRead) for dossier tasks. Native tools are for intra-context subagent coordination only.
-> - Treat the session digests as if you personally had the conversation — internalize the reasoning, preferences, and mental state described there
+> - Do **NOT** re-explore or re-read files listed in file interactions unless you specifically need to verify something has changed
+> - Pick up from the **EXACT** point described in the pending state
+> - Treat pinned findings and dead ends as hard constraints — do not re-explore dead ends marked `[DO NOT RETRY]`
+> - If memory queries were logged, do not repeat them unless you need fresher results
+> - Your task list is managed via the CLI — use Bureau task CLI (`tasks claim`, `tasks complete`, `tasks add`) for ALL task operations
 > - If the dossier mentions user preferences, follow them without re-confirming
+> - **Match the mood**: read the session mood field first and calibrate your tone, pacing, and confidence level accordingly from your very first response
 
-Greet the user with a brief summary of where you are picking up:
+**Confidence check (silent, before your first response):** After reading the dossier, verify internally:
+
+1. Can you name the **next concrete action** you need to take?
+2. Do you know which **files are relevant** and roughly what state they are in?
+3. Can you identify all **dead ends** you must not re-explore?
+
+If any answer is uncertain, silently re-run `bureau-dossiers unfold <slug> --full` and re-read the complete digests before producing any response. Do not tell the user you are doing this — it is invisible self-correction. The cost of one extra tool call is negligible compared to the cost of confidently re-exploring a dead end or asking a settled question.
+
+**Default behavior: continue mid-thought.** Do not announce your return. If `next_words` is present in the dossier, use it as the literal opening of your first response — complete the thought, then proceed. If there is a pending action, start doing it. The user knows they unfolded; they do not need a status report.
+
+If `next_words` is absent or the pending state is unclear, fall back to a **minimal orientation** (not a full status dump):
 
 ```
-Resumed dossier <name> (ID: <hash>).
-Slug: <slug> | Branch: <branch> | Project: <project> | Last updated: <relative-time>
-
-Pending state: <one-line summary from the latest session digest>
-
-Task list: <N> total — <X> pending, <Y> in progress, <Z> completed
-
-Ready to continue.
+Back on it. I was [one-line pending state] — picking up there.
 ```
+
+**Structured greeting (opt-in only):** The full status block is available when the user passes `--announce` or explicitly asks "where are we?":
+
+```
+<name> (<hash>) | <branch> | updated <relative-time>
+
+Pending: <one-line summary from latest session digest>
+Tasks: <N> total — <X> pending, <Y> in progress, <Z> completed
+```
+
+### Context anchoring
+
+When the dossier includes a `last_exchange` field, read it **before** the digest. This is the verbatim final moment of the prior conversation — it anchors your memory in a concrete exchange rather than an abstract summary. After reading it, the digest will feel like context you already have rather than new information.
+
+When the dossier includes `pinned_findings`, treat them as **hard constraints** that override any conflicting information in the digest. Dead ends marked `[DO NOT RETRY]` are absolute prohibitions. Dead ends marked `[CONDITIONAL]` may be revisited only if the stated condition has changed.
+
+When the dossier includes `memory_queries`, treat them as a **cache**: do not re-query the same memory systems with the same queries unless you have reason to believe the results have changed (e.g., significant time has passed, new data has been stored).
 
 ### Delegating tasks to workers
 
@@ -215,6 +237,8 @@ bureau-dossiers context <slug> --task <task-id>
 Include the context output in the subagent's prompt. The subagent should complete the task and mark it done via `tasks complete`.
 
 The `context` command is read-only (no side effects) and can be called multiple times for different tasks. Pre-claim the task before extracting context so another agent does not race to claim it.
+
+**Agent label convention for workers:** When spawning multiple workers of the same CLI type, the orchestrator should assign labels that include the CLI type, a worker number, and the current UNIX timestamp to avoid collision: `<cli-type>:worker-<n>:<unix-timestamp>` (e.g., `claude-code:worker-3:1743926400`). Pass this label as the `--agent` value on both `tasks claim` and `unfold --worker`.
 
 **`--include-digest` guidance:**
 - Default: digest excluded (saves ~1-3K tokens, sufficient for most tasks)
@@ -241,10 +265,10 @@ Read and internalize the worker context output. Follow the worker directive stri
 ### Step 3: Greet the user
 
 ```
-Working on task #<id>: <subject>
-Dossier: <name> (ID: <hash>) | Branch: <branch>
+Task #<id>: <subject>
+Dossier: <name> (<hash>) | <branch>
 
-Ready to start.
+Starting.
 ```
 
 ### Step 4: Completion
@@ -311,10 +335,10 @@ Use these commands throughout the session to coordinate work. Always check for b
 
 ## Session end reminder
 
-At the end of any session that was resumed from a dossier, remind the user:
+At the end of any session that was unfolded from a dossier, remind the user:
 
 ```
-You resumed from dossier `<name>` (ID: `<hash>`). To save your progress, run /fold-dossier to create an updated dossier.
+This session continues dossier `<name>` (`<hash>`). To save your progress, run /fold-dossier.
 ```
 
 If the dossier was claimed (`--claim`), also remind:
@@ -325,10 +349,10 @@ This dossier is still locked by you. It will be unlocked when you fold, or you c
 
 ### Releasing a lock manually
 
-To release a lock without folding:
+To release a lock without folding (requires `--agent` to verify ownership):
 
 ```bash
-bureau-dossiers lock <slug> release
+bureau-dossiers lock <slug> release --agent <your-agent-id>
 ```
 
 This frees the dossier for other agents to claim.
@@ -341,13 +365,13 @@ These rules apply at all times during an unfold session:
 
 1. **Relative time display** — when listing dossiers, always compute relative time from the `updated` field (e.g., "2h ago", "3d ago", "1w ago"). Do not show raw ISO timestamps in user-facing tables.
 
-2. **Lock status visibility** — always show lock status in listings and when resuming. Never hide the fact that a dossier is claimed by another agent.
+2. **Lock status visibility** — always show lock status in listings and when unfolding. Never hide the fact that a dossier is claimed by another agent.
 
 3. **Fork completeness** — when forking via `--fork`, the CLI copies the complete dossier database (all tables including tasks). The fork is fully independent.
 
 4. **Lock integrity** — never modify a locked dossier's content or task list unless you are the agent that holds the lock (i.e., `locked_by` matches your identifier). Read access is always permitted.
 
-5. **No re-confirmation** — when resuming, do not ask the user to re-confirm decisions, preferences, or context that is already recorded in the dossier. The entire point of dossiers is to avoid re-establishing context.
+5. **No re-confirmation** — after unfolding, do not ask the user to re-confirm decisions, preferences, or context that is already recorded in the dossier. The entire point of dossiers is to avoid re-establishing context.
 
 6. **Identifier stability** — when using `--claim`, use a consistent agent identifier across the session. If your agent framework provides a session ID, use it. Otherwise, use your agent type (e.g., `claude-code`, `codex`, `gemini-cli`, `opencode`).
 

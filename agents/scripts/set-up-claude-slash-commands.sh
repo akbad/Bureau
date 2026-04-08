@@ -48,9 +48,17 @@ create_claude_cmd_from_role() {
     # to avoid collisions with user-created commands)
     local command_file="$target_dir/${role_name}-bureau.md"
 
-    # Extract content after frontmatter (everything after the second ---)
-    local role_content
-    role_content=$(awk '
+    # Write preamble (quoted heredoc: no expansion, no pipe-buffer risk)
+    cat > "$command_file" <<'EOF'
+Adopt the role and instructions below for this conversation.
+
+---
+
+EOF
+
+    # Append role content with frontmatter stripped
+    # (streams directly to file; no variable capture, no unquoted heredoc)
+    awk '
         BEGIN { in_frontmatter=0; past_frontmatter=0 }
         /^---$/ {
             if (!past_frontmatter) {
@@ -60,16 +68,7 @@ create_claude_cmd_from_role() {
             }
         }
         past_frontmatter { print }
-    ' "$role_file")
-
-    # Create the slash command file with a preamble
-    cat > "$command_file" << EOF
-Adopt the role and instructions below for this conversation.
-
----
-
-$role_content
-EOF
+    ' "$role_file" >> "$command_file"
 
     log_info "Created /${role_name}-bureau -> $command_file"
     return 0

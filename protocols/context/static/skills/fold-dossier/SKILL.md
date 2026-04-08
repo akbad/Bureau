@@ -132,7 +132,9 @@ This is the most critical step in the entire protocol. The digest is the **core 
 >
 > Be exhaustive. Be explicit. Be specific. Never summarize when you can enumerate.
 
-You **MUST** include **ALL FIVE** of the following mandatory aspects. Omitting any single one constitutes a failed fold.
+> **Voice:** Write the entire digest in **first person, past tense** — as if leaving a voice memo to yourself. Use "I", "we", "my"; never "the agent" or "the assistant". This is not a report about someone else's work — it is your own memory being recorded for later recall.
+
+You **MUST** include **ALL EIGHT** of the following mandatory aspects. Omitting any single one constitutes a failed fold.
 
 #### Mandatory Aspect 1: Full reasoning chains
 
@@ -223,6 +225,74 @@ Capture the context that exists **only** in the conversation and cannot be recov
 - **Future plans** discussed but not yet acted on
 - **Concerns or risks** identified but not yet addressed
 
+#### Mandatory Aspect 6: Session mood
+
+Capture the emotional register and pace of the conversation in **3-5 sentences**. This is not metadata — it is calibration data that lets the resuming agent match the tone and energy of the session from its very first response.
+
+Include:
+
+- The **overall tenor**: was this exploratory, focused, tense, playful, frustrated, triumphant?
+- The **user's current state**: patient, impatient, curious, stressed, satisfied?
+- The **pacing**: rapid back-and-forth iteration, slow deliberate exploration, mixed?
+- The **confidence level**: were we on solid ground or still searching?
+- Any **notable shifts** during the session (e.g., "started frustrated but broke through around message 20")
+
+**Example:**
+```
+This was an intense debugging session — the user was visibly frustrated after 3 failed approaches to the WAL locking issue and wanted fast, concrete answers rather than exploration. Pacing was rapid: short messages, immediate tool calls, no room for preamble. By the end we'd found the root cause and the mood shifted to relief, but the user's patience for verbose explanations was clearly spent. I should resume with directness and confidence, not tentativeness.
+```
+
+#### Mandatory Aspect 7: Pinned findings and dead ends
+
+This aspect contains two categories of information that **must survive every re-fold** verbatim. On re-fold, carry all existing entries forward and add any new ones from the current session.
+
+##### Pinned findings
+
+Facts, discoveries, or constraints that are critical to the project but easy to lose across sessions. Each entry should be a single, self-contained statement that is true regardless of session context.
+
+**Format:** One bullet per finding. Prefix with the session number or date if known.
+
+**Example:**
+```
+- SQLite WAL mode is required for concurrent agent access — without it, SQLITE_BUSY errors appear under parallel fold/unfold
+- The config loader does NOT auto-create missing directories — callers must ensure ~/.config/bureau/ exists
+- The user's local.yml overrides default retention to 7d (not the 30d in defaults.yml)
+```
+
+##### Dead ends
+
+For every approach explored but **not adopted** during this or any prior session, record:
+
+- **What** was tried
+- **How far** it got
+- **Why** it was abandoned (explicit reason from the user/conversation, or `[inferred]`)
+- A **do-not-retry** flag: `[DO NOT RETRY]` or `[CONDITIONAL — retry if X changes]`
+
+**Example:**
+```
+- Tried using YAML for dossier storage (got as far as a working prototype)
+  Why abandoned: [inferred] concurrent writes caused data corruption without locking
+  [DO NOT RETRY]
+- Explored Redis for task queue (researched only, no code written)
+  Why abandoned: user directive — "too much infrastructure for this use case"
+  [CONDITIONAL — retry if Bureau adds a daemon process]
+```
+
+#### Mandatory Aspect 8: Memory query log
+
+Record every query made to persistent memory systems during this session so the resuming agent can skip redundant retrieval and build on prior results.
+
+For each query, record:
+
+| Field | Description |
+|:------|:------------|
+| `tool` | The MCP tool used (e.g., `qdrant-find`, `search_nodes`, `read_graph`, `smart_search`) |
+| `query` | The search query or parameters |
+| `result_summary` | What was found (or "no relevant results") |
+| `used_for` | How the result informed a decision or action |
+
+If no memory queries were made, record `No memory queries this session.`
+
 ## Dossier assembly and writing
 
 After completing all collection steps, assemble the data and write the dossier using the CLI. The CLI handles all file creation, hash generation, schema setup, and metadata — you never touch the database or write frontmatter directly.
@@ -240,7 +310,7 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
   "project": "<git repo root path>",
   "branch": "<current branch>",
   "commit": "<short HEAD>",
-  "digest": "<the exhaustive brain dump covering ALL FIVE mandatory aspects>",
+  "digest": "<the exhaustive brain dump covering ALL EIGHT mandatory aspects>",
   "tasks": [
     {"subject": "Task subject", "status": "pending", "owner": null, "description": "Task description", "blocked_by": null}
   ],
@@ -249,6 +319,16 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
   ],
   "files": [
     {"path": "/absolute/path/to/file.py", "action": "modified", "annotation": "edited lines 40-60"}
+  ],
+  "last_exchange": "<verbatim last 2-3 turns of conversation: the final user message(s) and your final response(s), unedited>",
+  "next_words": "<the first 1-2 sentences of what you were about to say or do next, as if completing a thought mid-sentence>",
+  "mood": "<3-5 sentences capturing the session's emotional register, pace, and tone — from Mandatory Aspect 6>",
+  "pinned_findings": [
+    {"finding": "Description of the pinned finding", "source_session": "current or inherited"},
+    {"finding": "Description of a dead end", "source_session": "current", "dead_end": true, "why_abandoned": "reason", "retry": "DO NOT RETRY"}
+  ],
+  "memory_queries": [
+    {"tool": "qdrant-find", "query": "bureau dossier schema", "result_summary": "found 3 entries, all pre-2024", "used_for": "confirmed no existing schema docs"}
   ]
 }
 ```
@@ -258,6 +338,7 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
 >
 > - **New fold** (no `--slug`): include the full `tasks` and `decisions` arrays. The CLI uses them for initial population.
 > - **Re-fold** (`--slug` provided): **omit the `tasks` array** (or pass `[]`). The CLI ignores tasks on re-fold — task state is managed via `tasks claim`/`tasks complete`/`tasks add` throughout the session. For `decisions`, include only decisions made in the **current** session, not inherited decisions from prior sessions.
+> - **Pinned findings on re-fold**: carry forward **all** existing `pinned_findings` from the prior fold and append any new findings or dead ends from the current session. Never drop inherited pinned findings — they accumulate across the dossier's lifetime.
 
 **Field reference:**
 
@@ -268,10 +349,15 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
 | `project` | Absolute path to the git repository root (from `git rev-parse --show-toplevel`) |
 | `branch` | Current git branch name |
 | `commit` | Short HEAD hash |
-| `digest` | The full conversation digest covering all five mandatory aspects (inlined as a string) |
+| `digest` | The full conversation digest covering all eight mandatory aspects (inlined as a string) |
 | `tasks` | Array of task objects from Step 2 |
 | `decisions` | Array of decision objects from the conversation (Mandatory Aspect 1) |
 | `files` | Array of file interaction objects from Step 3 |
+| `last_exchange` | Verbatim last 2-3 conversational turns (final user messages and agent responses). Captures the exact moment of folding for continuity anchoring. |
+| `next_words` | The first 1-2 sentences the agent was about to say or the next action it was about to take. Used by unfold to continue mid-thought. |
+| `mood` | 3-5 sentences describing the session's emotional register, pace, and tone (Mandatory Aspect 6). |
+| `pinned_findings` | Array of critical findings and dead ends that must survive every re-fold. Dead ends include `dead_end: true`, `why_abandoned`, and `retry` fields. |
+| `memory_queries` | Array of memory system queries made during this session, with tool, query, result summary, and how the result was used. |
 
 ### Step 7: Run the CLI
 
@@ -287,7 +373,7 @@ bureau-dossiers fold --input-file - << 'ENDJSON'
   "project": "<git repo root path>",
   "branch": "<current branch>",
   "commit": "<short HEAD>",
-  "digest": "<the exhaustive brain dump covering ALL FIVE mandatory aspects>",
+  "digest": "<the exhaustive brain dump covering ALL EIGHT mandatory aspects>",
   "tasks": [
     {"subject": "Task subject", "status": "pending", "owner": null, "description": "Task description", "blocked_by": null}
   ],
@@ -310,7 +396,7 @@ bureau-dossiers fold --slug <existing-slug> --input-file - << 'ENDJSON'
   "project": "<git repo root path>",
   "branch": "<current branch>",
   "commit": "<short HEAD>",
-  "digest": "<the exhaustive brain dump covering ALL FIVE mandatory aspects>",
+  "digest": "<the exhaustive brain dump covering ALL EIGHT mandatory aspects>",
   "decisions": [
     {"what": "What was decided", "why": "Why this option was chosen", "alternatives": "JSON-encoded array of rejected alternatives", "decided_by": "user directive"}
   ],
@@ -341,7 +427,7 @@ If the CLI exits with a non-zero status, report the error clearly. The CLI is at
 
 ## Explicit prohibitions
 
-- **Do NOT** save the raw conversation transcript — the digest replaces it
+- **Do NOT** save the raw conversation transcript — the digest replaces it. Exception: `last_exchange` captures the verbatim final 2-3 turns for continuity anchoring.
 - **Do NOT** modify any repository files or git state — dossiers live outside the repo in `~/.config/bureau/dossiers/`
 - **Do NOT** auto-lock the dossier — fresh dossiers are always unlocked
 - **Do NOT** abbreviate, truncate, or summarize the digest — exhaustive detail is mandatory; if in doubt, include more rather than less

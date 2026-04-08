@@ -79,12 +79,12 @@ flowchart TB
     CONFIG --> SKILL_CAT --> SKILL_GEN --> SKILL_SH
 
     subgraph F5["5. Protocol + context"]
-        TMPL_RENDER[Template rendering]
-        SYMLINKS[Symlink creation]
-        MUST_READ[Must-read injection]
+        PROTO_DEPLOY[Protocol file deployment]
+        HOOK_CFG[Hook configuration]
+        REMINDER[Per-prompt reminders]
     end
 
-    CONFIG --> TMPL_RENDER --> MUST_READ --> SYMLINKS
+    CONFIG --> PROTO_DEPLOY --> HOOK_CFG --> REMINDER
 
     subgraph F7["7. OpenCode pipeline"]
         OC_MCP[render-opencode-mcp.py]
@@ -121,7 +121,7 @@ flowchart TB
     BASH_ORCH --> CLI_CONFIGS
     AGENT_SETUP --> CLI_CONFIGS
     SKILL_SH --> CLI_CONFIGS
-    SYMLINKS --> CLI_CONFIGS
+    HOOK_CFG --> CLI_CONFIGS
     OC_TMPL --> CLI_CONFIGS
     PER_CLI_WRITERS --> CLI_CONFIGS
 
@@ -438,60 +438,70 @@ flowchart LR
 
 ## 5. Protocol and context setup
 
-This flow generates the context files that agents read at startup (CLAUDE.md, AGENTS.md, GEMINI.md), injects the must-read file list, creates symlinks from CLI config locations to the generated files, and populates the user-scoped protocols directory.
+This flow deploys protocol files (hub + spokes) to the user-scoped protocols directory, then configures SessionStart hooks in each CLI's settings so that agents receive Bureau context at the start of every session. Per-prompt reminder hooks are also installed. OpenCode uses a separate path via its native `instructions` array.
 
 ```mermaid
 flowchart TB
-    subgraph templates["Template inputs"]
-        CLAUDE_TMPL["CLAUDE.template.md"]
-        AGENTS_TMPL["AGENTS.template.md"]
-    end
-
-    subgraph protocols_dir["~/.config/bureau/protocols/"]
-        OPS_HUB["ops-hub.md"]
-        subgraph ops_spokes["ops/ (spoke files)"]
-            OPS_SESSION["session-start.md"]
-            OPS_ASSESS["task-assessment.md"]
-            OPS_EXEC["task-execution.md"]
-            OPS_COMPLETE["task-completion.md"]
-            OPS_CODE_STD["code-standards.md"]
+    subgraph static_src["Protocol source files"]
+        HUB_SRC["ops-hub.md"]
+        subgraph spokes_src["ops/ (spoke files)"]
+            S_SESSION["session-start.md"]
+            S_ASSESS["task-assessment.md"]
+            S_EXEC["task-execution.md"]
+            S_COMPLETE["task-completion.md"]
+            S_CODE_STD["code-standards.md"]
         end
-        CUSTOM["(user-added .md files)"]
     end
 
-    CONFIG[(Merged Config)] -->|"code_standards
-    config key"| CS_RESOLVE["Resolve code_standards paths
-    (~ expansion, absolute, relative)"]
+    CONFIG[(Merged Config)] --> PROTO_SH["set-up-protocols.sh"]
+    static_src --> PROTO_SH
 
-    protocols_dir -->|"all *.md files"| MUST_READ_BUILD["Build must-read section
-    (markdown with @file references)"]
-    CS_RESOLVE -->|"extra paths outside
-    protocols dir"| MUST_READ_BUILD
+    PROTO_SH -->|"deploy"| PROTO_DIR["~/.config/bureau/protocols/
+    (hub + spoke files,
+    output-style.md, code-standards.md)"]
 
-    MUST_READ_BUILD --> MUST_READ[/"MUST_READ_SECTION
-    (markdown string)"/]
+    PROTO_DIR --> HOOKS["configure-hooks.py"]
+    CONFIG --> HOOKS
 
-    templates --> SED["sed: replace
-    {{REPO_ROOT}}"]
-    SED --> AWK["awk: replace
-    {{MUST_READ_SECTION}}"]
-    MUST_READ --> AWK
+    subgraph hook_targets["SessionStart hook configuration"]
+        CC_HOOK["Claude Code:
+        ~/.claude/settings.json
+        hooks.SessionStart → cat ops-hub.md"]
+        GC_HOOK["Gemini CLI:
+        ~/.gemini/settings.json
+        hooks.SessionStart → cat output-style.md
+        && cat ops-hub.md"]
+        CX_HOOK["Codex:
+        ~/.codex/hooks.json
+        SessionStart → cat output-style.md
+        && cat ops-hub.md"]
+    end
 
-    AWK --> GEN_CLAUDE["protocols/context/generated/
-    CLAUDE.md"]
-    AWK --> GEN_AGENTS["protocols/context/generated/
-    AGENTS.md"]
+    HOOKS --> hook_targets
 
-    GEN_CLAUDE -->|symlink| SYM_CC["~/.claude/CLAUDE.md"]
-    GEN_AGENTS -->|symlink| SYM_GC["~/.gemini/GEMINI.md"]
-    GEN_AGENTS -->|symlink| SYM_CX["~/.codex/AGENTS.md"]
+    subgraph reminder_hooks["Per-prompt reminder hooks"]
+        REMINDER["Each CLI receives a hook that
+        echoes a short bureau-reminder
+        on every prompt"]
+    end
+
+    HOOKS --> reminder_hooks
+
+    subgraph opencode_path["OpenCode (separate path)"]
+        OC_TMPL["render-opencode-template.py"]
+        OC_INSTR["instructions array in
+        opencode.json"]
+    end
+
+    PROTO_DIR --> OC_TMPL --> OC_INSTR
 ```
 
 **Key details:**
 
-- Default protocols files are copied to `~/.config/bureau/protocols/` only on first run (when directory is empty or absent)
-- Symlink creation is idempotent: existing correct symlinks are left alone, incorrect ones are replaced, regular files are backed up
-- The must-read section is built by scanning `~/.config/bureau/protocols/*.md` plus any `code_standards` paths that reside outside that directory
+- `set-up-protocols.sh` deploys hub + spoke files to `~/.config/bureau/protocols/`; default files are copied only on first run (when directory is empty or absent)
+- `configure-hooks.py` writes SessionStart hooks into each CLI's settings, causing agents to `cat` the relevant protocol files at session start
+- Per-prompt hooks echo a short `<bureau-reminder>` on every prompt to reinforce key directives
+- OpenCode uses its native `instructions` array (populated by `render-opencode-template.py`) rather than hooks
 - `bin/reset-protocols` restores defaults by re-copying from `protocols/context/static/`
 
 **Cross-references:** This script also calls [4. Skill setup](#4-skill-setup) as a sub-step.
@@ -539,7 +549,7 @@ flowchart TB
 **Key details:**
 
 - Rendering uses tmpfiles for intermediate JSON to avoid polluting the repo
-- `configure-opencode.py` performs a merge that preserves user-added overrides in the existing `opencode.json`
+- `configure-opencode.py` preserves user-added overrides while reconciling Bureau-managed `instructions` and `agent` entries in the existing `opencode.json`
 - If any rendering step fails, the existing `opencode.json` is left unchanged (fail-safe)
 - OpenCode MCP entries use `type: "remote"` (for HTTP) and `type: "local"` (for stdio), distinct from other CLIs
 

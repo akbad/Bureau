@@ -58,7 +58,7 @@ rather than adapting to users' ad-hoc workflows, permitting open-ended explorati
 
 ### Consistent agent roles across 4 CLI platforms
 
-- [66 specialized roles](agents/role-prompts/) (architect, debugger, etc.) configured for use in *all* supported CLIs
+- [Specialized roles](agents/role-prompts/) (architect, code-reviewer, etc.) configured for use in *all* supported CLIs
 - Can choose a specific model per task (e.g. Claude for architecture, Gemini for broad code search)
 
 ### 2 ways of invoking agents
@@ -80,7 +80,7 @@ rather than adapting to users' ad-hoc workflows, permitting open-ended explorati
 | :--- | :--- | 
 | **Claude Code** | Activate at any time using **custom slash commands** set up by Bureau |
 | **OpenCode** | Use built-in [primary agent functionality](https://opencode.ai/docs/agents/#primary-agents) |
-| **Codex** & **Gemini CLI** | Use **custom role-specific launch wrappers** (e.g. `codex-debugger`, `gemini-architect`) set up by Bureau |
+| **Codex** & **Gemini CLI** | Use **custom role-specific launch wrappers** (e.g. `codex-code-reviewer`, `gemini-architect`) set up by Bureau |
 
 > [!TIP]
 > See details for these 2 invocation methods in the [*agent role usage patterns* section below](#agent-role-usage-patterns). 
@@ -107,21 +107,16 @@ Handling essential tasks like:
 
 All agents automatically read these files at startup:
 
-- [`protocols/context/static/handoff-guide.md`](protocols/context/static/handoff-guide.md) → when to delegate to subagents + which model to use
-- [`protocols/context/static/tools-guide.md`](protocols/context/static/tools-guide.md) → MCP tool selection guide
-
-    - Serves as an entrypoint to documentation progressively disclosing each MCP servers' tool capabilities
+- [`ops-hub.md`](protocols/context/static/ops-hub.md) → central routing table that directs agents to task-specific spokes
+- Task-specific spokes in [`ops/`](protocols/context/static/ops/) → session start, task assessment, execution, completion, code standards
 
 - **Custom Bureau skills**: structured workflow protocols (e.g. `assess-mode`) installed for all supported CLIs and activated automatically by matching prompts
 - **[Superpowers](https://github.com/obra/superpowers) skills** — community-maintained skill library *(currently Claude Code and Codex only)*
 
-Injected via these files
+Injected via:
 
-- `~/.claude/CLAUDE.md` (Claude Code)
-- `~/.gemini/GEMINI.md` (Gemini CLI)
-- `~/.codex/AGENTS.md` (Codex)
-
-with each of the 3 files above generated from [templates](protocols/context/templates/) and symlinked (for portability).
+- **Claude Code, Gemini CLI, Codex**: SessionStart hooks that `cat` the relevant protocol files into agent context at session start, plus per-prompt reminder hooks
+- **OpenCode**: native `instructions` array in its config file
 
 ### Spec-driven development *(maintainer favourite)* 
 
@@ -180,7 +175,7 @@ skills:
 **Claude Code & OpenCode** *(via native subagents):*
 ```
 "Have the architect subagent design this system"
-"Use the debugger agent to investigate this stack trace"
+"Use the testing agent to isolate this failing test suite"
 "Spawn the security-compliance agent to audit these changes"
 ```
 
@@ -199,8 +194,8 @@ Use Bureau-configured slash commands:
 ```bash
 $ claude
 # ... startup output ...
-> /explainer
-# explainer role activated, interactive conversation begins
+> /architect
+# architect role activated, interactive conversation begins
 ```
 
 #### Gemini CLI & Codex
@@ -211,8 +206,8 @@ $ claude
 Use Bureau-configured launch wrapper scripts:
 
 ```bash
-# launch Gemini CLI w/ explainer role active
-$ gemini-explainer
+# launch Gemini CLI w/ architect role active
+$ gemini-architect
 
 # launch Codex using GPT-5.2-Codex w/ architect role active
 $ codex-architect --model gpt-5.2-codex

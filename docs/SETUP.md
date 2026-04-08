@@ -140,16 +140,15 @@ $ open-bureau  # in this repo's bin/
 3. Clones MCP servers that must be run from source
 4. Starts MCP servers (and backing containers where needed) and sets up all enabled CLI agents to use them
 5. Sets up agent role prompts and custom slash commands/launch wrappers for them *(to allow interactive use as main agents)*
-6. Generates context files for each enabled CLI *(and symlinks into the appropriate user-scoped config dir)*: 
+6. Configures context injection hooks for each enabled CLI:
     
-    - `~/.claude/CLAUDE.md`
-    - `~/.codex/AGENTS.md`
-    - `~/.gemini/GEMINI.md`
+    - Claude Code, Codex, Gemini CLI: SessionStart hooks configured in each CLI's settings
+    - OpenCode: `instructions` array in `~/.config/opencode/opencode.json`
     
 > [!NOTE]
-> These are the files enabling *automatic context injection*: 
+> These hooks enable *automatic context injection*: 
 > 
-> - They guide agents to read *Bureau's custom context files* that teach them to **<ins>autonomously</ins> use Bureau's functionality** *without* explicitly being prompted to by the user.
+> - They load *Bureau's custom context files* at session start, teaching agents to **<ins>autonomously</ins> use Bureau's functionality** *without* explicitly being prompted to by the user.
 > - This **<ins>minimizes the learning curve</ins>, letting you get to work as fast as possible.**
 
 7. Generates the **`close-bureau` script allowing easy shutdown** of *all* daemons/containers launched by Bureau *(placed in the `bureau/bin/` directory)*
@@ -191,9 +190,9 @@ $ claude
 <details>
 <summary><strong>Claude Code</strong></summary>
 
-1. Run `/status`: it should show `Memory: user (~/.claude/CLAUDE.md)`
+1. Start a new session and ask "What operational context were you given?" — it should reference Bureau's ops-hub and task-specific spokes
 2. Run `/mcp`: it should list Bureau's MCP servers (qdrant, sourcegraph, etc.)
-3. Run `/explainer` *(custom role activation command set up by Bureau)*: it should launch the [`explainer`](../agents/role-prompts/explainer.md) agent for interactive use in the main conversation.
+3. Run `/architect` *(custom role activation command set up by Bureau)*: it should launch the [`architect`](../agents/claude-subagents/architect.md) agent for interactive use in the main conversation.
 
     > You can test this with any role prompt in [`agents/claude-subagents/`](../agents/claude-subagents/): the custom command created for each role will have the form `/<basename>`, using the basename of each file in the directory.
 
@@ -204,9 +203,8 @@ $ claude
 <details>
 <summary><strong>Gemini CLI</strong></summary>
 
-1. Run `/memory show`: should show content from `GEMINI.md`
-2. Check `Using:` line shows `1 GEMINI.md file`
-3. Run `gemini-explainer` *(custom launch wrapper set up by Bureau)* from the command line to see if it launches Gemini with the [`explainer`](../agents/role-prompts/explainer.md) agent active in the *main conversation*
+1. Start a new session and ask "What operational context were you given?" — it should reference Bureau's ops-hub and task-specific spokes
+2. Run `gemini-architect` *(custom launch wrapper set up by Bureau)* from the command line to see if it launches Gemini with the [`architect`](../agents/role-prompts/architect.md) agent active in the *main conversation*
     
     > You can test this with any role prompt in [`agents/role-prompts/`](../agents/role-prompts/): the launch wrapper created for each role will have the form `gemini-<basename>` for each file in the directory.
 
@@ -218,7 +216,7 @@ $ claude
 1. Ask: "What must-read files were you given?"
 2. Should reference delegation rules and agent roles
 3. Run `ls -ld ~/.agents/skills/superpowers`: it should be a symlink to `~/.codex/superpowers/skills`
-4. Run `codex-explainer` *(custom launch wrapper set up by Bureau)* from the command line to see if it launches Codex with the [`explainer`](../agents/role-prompts/explainer.md) agent active in the *main conversation*
+4. Run `codex-architect` *(custom launch wrapper set up by Bureau)* from the command line to see if it launches Codex with the [`architect`](../agents/role-prompts/architect.md) agent active in the *main conversation*
     
     > You can test this with any role prompt in [`agents/role-prompts/`](../agents/role-prompts/): the launch wrapper created for each role will have the form `codex-<basename>` for each file in the directory.
 

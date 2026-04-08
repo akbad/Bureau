@@ -36,8 +36,10 @@ def fork_dossier(
 
         # WAL-safe copy via sqlite3 backup API
         dest_conn = sqlite3.connect(dest_path)
-        source_conn.backup(dest_conn)
-        dest_conn.close()
+        try:
+            source_conn.backup(dest_conn)
+        finally:
+            dest_conn.close()
         dest_path.chmod(0o600)  # owner read/write only
 
     # Update metadata in the fork

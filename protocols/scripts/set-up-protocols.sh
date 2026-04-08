@@ -20,11 +20,6 @@ set -euo pipefail
 # Retrieve absolute paths
 CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # protocols dir
 REPO_ROOT="$(cd "$CONFIGS_DIR/.." && pwd)"
-CONTEXT_DIR="$REPO_ROOT/protocols/context"
-CONTEXT_TEMPLATES="$CONTEXT_DIR/templates"
-CONTEXT_GENERATED="$CONTEXT_DIR/generated"
-mkdir -p "$CONTEXT_GENERATED"
-
 # Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
 source "$REPO_ROOT/bin/lib/logging.sh"
@@ -154,90 +149,6 @@ create_safe_symlink() {
     log_success "Created symlink: $target -> $source"
 }
 
-remove_bureau_symlink_if_present() {
-    local target="$1"
-    local expected_source="$2"
-
-    if [[ -L "$target" ]]; then
-        local current_link
-        current_link="$(readlink "$target")"
-        if [[ "$current_link" == "$expected_source" ]]; then
-            rm "$target"
-            log_success "Removed Bureau symlink: $target"
-        fi
-    fi
-}
-
-generate_context_files() {
-    local output_style_enabled="${1:-true}"
-
-    if [[ ! -f "$CONTEXT_TEMPLATES/AGENTS.template.md" ]] || [[ ! -f "$CONTEXT_TEMPLATES/CLAUDE.template.md" ]]; then
-        log_error "Cannot find context templates in $CONTEXT_TEMPLATES"
-        exit 1
-    fi
-
-    mkdir -p "$CONTEXT_GENERATED"
-
-    AGENTS_TEMPLATE_PATH="$CONTEXT_TEMPLATES/AGENTS.template.md" \
-    AGENTS_OUTPUT_PATH="$CONTEXT_GENERATED/AGENTS.md" \
-    PROTOCOLS_DIR="$BUREAU_PROTOCOLS_DIR" \
-    OUTPUT_STYLE_ENABLED="$output_style_enabled" \
-    python - <<'PY'
-from pathlib import Path
-import os
-import re
-
-template_path = Path(os.environ["AGENTS_TEMPLATE_PATH"])
-output_path = Path(os.environ["AGENTS_OUTPUT_PATH"])
-protocols_dir = os.environ["PROTOCOLS_DIR"]
-text = template_path.read_text(encoding="utf-8").replace("{{PROTOCOLS_DIR}}", protocols_dir)
-
-if os.environ["OUTPUT_STYLE_ENABLED"] != "true":
-    text = re.sub(
-        r"### \[Output style\]\(.*?\)\n\n> \*\*Read\*\*: `@.*?`\n\n",
-        "",
-        text,
-        count=1,
-        flags=re.S,
-    )
-    text = text.replace(
-        "The output style shapes always-on response behavior for this session.\n\n",
-        "",
-    )
-
-output_path.write_text(text, encoding="utf-8")
-PY
-    log_success "Generated $CONTEXT_GENERATED/AGENTS.md"
-
-    sed "s|{{PROTOCOLS_DIR}}|$BUREAU_PROTOCOLS_DIR|g" \
-        "$CONTEXT_TEMPLATES/CLAUDE.template.md" > "$CONTEXT_GENERATED/CLAUDE.md"
-    log_success "Generated $CONTEXT_GENERATED/CLAUDE.md"
-}
-
-wire_context_symlinks() {
-    if agent_enabled "Gemini CLI"; then
-        create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$HOME/.gemini/GEMINI.md"
-    fi
-
-    if agent_enabled "Codex"; then
-        create_safe_symlink "$CONTEXT_GENERATED/AGENTS.md" "$HOME/.codex/AGENTS.md"
-    fi
-
-    if agent_enabled "Claude Code"; then
-        create_safe_symlink "$CONTEXT_GENERATED/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
-    fi
-}
-
-remove_context_symlinks() {
-    remove_bureau_symlink_if_present "$HOME/.gemini/GEMINI.md" "$CONTEXT_GENERATED/AGENTS.md"
-    remove_bureau_symlink_if_present "$HOME/.codex/AGENTS.md" "$CONTEXT_GENERATED/AGENTS.md"
-    remove_bureau_symlink_if_present "$HOME/.claude/CLAUDE.md" "$CONTEXT_GENERATED/CLAUDE.md"
-}
-
-remove_generated_context_files() {
-    rm -f "$CONTEXT_GENERATED/AGENTS.md" "$CONTEXT_GENERATED/CLAUDE.md"
-}
-
 # ── Migration: move old-structure files to .deprecated/ ──────────────────────
 migrate_old_files() {
     local deprecated_dir="$BUREAU_PROTOCOLS_DIR/.deprecated"
@@ -332,7 +243,7 @@ tailor_deployed_hub() {
     HUB_PATH="$hub_path" \
     OUTPUT_STYLE_ENABLED="$output_style_enabled" \
     CODE_STANDARDS_ENABLED="$code_standards_enabled" \
-    python - <<'PY'
+    uv run python - <<'PY'
 from pathlib import Path
 import os
 import re
@@ -342,15 +253,15 @@ text = hub_path.read_text(encoding="utf-8")
 
 if os.environ["CODE_STANDARDS_ENABLED"] != "true":
     text = re.sub(
-        r'(?m)^  <read-file-when task="writing or editing code" path="[^"]+/code-standards\.md" />\n',
+        r'(?m)^\| Writing or editing code \| `[^`]+/code-standards\.md` \|\n',
         "",
         text,
     )
 
 if os.environ["OUTPUT_STYLE_ENABLED"] != "true":
     text = re.sub(
-        r"\n?    <output-style-reminder>.*?</output-style-reminder>\n",
-        "\n",
+        r"### Output style\n\n.*?\n\n(?=### )",
+        "",
         text,
         flags=re.S,
     )
@@ -400,8 +311,13 @@ remove_protocols() {
         log_warning "Failed to remove some hooks"
     fi
 
-    remove_context_symlinks
-    remove_generated_context_files
+    # Remove legacy context-file symlinks (may be dangling after generated dir removal)
+    for old_symlink in "$HOME/.gemini/GEMINI.md" "$HOME/.codex/AGENTS.md" "$HOME/.claude/CLAUDE.md"; do
+        if [[ -L "$old_symlink" ]]; then
+            rm "$old_symlink"
+            log_success "Removed legacy context symlink: $old_symlink"
+        fi
+    done
 
     if uv run python "$REPO_ROOT/protocols/scripts/configure-output-style.py" --remove-claude; then
         log_success "Removed Bureau Claude output style"
@@ -445,11 +361,6 @@ else
     fi
 
     tailor_deployed_hub "$OUTPUT_STYLE_ENABLED" "$CODE_STANDARDS_ENABLED"
-
-    log_action "Generating startup context files"
-    generate_context_files "$OUTPUT_STYLE_ENABLED"
-    log_action "Linking generated context files"
-    wire_context_symlinks
 fi
 
 # ============================================================================
@@ -460,12 +371,16 @@ if [[ "$MODE" != "off" ]]; then
     if [[ ${#CONFIGURE_HOOK_AGENT_ARGS[@]} -gt 0 ]]; then
         log_action "Configuring hook-based hub reinforcement"
 
+        HOOK_ARGS=(--protocols-dir "$BUREAU_PROTOCOLS_DIR" "${CONFIGURE_HOOK_AGENT_ARGS[@]}")
+        if [[ "$OUTPUT_STYLE_ENABLED" == true ]]; then
+            HOOK_ARGS+=(--output-style-path "$BUREAU_PROTOCOLS_DIR/$BUREAU_OUTPUT_STYLE")
+        fi
+
         if uv run python "$REPO_ROOT/protocols/scripts/configure-hooks.py" \
-            --protocols-dir "$BUREAU_PROTOCOLS_DIR" \
-            "${CONFIGURE_HOOK_AGENT_ARGS[@]}"; then
-            log_success "Hook-based hub reinforcement configured"
+            "${HOOK_ARGS[@]}"; then
+            log_success "Hook-based context injection configured"
         else
-            log_warning "Failed to configure supported hooks - agents will still read generated context files at session start"
+            log_warning "Failed to configure hooks"
         fi
     else
         log_info "No hook-capable CLIs detected; skipping hook-based reinforcement"
@@ -483,19 +398,18 @@ if [[ "$MODE" != "off" ]]; then
     if agent_enabled "Gemini CLI"; then
         echo "Verification for Gemini CLI:"
         echo "  - Start a new session and ask 'What operational context were you given?'"
-        echo "    (should mention output-style and ops-hub via GEMINI.md)"
+        echo "    (should mention output-style and ops-hub)"
         echo ""
     fi
 
     if agent_enabled "Codex"; then
         echo "Verification for Codex:"
         echo "  - Start a new session and ask 'What operational context were you given?'"
-        echo "    (should mention output-style and ops-hub via ~/.codex/AGENTS.md)"
+        echo "    (should mention output-style and ops-hub)"
         echo ""
     fi
 
     echo "Configured CLIs now have access to:"
-    echo "  - Generated startup context files: $CONTEXT_GENERATED"
     echo "  - Hub routing table: $BUREAU_PROTOCOLS_DIR/ops-hub.md"
     if [[ "$OUTPUT_STYLE_ENABLED" == true ]]; then
         echo "  - Runtime output style: $BUREAU_PROTOCOLS_DIR/$BUREAU_OUTPUT_STYLE"
@@ -519,7 +433,7 @@ log_action "Setting up Bureau-managed skills"
 
 SCRIPTS_DIR="$(dirname "${BASH_SOURCE[0]}")"
 if [[ -x "$SCRIPTS_DIR/set-up-skills.sh" ]]; then
-    "$SCRIPTS_DIR/set-up-skills.sh"
+    "$SCRIPTS_DIR/set-up-skills.sh" --mode "$MODE"
 else
     log_warning "set-up-skills.sh not found or not executable; skipping skill setup"
 fi

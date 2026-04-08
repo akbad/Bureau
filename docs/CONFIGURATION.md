@@ -396,7 +396,7 @@ Setup compiles whichever sources are selected into the two root runtime artifact
 
 **Runtime behavior:**
 - Claude Code: Bureau installs a native Claude output style and selects it in `~/.claude/settings.json` when `protocols.output_style` is enabled
-- Codex and Gemini: generated `AGENTS.md` loads `output-style.md` and `ops-hub.md` at session start when `protocols.output_style` is enabled
+- Codex and Gemini: SessionStart hooks load `output-style.md` and `ops-hub.md` at session start when `protocols.output_style` is enabled
 - OpenCode: generated config includes `output-style.md` only when the runtime artifact exists, and always includes `ops-hub.md`
 - Changes take effect on a new session after re-running `bin/open-bureau`
 
@@ -426,9 +426,7 @@ Controls which agent roles are available when launching CLIs **directly** throug
 roles:
   enabled:
     - architect
-    - debugger
     - code-reviewer
-    - optimization
     - testing
     - migration-refactoring
   disabled: []
@@ -457,11 +455,9 @@ roles:
 
 **Default enabled agents:**
 
-The default configuration enables 6 core agent roles, excluding all others:
+The default configuration enables 4 core agent roles, excluding all others:
 - `architect` - Principal software architect for system design
-- `debugger` - Deep debugging and root-cause analysis
 - `code-reviewer` - Code quality and security audits
-- `optimization` - Performance optimization specialist
 - `testing` - Test infrastructure and quality engineering
 - `migration-refactoring` - Large-scale refactoring strategist
 
@@ -480,7 +476,7 @@ roles:
 roles:
   enabled: all
   disabled:
-    - chaos-engineer
+    - historian
     - incident-commander  # Exclude specific roles from "all"
 ```
 
@@ -491,9 +487,9 @@ roles:
 roles:
   enabled:
     - architect
-    - frontend
+    - observability
     - security-compliance
-    - distributed-systems
+    - schema-evolution
   disabled: []
 ```
 
@@ -813,7 +809,7 @@ Bureau maintains a user-scoped directory of generated agent context files that a
 - Setup (`bin/open-bureau`) reconciles Bureau-owned files in this directory according to `protocols.mode`
 - Setup compiles `protocols.output_style` into `~/.config/bureau/protocols/output-style.md` unless the feature is `off`
 - Setup compiles `protocols.code_standards` into `~/.config/bureau/protocols/code-standards.md` unless the feature is `off`
-- Codex and Gemini load `output-style.md` and `ops-hub.md` at session start when the output-style artifact exists; Claude uses the compiled file to install a native output style; OpenCode includes `output-style.md` only when the runtime artifact exists
+- Codex and Gemini SessionStart hooks load `output-style.md` and `ops-hub.md` at session start when the output-style artifact exists; Claude uses the compiled file to install a native output style; OpenCode includes `output-style.md` only when the runtime artifact exists
 - Customize these generated artifacts through config, not by editing files in `~/.config/bureau/protocols/` directly
 
 > [!WARNING]

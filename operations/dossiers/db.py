@@ -20,14 +20,19 @@ MAX_TASKS_PER_DOSSIER = 200
 VALID_STATUSES = {"pending", "in_progress", "completed", "blocked", "deleted"}
 
 
+def _check_path_containment(path: Path, parent: Path) -> None:
+    """Raise ValueError if *path* escapes *parent* after resolution."""
+    if not path.resolve().is_relative_to(parent.resolve()):
+        raise ValueError(f"Path escapes allowed directory: {path}")
+
+
 def safe_db_path(dossiers_dir: Path, slug: str) -> Path:
     """Resolve a slug to a DB path, ensuring it stays within the dossiers directory.
 
     Prevents path traversal attacks via crafted slugs like '../../etc/foo'.
     """
     path = (dossiers_dir / f"{slug}.db").resolve()
-    if not str(path).startswith(str(dossiers_dir.resolve())):
-        raise ValueError(f"Invalid slug: path escapes dossier directory")
+    _check_path_containment(path, dossiers_dir)
     return path
 
 
@@ -121,10 +126,12 @@ def create_dossier_db(path: Path) -> None:
     """Create a new dossier database with the full schema."""
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     conn = sqlite3.connect(path)
-    conn.executescript(_SCHEMA_SQL)
-    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-    conn.commit()
-    conn.close()
+    try:
+        conn.executescript(_SCHEMA_SQL)
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.commit()
+    finally:
+        conn.close()
     path.chmod(0o600)  # owner read/write only
 
 
@@ -140,6 +147,7 @@ def _ensure_schema_current(conn: sqlite3.Connection) -> None:
     if "context_notes" not in columns:
         try:
             conn.execute("ALTER TABLE tasks ADD COLUMN context_notes TEXT")
+            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             conn.commit()
         except sqlite3.OperationalError as e:
             if "duplicate column" in str(e).lower():

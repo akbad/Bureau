@@ -64,17 +64,37 @@ def _cat_command(ops_hub_path: Path) -> str:
     return f"cat {ops_hub_path}"
 
 
-def _session_start_command(ops_hub_path: Path) -> str:
-    """Build the shell command that cats the ops-hub file at session start."""
-    return f"cat {ops_hub_path}"
+def _session_start_command(ops_hub_path: Path, output_style_path: Path | None = None) -> str:
+    """Build the shell command that cats all Bureau protocol files at session start.
+
+    Always includes: ops-hub, session-start, task-assessment, task-execution,
+    task-completion.  Conditionally prepends output-style when provided
+    (used by Codex/Gemini; Claude handles output style separately).
+    """
+    ops_dir = ops_hub_path.parent / "ops"
+    spoke_files = [
+        ops_dir / "session-start.md",
+        ops_dir / "task-assessment.md",
+        ops_dir / "task-execution.md",
+        ops_dir / "task-completion.md",
+    ]
+    cat_args = f"{ops_hub_path} " + " ".join(str(f) for f in spoke_files)
+    if output_style_path is not None:
+        return f"cat {output_style_path} && cat {cat_args}"
+    return f"cat {cat_args}"
 
 
 def _reminder_command(ops_hub_path: Path) -> str:
-    """Build a short echo reminder for per-prompt hooks (avoids re-reading the full file)."""
+    """Build a short echo reminder for per-prompt hooks (avoids re-reading full files)."""
     return (
-        f"echo '<bureau-reminder>The Bureau ops-hub was loaded at session start "
-        f"from {ops_hub_path}. Re-read it when you need task routing or "
-        f"governance rules.</bureau-reminder>'"
+        "echo '<bureau-reminder>"
+        "Bureau protocols loaded at session start. Key rules: "
+        "factual accuracy >> speed; query all memory systems before work; "
+        "use tool selection table for MCP routing; "
+        "explicit approval before commits/pushes/deletions; "
+        "/fold-dossier to save, /unfold-dossier to resume. "
+        "Full details in your session-start context above."
+        "</bureau-reminder>'"
     )
 
 
@@ -125,7 +145,7 @@ def _write_text_config(path: Path, text: str, *, dry_run: bool) -> None:
 # Claude Code
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _configure_claude_session_start(ops_hub_path: Path, *, dry_run: bool) -> None:
+def _configure_claude_session_start(ops_hub_path: Path, *, output_style_path: Path | None = None, dry_run: bool) -> None:
     """Insert or update the SessionStart hook in Claude Code settings.
 
     Same JSON structure as UserPromptSubmit: hooks.SessionStart is a list
@@ -166,7 +186,7 @@ def _configure_claude_session_start(ops_hub_path: Path, *, dry_run: bool) -> Non
     _write_json_config(config_path, data, dry_run=dry_run)
 
 
-def _configure_claude(ops_hub_path: Path, *, dry_run: bool) -> None:
+def _configure_claude(ops_hub_path: Path, *, output_style_path: Path | None = None, dry_run: bool) -> None:
     """Insert or update the per-prompt reminder hook and session-start hook.
 
     The per-prompt hook lives in hooks.UserPromptSubmit and echoes a short
@@ -175,7 +195,7 @@ def _configure_claude(ops_hub_path: Path, *, dry_run: bool) -> None:
     The session-start hook is configured via _configure_claude_session_start.
     """
     # configure both tiers
-    _configure_claude_session_start(ops_hub_path, dry_run=dry_run)
+    _configure_claude_session_start(ops_hub_path, output_style_path=output_style_path, dry_run=dry_run)
 
     config_path = Path.home() / ".claude" / "settings.json"
     data = _load_json_config(config_path)
@@ -366,13 +386,13 @@ def _update_codex_config(
     _write_text_config(config_path, text, dry_run=dry_run)
 
 
-def _codex_session_entry(ops_hub_path: Path) -> dict[str, Any]:
+def _codex_session_entry(ops_hub_path: Path, output_style_path: Path | None = None) -> dict[str, Any]:
     return {
         "matcher": "startup|resume",
         "hooks": [
             {
                 "type": "command",
-                "command": _session_start_command(ops_hub_path),
+                "command": _session_start_command(ops_hub_path, output_style_path),
                 "timeout": HOOK_TIMEOUT_SECONDS,
                 "statusMessage": CODEX_SESSION_STATUS_MESSAGE,
             }
@@ -456,7 +476,7 @@ def _remove_codex_hooks_json_entries(
     _write_json_config(hooks_path, data, dry_run=dry_run)
 
 
-def _configure_codex_session_start(ops_hub_path: Path, *, dry_run: bool) -> None:
+def _configure_codex_session_start(ops_hub_path: Path, *, output_style_path: Path | None = None, dry_run: bool) -> None:
     """Configure Codex SessionStart via hooks.json and migrate old TOML hooks."""
     _update_codex_config(
         ensure_feature_flag=True,
@@ -466,15 +486,15 @@ def _configure_codex_session_start(ops_hub_path: Path, *, dry_run: bool) -> None
     )
     _upsert_codex_hooks_json(
         "SessionStart",
-        _codex_session_entry(ops_hub_path),
+        _codex_session_entry(ops_hub_path, output_style_path),
         is_bureau_entry=_is_codex_session_hook_entry,
         dry_run=dry_run,
     )
 
 
-def _configure_codex(ops_hub_path: Path, *, dry_run: bool) -> None:
+def _configure_codex(ops_hub_path: Path, *, output_style_path: Path | None = None, dry_run: bool) -> None:
     """Configure both Codex Bureau hooks via hooks.json and migrate old TOML hooks."""
-    _configure_codex_session_start(ops_hub_path, dry_run=dry_run)
+    _configure_codex_session_start(ops_hub_path, output_style_path=output_style_path, dry_run=dry_run)
     _update_codex_config(
         ensure_feature_flag=True,
         remove_sessionstart_block=False,
@@ -493,7 +513,7 @@ def _configure_codex(ops_hub_path: Path, *, dry_run: bool) -> None:
 # Gemini CLI
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _configure_gemini_session_start(ops_hub_path: Path, *, dry_run: bool) -> None:
+def _configure_gemini_session_start(ops_hub_path: Path, *, output_style_path: Path | None = None, dry_run: bool) -> None:
     """Insert or update the SessionStart hook in Gemini CLI settings.
 
     Same JSON structure as BeforeAgent.  Uses name "bureau-ops-hub-session"
@@ -502,7 +522,7 @@ def _configure_gemini_session_start(ops_hub_path: Path, *, dry_run: bool) -> Non
     """
     config_path = Path.home() / ".gemini" / "settings.json"
     data = _load_json_config(config_path)
-    command = _session_start_command(ops_hub_path)
+    command = _session_start_command(ops_hub_path, output_style_path)
 
     hooks_section: dict[str, Any] = data.setdefault("hooks", {})
     # Gemini uses a separate top-level "hooksConfig" for the enable toggle
@@ -545,7 +565,7 @@ def _configure_gemini_session_start(ops_hub_path: Path, *, dry_run: bool) -> Non
     _write_json_config(config_path, data, dry_run=dry_run)
 
 
-def _configure_gemini(ops_hub_path: Path, *, dry_run: bool) -> None:
+def _configure_gemini(ops_hub_path: Path, *, output_style_path: Path | None = None, dry_run: bool) -> None:
     """Insert or update the per-prompt reminder hook and session-start hook.
 
     The per-prompt hook lives under hooks.BeforeAgent and echoes a short
@@ -553,7 +573,7 @@ def _configure_gemini(ops_hub_path: Path, *, dry_run: bool) -> None:
     "bureau-ops-hub" (which covers both old and new style commands).
     """
     # configure both tiers
-    _configure_gemini_session_start(ops_hub_path, dry_run=dry_run)
+    _configure_gemini_session_start(ops_hub_path, output_style_path=output_style_path, dry_run=dry_run)
 
     config_path = Path.home() / ".gemini" / "settings.json"
     data = _load_json_config(config_path)
@@ -777,6 +797,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              "Required unless --remove is set.",
     )
     parser.add_argument(
+        "--output-style-path",
+        type=Path,
+        default=None,
+        help="Path to output-style.md. When provided, Gemini/Codex session-start "
+             "hooks inject it before ops-hub.",
+    )
+    parser.add_argument(
         "--agent",
         action="append",
         required=True,
@@ -820,6 +847,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         ops_hub_path = protocols_dir / "ops-hub.md"
+        output_style_path: Path | None = args.output_style_path
         if not ops_hub_path.exists():
             LOG.warning(
                 "ops-hub.md does not exist yet at %s; hooks will reference this path",
@@ -844,7 +872,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             handler = AGENT_HANDLERS[agent]
             try:
-                handler(ops_hub_path, dry_run=args.dry_run)
+                handler(ops_hub_path, output_style_path=output_style_path, dry_run=args.dry_run)
             except Exception:
                 LOG.exception("failed to configure %s", agent)
                 errors += 1

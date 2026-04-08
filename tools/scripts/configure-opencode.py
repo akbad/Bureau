@@ -16,6 +16,11 @@ LEGACY_BUREAU_INSTRUCTIONS = {
     "/repo/protocols/context/static/handoff-guide.md",
 }
 
+LEGACY_BUREAU_AGENT_PROMPT_MARKERS = (
+    "/.config/opencode/agent/bureau-agents/",
+    "/agents/role-prompts/",
+)
+
 
 def _is_bureau_instruction(path: str) -> bool:
     """Identify Bureau-managed instruction entries across current and legacy layouts."""
@@ -34,6 +39,37 @@ def reconcile_instructions(existing: list[str], managed: list[str], remove: bool
     if remove:
         return extras
     return list(managed) + extras
+
+
+def _is_bureau_agent_entry(config: object) -> bool:
+    """Identify Bureau-managed OpenCode agent entries across current and legacy layouts."""
+    if not isinstance(config, dict):
+        return False
+
+    description = config.get("description")
+    if isinstance(description, str) and description.startswith("Bureau agent:"):
+        return True
+
+    prompt = config.get("prompt")
+    return isinstance(prompt, str) and any(
+        marker in prompt for marker in LEGACY_BUREAU_AGENT_PROMPT_MARKERS
+    )
+
+
+def reconcile_agents(
+    existing: dict[str, object],
+    managed: dict[str, object],
+    remove: bool = False,
+) -> dict[str, object]:
+    """Keep user-defined agents while replacing or removing Bureau-managed agents."""
+    extras = {
+        name: config
+        for name, config in existing.items()
+        if not _is_bureau_agent_entry(config)
+    }
+    if remove:
+        return extras
+    return {**managed, **extras}
 
 
 def merge_missing(base: dict, add: dict, parent_key: str = "") -> dict:
@@ -82,6 +118,15 @@ def main() -> int:
         merged["instructions"] = reconcile_instructions(
             [str(path) for path in existing_instructions],
             [str(path) for path in managed_instructions],
+            remove=args.bare,
+        )
+
+    existing_agents = target_cfg.get("agent", {})
+    managed_agents = generated_cfg.get("agent", {})
+    if isinstance(existing_agents, dict) and isinstance(managed_agents, dict):
+        merged["agent"] = reconcile_agents(
+            existing_agents,
+            managed_agents,
             remove=args.bare,
         )
     cu.save_json_config(str(target_path), merged, indent=2)

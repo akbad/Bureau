@@ -256,15 +256,6 @@ check_port() {
     fi
 }
 
-# Kill process on a port
-kill_port() {
-    local port=$1
-    if check_port "$port"; then
-        log_warning "Port $port is in use. Killing existing process..."
-        lsof -ti:"$port" | xargs kill -9 2>/dev/null || true
-        sleep 1
-    fi
-}
 
 wait_for_tcp() {
     local service_name=$1
@@ -473,8 +464,18 @@ start_http_process() {
     local pid_var="HTTP_PID_${service_id}"
     start_http_server "$service_name" "$health_port" "$pid_var" "${start_cmd[@]}"
 
+    # Always resolve to the actual port-binding PID (the process holding the
+    # LISTEN socket), not the PID from $! which may be a parent wrapper (e.g.
+    # uv/uvx forks a child Python process rather than exec'ing into it).
+    # This ensures consistent PID reporting across first-run and reuse paths,
+    # and that the kill command targets the correct process.
     local pid
-    pid=$(eval "echo \${$pid_var}")
+    pid=$(lsof -ti:"$health_port" -sTCP:LISTEN | head -1)
+    if [[ -z "$pid" ]]; then
+        # Fallback to the PID from start_http_server (should not happen if
+        # the server started or was found successfully)
+        pid=$(eval "echo \${$pid_var}")
+    fi
     HTTP_SERVICE_PIDS["$service_id"]="$pid"
     HTTP_SERVICE_PORTS["$service_id"]="$health_port"
     HTTP_SERVICE_LOGS["$service_id"]="/tmp/mcp-${service_name}-server.log"
@@ -1314,16 +1315,36 @@ fi
 
 log_empty_line
 TAKE_DOWN_FILE="$REPO_ROOT/bin/close-bureau"
-echo "#!/usr/bin/env bash" > "$TAKE_DOWN_FILE"
-echo -e "# Run this script to stop servers and containers launched by Bureau's tools script\n" >> "$TAKE_DOWN_FILE"
-if [[ -n "$KILL_HTTPS_CMD" ]]; then
-    echo -e "$KILL_HTTPS_CMD" >> "$TAKE_DOWN_FILE"
-fi
-if [[ -n "$docker_stop_cmd" ]]; then
-    echo -e "$docker_stop_cmd" >> "$TAKE_DOWN_FILE"
-fi
+{
+    echo "#!/usr/bin/env bash"
+    echo "# Stop servers and containers launched by Bureau's tools script"
+    echo "#"
+    echo "# Port-based shutdown: finds the actual port-binding process at run time"
+    echo "# rather than relying on stale PIDs that may have been recycled by the OS."
+    echo "# Also kills the parent wrapper (uv/uvx) to avoid orphaned processes."
+    echo ""
+    if [[ ${#HTTP_SERVICE_PORTS[@]} -gt 0 ]]; then
+        echo "for port in ${HTTP_SERVICE_PORTS[*]}; do"
+        # Use heredoc-style indentation for clarity in the generated script
+        cat <<'SHUTDOWN_BODY'
+    pid=$(lsof -ti:"$port" -sTCP:LISTEN 2>/dev/null)
+    if [[ -n "$pid" ]]; then
+        ppid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+        kill "$pid" 2>/dev/null
+        # Kill the wrapper parent (e.g. uv/uvx) if it's not init/launchd
+        if [[ -n "$ppid" && "$ppid" -gt 1 ]]; then
+            kill "$ppid" 2>/dev/null
+        fi
+    fi
+done
+SHUTDOWN_BODY
+    fi
+    if [[ -n "$docker_stop_cmd" ]]; then
+        echo "$docker_stop_cmd"
+    fi
+} > "$TAKE_DOWN_FILE"
 chmod +x "$TAKE_DOWN_FILE"
-log_info "✔︎ Stop commands also saved to $RED$TAKE_DOWN_FILE$NC for convenience"
+log_info "Stop commands saved to $RED$TAKE_DOWN_FILE$NC for convenience"
 
 if [[ "$AUTO_APPROVE_MCP" == true ]]; then
     log_empty_line

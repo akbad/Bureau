@@ -134,19 +134,52 @@ class TestCliFold:
         assert result.returncode == 1
         assert "stdin payload is required" in result.stderr
 
-    def test_fold_legacy_digest_file_path_still_works(self, dossiers_dir: Path, tmp_path: Path):
-        digest_file = tmp_path / "digest.md"
-        digest_file.write_text("Legacy digest content.")
+    def test_fold_json_digest_file_outside_dossiers_dir_rejected(self, dossiers_dir: Path, tmp_path: Path):
+        """digest_file in JSON input must be within the dossiers directory."""
+        outside_file = tmp_path / "secret.txt"
+        outside_file.write_text("sensitive content")
+        payload = json.dumps({
+            "name": "Test",
+            "agent": "claude-code",
+            "digest_file": str(outside_file),
+            "tasks": [],
+            "decisions": [],
+            "files": [],
+        })
         result = subprocess.run(
             [
                 sys.executable, "-m", "operations.dossiers",
                 "fold",
-                "--name", "Legacy CLI Test",
-                "--agent", "claude-code",
-                "--digest-file", str(digest_file),
+                "--input-file", "-",
                 "--dossiers-dir", str(dossiers_dir),
             ],
             capture_output=True, text=True,
+            input=payload,
+        )
+        assert result.returncode == 1
+        assert "digest_file must be within the dossiers directory" in result.stderr
+
+    def test_fold_json_digest_file_inside_dossiers_dir_accepted(self, dossiers_dir: Path):
+        """digest_file within the dossiers directory is accepted."""
+        digest_file = dossiers_dir / "fold-digest.md"
+        digest_file.write_text("Digest from file.")
+        payload = json.dumps({
+            "name": "Test",
+            "agent": "claude-code",
+            "digest_file": str(digest_file),
+            "tasks": [],
+            "decisions": [],
+            "files": [],
+        })
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "operations.dossiers",
+                "fold",
+                "--input-file", "-",
+                "--dossiers-dir", str(dossiers_dir),
+            ],
+            capture_output=True, text=True,
+            input=payload,
         )
         assert result.returncode == 0
         assert "Dossier saved:" in result.stdout

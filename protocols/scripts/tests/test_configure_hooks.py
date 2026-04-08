@@ -47,6 +47,25 @@ def _load_hooks_json(path: Path) -> dict:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# _session_start_command helper
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def test_session_start_command_without_output_style():
+    cmd = _session_start_command(Path("/proto/ops-hub.md"))
+    assert cmd.startswith("cat /proto/ops-hub.md ")
+    for spoke in ("session-start.md", "task-assessment.md", "task-execution.md", "task-completion.md"):
+        assert f"/proto/ops/{spoke}" in cmd
+
+
+def test_session_start_command_with_output_style():
+    cmd = _session_start_command(Path("/proto/ops-hub.md"), Path("/proto/output-style.md"))
+    assert cmd.startswith("cat /proto/output-style.md && cat /proto/ops-hub.md ")
+    for spoke in ("session-start.md", "task-assessment.md", "task-execution.md", "task-completion.md"):
+        assert f"/proto/ops/{spoke}" in cmd
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Claude Code per-prompt hooks
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -154,11 +173,11 @@ class TestClaudeHook:
 
         data = json.loads((settings_dir / "settings.json").read_text())
         hook_groups = data["hooks"]["UserPromptSubmit"]
-        # should still be just one hook group, with updated path
+        # should still be just one hook group, updated to current reminder
         assert len(hook_groups) == 1
-        assert str(new_hub) in hook_groups[0]["hooks"][0]["command"]
+        assert "bureau-reminder" in hook_groups[0]["hooks"][0]["command"]
 
-        # session-start hook should also be updated
+        # session-start hook should also be updated with new path
         session_hooks = data["hooks"]["SessionStart"]
         assert len(session_hooks) == 1
         assert str(new_hub) in session_hooks[0]["hooks"][0]["command"]
@@ -300,6 +319,27 @@ class TestClaudeSessionStart:
         hooks = data["hooks"]["SessionStart"]
         assert len(hooks) == 1
         assert str(new_hub) in hooks[0]["hooks"][0]["command"]
+
+    def test_ignores_output_style_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Claude SessionStart should NOT include output-style even when provided."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        ops_hub = tmp_path / "protocols" / "ops-hub.md"
+        ops_hub.parent.mkdir(parents=True)
+        ops_hub.touch()
+        style_path = tmp_path / "protocols" / "output-style.md"
+        style_path.touch()
+
+        _configure_claude_session_start(ops_hub, output_style_path=style_path, dry_run=False)
+
+        settings = tmp_path / ".claude" / "settings.json"
+        data = json.loads(settings.read_text())
+        hooks = data["hooks"]["SessionStart"]
+        assert len(hooks) == 1
+        command = hooks[0]["hooks"][0]["command"]
+        assert "output-style" not in command
+        assert command == _session_start_command(ops_hub)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -563,6 +603,27 @@ class TestCodexSessionStart:
         assert first_config == second_config
         assert first_hooks == second_hooks
 
+    def test_includes_output_style(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex SessionStart should include output-style when provided."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        ops_hub = tmp_path / "protocols" / "ops-hub.md"
+        ops_hub.parent.mkdir(parents=True)
+        ops_hub.touch()
+        style_path = tmp_path / "protocols" / "output-style.md"
+        style_path.touch()
+
+        _configure_codex_session_start(ops_hub, output_style_path=style_path, dry_run=False)
+
+        hooks_path = tmp_path / ".codex" / "hooks.json"
+        hooks_data = _load_hooks_json(hooks_path)
+        session_start = hooks_data["hooks"]["SessionStart"]
+        assert len(session_start) == 1
+        command = session_start[0]["hooks"][0]["command"]
+        assert "output-style.md" in command
+        assert "ops-hub.md" in command
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Gemini CLI per-prompt hooks
@@ -800,6 +861,73 @@ class TestGeminiSessionStart:
         assert len(hooks) == 1
         assert str(new_hub) in hooks[0]["hooks"][0]["command"]
 
+    def test_includes_output_style(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Gemini SessionStart should include output-style when provided."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        ops_hub = tmp_path / "protocols" / "ops-hub.md"
+        ops_hub.parent.mkdir(parents=True)
+        ops_hub.touch()
+        style_path = tmp_path / "protocols" / "output-style.md"
+        style_path.touch()
+
+        _configure_gemini_session_start(ops_hub, output_style_path=style_path, dry_run=False)
+
+        settings = tmp_path / ".gemini" / "settings.json"
+        data = json.loads(settings.read_text())
+        hooks = data["hooks"]["SessionStart"]
+        assert len(hooks) == 1
+        command = hooks[0]["hooks"][0]["command"]
+        assert "output-style.md" in command
+        assert "ops-hub.md" in command
+        assert "&&" in command
+
+    def test_migration_old_command_updated_to_compound(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Reconfiguring with output_style_path updates an existing hook to compound form."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        gemini_dir = tmp_path / ".gemini"
+        gemini_dir.mkdir(parents=True)
+        ops_hub = tmp_path / "protocols" / "ops-hub.md"
+        ops_hub.parent.mkdir(parents=True)
+        ops_hub.touch()
+        style_path = tmp_path / "protocols" / "output-style.md"
+        style_path.touch()
+
+        # pre-populate with existing Bureau SessionStart hook (plain cat command)
+        existing = {
+            "hooksConfig": {"enabled": True},
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "name": "bureau-ops-hub-session",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": f"cat {ops_hub}",
+                                "timeout": 5000,
+                                "description": "Inject full ops hub at session start",
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+        (gemini_dir / "settings.json").write_text(json.dumps(existing))
+
+        _configure_gemini_session_start(ops_hub, output_style_path=style_path, dry_run=False)
+
+        data = json.loads((gemini_dir / "settings.json").read_text())
+        hooks = data["hooks"]["SessionStart"]
+        # should still be exactly one SessionStart hook entry
+        assert len(hooks) == 1
+        command = hooks[0]["hooks"][0]["command"]
+        assert "output-style.md" in command
+        assert "ops-hub.md" in command
+        assert "&&" in command
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # CLI interface
@@ -938,6 +1066,36 @@ class TestCLI:
         gemini_data = json.loads((tmp_path / ".gemini" / "settings.json").read_text())
         assert len(gemini_data["hooks"]["BeforeAgent"]) == 0
         assert len(gemini_data["hooks"]["SessionStart"]) == 0
+
+    def test_output_style_path_argument(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--output-style-path should be passed through to Gemini session hook."""
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        protocols_dir = tmp_path / "protocols"
+        protocols_dir.mkdir()
+        (protocols_dir / "ops-hub.md").touch()
+        style_path = protocols_dir / "output-style.md"
+        style_path.touch()
+
+        result = main(
+            [
+                "--protocols-dir",
+                str(protocols_dir),
+                "--output-style-path",
+                str(style_path),
+                "--agent",
+                "gemini",
+            ]
+        )
+
+        assert result == 0
+        settings = tmp_path / ".gemini" / "settings.json"
+        data = json.loads(settings.read_text())
+        session_hooks = data["hooks"]["SessionStart"]
+        assert len(session_hooks) == 1
+        command = session_hooks[0]["hooks"][0]["command"]
+        assert "output-style.md" in command
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

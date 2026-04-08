@@ -9,6 +9,8 @@
 #     - Gemini CLI:   ~/.agents/skills/  (shared with Codex)
 #
 # Args:
+#    --mode MODE    Protocol deployment mode (replace|sync). When replace or sync,
+#                   foreign symlinks at Bureau skill names are overwritten.
 #    --dry-run      Show what would be done without making changes
 #    --uninstall    Remove all Bureau skill installs
 
@@ -22,6 +24,7 @@ source "$REPO_ROOT/bin/lib/logging.sh"
 
 DRY_RUN=false
 UNINSTALL=false
+SKILL_MODE=""
 SKILLS_CONFIG_PATH="$REPO_ROOT/protocols/context/generated/skills-config.generated.json"
 SKILLS_CONFIG_GENERATOR="$REPO_ROOT/protocols/scripts/generate-skills-config.py"
 
@@ -35,6 +38,10 @@ LEGACY_BUREAU_SKILL_PREFIX="bureau-"
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        -m|--mode)
+            SKILL_MODE="$2"
+            shift 2
+            ;;
         -n|--dry-run)
             DRY_RUN=true
             shift
@@ -114,8 +121,12 @@ set_up_bureau_skill_dirs() {
         fi
 
         if [[ -L "$skill_install_dir" ]] && ! is_bureau_skill_symlink "$skill_install_dir"; then
-            log_warning "Skipped conflicting foreign symlink: $skill_install_dir"
-            continue
+            if [[ "$SKILL_MODE" == "replace" || "$SKILL_MODE" == "sync" ]]; then
+                log_warning "Replacing foreign symlink: $skill_install_dir (was -> $(readlink "$skill_install_dir"))"
+            else
+                log_warning "Skipped conflicting foreign symlink: $skill_install_dir"
+                continue
+            fi
         fi
 
         ln -sfn "$skill_source_dir" "$skill_install_dir"

@@ -92,3 +92,83 @@ def test_bare_mode_removes_only_bureau_managed_instruction_entries(tmp_path: Pat
     merged = json.loads(target.read_text(encoding="utf-8"))
     assert merged["instructions"] == ["/custom/user.md"]
     assert merged["theme"] == "existing"
+
+
+def test_reconciles_bureau_managed_agent_entries(tmp_path: Path) -> None:
+    target = tmp_path / "opencode.json"
+    generated = tmp_path / "generated.json"
+    target.write_text(
+        json.dumps(
+            {
+                "agent": {
+                    "accessibility-auditor": {
+                        "mode": "all",
+                        "description": "Bureau agent: accessibility-auditor",
+                        "prompt": "{file:/Users/test/.config/opencode/agent/bureau-agents/accessibility-auditor.md}",
+                    },
+                    "custom-agent": {
+                        "mode": "all",
+                        "description": "My custom agent",
+                        "prompt": "{file:/Users/test/.config/opencode/agent/custom-agent.md}",
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    generated.write_text(json.dumps({"agent": {}}), encoding="utf-8")
+
+    assert _run_main(["--target", str(target), "--generated", str(generated)]) == 0
+
+    merged = json.loads(target.read_text(encoding="utf-8"))
+    assert merged["agent"] == {
+        "custom-agent": {
+            "mode": "all",
+            "description": "My custom agent",
+            "prompt": "{file:/Users/test/.config/opencode/agent/custom-agent.md}",
+        }
+    }
+
+
+def test_bare_mode_removes_only_bureau_managed_agent_entries(tmp_path: Path) -> None:
+    target = tmp_path / "opencode.json"
+    generated = tmp_path / "generated.json"
+    target.write_text(
+        json.dumps(
+            {
+                "agent": {
+                    "architecture-audit": {
+                        "mode": "all",
+                        "description": "Bureau agent: architecture-audit",
+                        "prompt": "{file:/Users/test/.config/opencode/agent/bureau-agents/architecture-audit.md}",
+                    },
+                    "custom-agent": {
+                        "mode": "all",
+                        "description": "My custom agent",
+                        "prompt": "{file:/Users/test/.config/opencode/agent/custom-agent.md}",
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    generated.write_text(json.dumps({"agent": {}}), encoding="utf-8")
+
+    assert _run_main(
+        [
+            "--target",
+            str(target),
+            "--generated",
+            str(generated),
+            "--bare",
+        ]
+    ) == 0
+
+    merged = json.loads(target.read_text(encoding="utf-8"))
+    assert merged["agent"] == {
+        "custom-agent": {
+            "mode": "all",
+            "description": "My custom agent",
+            "prompt": "{file:/Users/test/.config/opencode/agent/custom-agent.md}",
+        }
+    }

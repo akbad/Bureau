@@ -121,21 +121,21 @@ Activate an agent <ins>within a Claude Code session</ins> using its **correspond
 
 #### Codex & Gemini CLIs
 
-Launch the CLI using the **generated wrapper scripts**, named in the format **`<codex|gemini>-<rolename>`** (e.g. `gemini-architect`, `codex-debugger`)
+Launch the CLI using the **generated wrapper scripts**, named in the format **`<codex|gemini>-<rolename>`** (e.g. `gemini-architect`, `codex-code-reviewer`)
 
 > <ins>Example</ins>:
 >
-> - Starting Gemini CLI to interact with the [*Explainer*](../agents/role-prompts/explainer.md) agent in the main conversation:
+> - Starting Gemini CLI to interact with the [*Architect*](../agents/role-prompts/architect.md) agent in the main conversation:
 >   ```bash
->   $ gemini-explainer
->   # Gemini CLI is now running w/ the Explainer agent active
->   # Ask it to clarify code and docs
+>   $ gemini-architect
+>   # Gemini CLI is now running w/ the Architect agent active
+>   # Ask it to design a system or review high-level structure
 >   ```
-> - Starting Codex to interact with the [*Debugger*](../agents/role-prompts/debugger.md) agent in the main conversation:
+> - Starting Codex to interact with the [*Code reviewer*](../agents/role-prompts/code-reviewer.md) agent in the main conversation:
 >   ```bash
->   $ codex-debugger
->   # Codex is now running w/ the Debugger agent active
->   # Give it error logs or code snippets to analyze
+>   $ codex-code-reviewer
+>   # Codex is now running w/ the Code Reviewer agent active
+>   # Ask it to review a diff for bugs, risks, and missing tests
 >   ```
 
 #### OpenCode

@@ -308,9 +308,7 @@ agents:
 roles:
   enabled:
     - architect
-    - debugger
     - code-reviewer
-    - optimization
     - testing
     - migration-refactoring
 

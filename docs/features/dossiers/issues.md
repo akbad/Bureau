@@ -121,6 +121,8 @@ Update the fold SKILL to instruct agents to use the inline `"digest"` field in t
 
 ### K4. Unfold SKILL lock release example missing `--agent`
 
+> **Status:** Fixed. SKILL updated with `--agent <your-agent-id>` on lock release. Also added agent label convention for worker spawning (`<cli-type>:worker-<n>:<unix-timestamp>`) to prevent label collisions.
+
 **Auditors:** Architecture (correctness sweep) + SKILL/CLI coherence
 
 **Location:** `unfold-dossier/SKILL.md:318`
@@ -145,6 +147,8 @@ bureau-dossiers lock <slug> release --agent <your-agent-id>
 
 
 ### K5. CLI `--digest-file` arg bypasses P8 path restriction
+
+> **Status:** Fixed. `--digest-file` CLI arg removed entirely (the fold SKILL now uses inline `"digest"` via `--input-file -`). The JSON-input `digest_file` fallback now uses the shared `_check_path_containment()` helper (`Path.is_relative_to()`). New tests cover both rejection (outside dossiers dir) and acceptance (inside dossiers dir).
 
 **Auditor:** Architecture (correctness sweep)
 
@@ -173,6 +177,8 @@ if args.digest_file:
 
 ### S1. `safe_db_path` string-prefix bypass with sibling directories
 
+> **Status:** Fixed. All path containment checks replaced with a shared `_check_path_containment()` helper using `Path.is_relative_to()`, eliminating the string-prefix approach entirely.
+
 **Auditor:** Architecture (correctness sweep)
 
 **Location:** `db.py:28-30`
@@ -189,6 +195,8 @@ if not str(path).startswith(str(dossiers_dir.resolve()) + "/"):
 
 
 ### S2. `create_dossier_db` connection not in try/finally
+
+> **Status:** Fixed. Connection body wrapped in try/finally.
 
 **Auditor:** Architecture (correctness sweep)
 
@@ -211,6 +219,8 @@ finally:
 
 ### S3. Fork backup connection not in try/finally
 
+> **Status:** Fixed. `dest_conn` wrapped in try/finally.
+
 **Auditor:** Architecture (correctness sweep)
 
 **Location:** `fork.py:38-40`
@@ -229,6 +239,8 @@ finally:
 
 
 ### S4. Lazy migration does not bump `user_version`
+
+> **Status:** Fixed. `PRAGMA user_version` now set to `SCHEMA_VERSION` after the `ALTER TABLE` succeeds.
 
 **Auditor:** Architecture (correctness sweep)
 
@@ -295,6 +307,8 @@ Import `MAX_SUBJECT_LENGTH` and `MAX_DESCRIPTION_LENGTH` from `db.py` and valida
 
 
 ### S8. Worker mode output missing claim confirmation line
+
+> **Status:** Fixed. `_worker_framing()` now appends the claim confirmation line with task ID, agent, timestamp, and slug.
 
 **Auditor:** Architecture (correctness sweep)
 
@@ -421,6 +435,8 @@ Missing tests for:
 
 
 ### T5. No test for `digest_file` path restriction
+
+> **Status:** Fixed. Two tests added: rejection of `digest_file` outside the dossiers directory, and acceptance of `digest_file` within it.
 
 The JSON-input-file path restriction for `digest_file` has no test coverage. A regression would silently re-enable arbitrary file reads.
 

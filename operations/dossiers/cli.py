@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .context import extract_task_context
+from .db import _check_path_containment
 from .errors import AmbiguousQueryError, DossierNotFoundError, LockConflictError
 from .fold import fold_dossier
 from .unfold import unfold_dossier, list_dossiers, find_dossier
@@ -73,49 +74,28 @@ def cmd_fold(args: argparse.Namespace) -> int:
     dossiers_dir = _get_dossiers_dir(args)
     dossiers_dir.mkdir(parents=True, exist_ok=True)
 
-    # --input-file: single JSON blob with all fields (recommended)
-    if args.input_file:
-        input_data = _load_fold_input(args)
-        name = input_data.get("name", args.name)
-        slug = input_data.get("slug", args.slug)
-        agent = input_data.get("agent", args.agent)
-        project = input_data.get("project", args.project)
-        branch = input_data.get("branch", args.branch)
-        commit = input_data.get("commit", args.commit)
-        digest = input_data.get("digest", "")
-        if not digest and "digest_file" in input_data:
-            # restrict digest_file to the dossiers directory to prevent
-            # a compromised agent from exfiltrating arbitrary files
-            digest_path = Path(input_data["digest_file"]).resolve()
-            if not str(digest_path).startswith(str(dossiers_dir.resolve())):
-                print(f"Error: digest_file must be within the dossiers directory ({dossiers_dir})", file=sys.stderr)
-                return 1
-            digest = digest_path.read_text(encoding="utf-8")
-        tasks = input_data.get("tasks")
-        decisions = input_data.get("decisions")
-        files = input_data.get("files")
-    else:
-        name = args.name
-        slug = args.slug
-        agent = args.agent
-        project = args.project
-        branch = args.branch
-        commit = args.commit
-        tasks = json.loads(args.tasks_json) if args.tasks_json else None
-        decisions = json.loads(args.decisions_json) if args.decisions_json else None
-        files = json.loads(args.files_json) if args.files_json else None
-
-        # Read digest from file or stdin
-        if args.digest_file:
-            digest = Path(args.digest_file).read_text(encoding="utf-8")
-        elif not sys.stdin.isatty():
-            digest = sys.stdin.read()
-        else:
-            print("Error: --digest-file or --input-file required (or pipe via stdin)", file=sys.stderr)
+    input_data = _load_fold_input(args)
+    name = input_data.get("name")
+    slug = input_data.get("slug")
+    agent = input_data.get("agent")
+    project = input_data.get("project")
+    branch = input_data.get("branch")
+    commit = input_data.get("commit")
+    digest = input_data.get("digest", "")
+    if not digest and "digest_file" in input_data:
+        digest_path = Path(input_data["digest_file"]).resolve()
+        try:
+            _check_path_containment(digest_path, dossiers_dir)
+        except ValueError:
+            print(f"Error: digest_file must be within the dossiers directory ({dossiers_dir})", file=sys.stderr)
             return 1
+        digest = digest_path.read_text(encoding="utf-8")
+    tasks = input_data.get("tasks")
+    decisions = input_data.get("decisions")
+    files = input_data.get("files")
 
     if not agent:
-        print("Error: --agent is required", file=sys.stderr)
+        print("Error: 'agent' is required in the JSON payload", file=sys.stderr)
         return 1
 
     result = fold_dossier(
@@ -135,8 +115,9 @@ def cmd_fold(args: argparse.Namespace) -> int:
     return 0
 
 
-def _worker_framing(context_output: str, slug: str, task_id: int) -> str:
+def _worker_framing(context_output: str, slug: str, task_id: int, agent: str) -> str:
     """Wrap task context in worker-mode directives for a single-task agent."""
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     header = (
         "# Worker Agent Context\n"
         "\n"
@@ -158,7 +139,8 @@ def _worker_framing(context_output: str, slug: str, task_id: int) -> str:
         "> - Do NOT acquire dossier-level locks. Your coordination primitive is the\n"
         ">   task claim, which has already been applied.\n"
     )
-    return f"{header}\n{context_output}"
+    confirmation = f"*Task #{task_id} claimed by {agent} at {now}. Dossier: '{slug}'*"
+    return f"{header}\n{context_output}\n{confirmation}"
 
 
 def cmd_unfold(args: argparse.Namespace) -> int:
@@ -200,7 +182,7 @@ def cmd_unfold(args: argparse.Namespace) -> int:
                 dossiers_dir, slug, args.task,
                 include_digest=getattr(args, "include_digest", False),
             )
-            print(_worker_framing(output, slug, args.task))
+            print(_worker_framing(output, slug, args.task, args.agent))
             return 0
 
         # Handle --fork: fork first, then unfold the fork
@@ -407,20 +389,10 @@ def main() -> int:
     # fold
     p_fold = subparsers.add_parser("fold", help="Create or update a dossier",
                                    parents=[parent_parser])
-    p_fold.add_argument("--name", help="Dossier name (for new dossiers)")
-    p_fold.add_argument("--slug", help="Existing dossier slug (for re-fold)")
-    p_fold.add_argument("--agent", help="Agent identifier (required)")
-    p_fold.add_argument("--project", help="Git repo root path")
-    p_fold.add_argument("--branch", help="Current git branch")
-    p_fold.add_argument("--commit", help="Short HEAD hash")
-    p_fold.add_argument("--digest-file", help="Path to digest markdown file")
     p_fold.add_argument(
-        "--input-file",
-        help="JSON file with all fold fields, or '-' to read JSON from stdin (recommended)",
+        "--input-file", required=True,
+        help="JSON file with all fold fields, or '-' to read from stdin",
     )
-    p_fold.add_argument("--tasks-json", help="JSON array of tasks")
-    p_fold.add_argument("--decisions-json", help="JSON array of decisions")
-    p_fold.add_argument("--files-json", help="JSON array of file interactions")
 
     # unfold
     p_unfold = subparsers.add_parser("unfold", help="Render dossier for context injection",

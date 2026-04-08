@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from operations.roles_catalog import resolve_roles_catalog
 
@@ -202,3 +203,19 @@ def test_no_matching_cli_source(tmp_path, monkeypatch):
 
     assert result["roles"] == []
     assert result["source_path"] == ""
+
+
+def test_default_enabled_roles_exist_in_role_prompts():
+    """The shipped defaults should not reference missing role prompt files."""
+    repo_root = Path(__file__).resolve().parents[2]
+    defaults = yaml.safe_load((repo_root / "defaults.yml").read_text(encoding="utf-8"))
+    enabled = defaults["roles"]["enabled"]
+    role_prompts_dir = repo_root / "agents" / "role-prompts"
+
+    missing = [
+        role_name
+        for role_name in enabled
+        if not (role_prompts_dir / f"{role_name}.md").exists()
+    ]
+
+    assert missing == []
