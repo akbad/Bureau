@@ -2,11 +2,11 @@
 import json
 import os
 import re
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .db import create_dossier_db, open_dossier_db, safe_db_path, MAX_DIGEST_LENGTH, MAX_TASKS_PER_DOSSIER
+from .db import create_dossier_db, open_dossier_db, safe_db_path, _now_iso, MAX_DIGEST_LENGTH, MAX_TASKS_PER_DOSSIER
+from .tasks import _validate_task_fields
 
 
 def _generate_hash() -> str:
@@ -22,10 +22,6 @@ def _slugify(name: str) -> str:
     if not slug:
         slug = "dossier"
     return slug
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def fold_dossier(
@@ -103,13 +99,20 @@ def fold_dossier(
             # Insert tasks (only on initial fold — re-fold manages tasks via CLI)
             if not is_refold:
                 for task in (tasks or []):
+                    status = task.get("status", "pending")
+                    _validate_task_fields(
+                        subject=task["subject"],
+                        description=task.get("description"),
+                        status=status,
+                        context_notes=task.get("context_notes"),
+                    )
                     conn.execute(
                         "INSERT INTO tasks (subject, description, status, owner, blocked_by, context_notes) "
                         "VALUES (?, ?, ?, ?, ?, ?)",
                         (
                             task["subject"],
                             task.get("description"),
-                            task.get("status", "pending"),
+                            status,
                             task.get("owner"),
                             task.get("blocked_by"),
                             task.get("context_notes"),

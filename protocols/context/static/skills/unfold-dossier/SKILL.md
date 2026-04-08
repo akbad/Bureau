@@ -84,7 +84,7 @@ Triggered when `/unfold-dossier` is invoked **with no arguments**, or when the u
 bureau-dossiers list
 ```
 
-The CLI scans `~/.config/bureau/dossiers/` for `.db` files and outputs a table with hash, name, branch, relative time, and lock status — sorted by most recent first.
+The CLI scans `~/.config/bureau/dossiers/` for `.db` files and outputs a table with six columns — `Hash`, `Name`, `Branch`, `Tasks` (count), `Lock` (status), and `Updated` (relative time) — sorted by most recent first. Add `--format json` for machine-readable output.
 
 ### Step 2: Display and accept selection
 

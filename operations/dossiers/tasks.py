@@ -3,11 +3,10 @@ from pathlib import Path
 from typing import Any
 
 from .db import (
-    open_dossier_db, safe_db_path,
+    open_dossier_db, safe_db_path, _now_iso,
     MAX_SUBJECT_LENGTH, MAX_DESCRIPTION_LENGTH, MAX_CONTEXT_NOTES_LENGTH,
     VALID_STATUSES,
 )
-from .fold import _now_iso
 
 # nullable fields where passing "" means "clear to NULL";
 # non-nullable fields (subject, status) ignore empty strings to avoid

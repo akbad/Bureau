@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from .db import open_dossier_db, safe_db_path
-from .fold import _generate_hash, _slugify, _now_iso
+from .db import _now_iso
+from .fold import _generate_hash, _slugify
 
 
 def fork_dossier(

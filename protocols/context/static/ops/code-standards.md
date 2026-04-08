@@ -12,13 +12,17 @@
 
 #### Contents:
 
+- [Reasoning directives](#reasoning-directives)
+### [Reason about invariants before code](#reason-about-invariants-before-code)
+### [Think in failure modes](#think-in-failure-modes)
+### [Reason about blast radius](#reason-about-blast-radius)
 - [Comments](#comments)
-  - [Depth (key standard)](#depth-key-standard)
-  - [Formatting](#formatting)
+### [Depth (key standard)](#depth-key-standard)
+### [Formatting](#formatting)
 - [Naming](#naming)
 - [Structure and organization](#structure-and-organization)
-  - [File-level](#file-level)
-  - [Function-level](#function-level)
+### [File-level](#file-level)
+### [Function-level](#function-level)
 - [Error handling](#error-handling)
 - [Logging and observability](#logging-and-observability)
 - [DRY and abstraction](#dry-and-abstraction)
@@ -28,6 +32,59 @@
 - [Dependencies and coupling](#dependencies-and-coupling)
 - [Pragmatism](#pragmatism)
 
+
+## Reasoning directives
+
+> [!IMPORTANT]
+>
+> 1. Code **DRYness** and **maintainability** and **optimal, tasteful reuse of suitable external libraries** are paramount.
+> 2. When fixing bugs, fix the **root cause**, not the symptom.
+> 3. If planned implementations require **error handling or validation** to work reliably, include it *without asking.*
+
+### Reason about invariants before code
+
+- Before writing a function, name the invariants it must preserve.
+- Before adding a field, state what it means for that field to be valid.
+- Before designing an interface, enumerate the contracts callers and implementors must uphold.
+
+### Think in failure modes
+
+- For every code path: "what breaks under partition, crash, concurrent mutation, resource exhaustion?"
+- For every external dependency: "what happens when this is slow, wrong, or down?"
+- Design the unhappy path with the same rigor as the happy path.
+
+### Reason about blast radius
+
+- Before making a change, trace its effects: who calls this? who depends on this type? what tests cover this behavior?
+- Prefer changes with bounded blast radius (local to a module) over changes that ripple across boundaries.
+
+### Consider alternatives and tradeoffs explicitly
+
+- Before implementing, name at least one credible alternative.
+- State why you chose this approach and what you're giving up.
+- "It works" is insufficient; "it works and here's why it's better than the alternatives" is the bar.
+
+### Think about evolution and maintenance
+
+- "What happens when this codebase is 10x larger? When a new team member reads this in 6 months?"
+- Optimize for readability, debuggability, and safe modification; not just initial correctness.
+- Every abstraction boundary should answer: "what changes independently on each side?"
+
+### Verify before trusting
+
+- Don't trust that a refactor preserves behavior without evidence (tests, careful reasoning, tracing).
+- Don't trust that an optimization is faster without measurement.
+- Don't trust that a "simple" change is safe without tracing its effects.
+
+### Name what you don't know
+
+- Be explicit about uncertainty: "I believe X because Y, but I haven't verified Z."
+- Pretending certainty when it doesn't exist is how silent bugs reach production.
+
+### Think in systems, not files
+
+- Before touching a function, understand its role in the system: data flow, ownership, lifecycle.
+- Motivate changes to individual functions by system-level reasoning, not local aesthetics.
 
 ## Comments
 

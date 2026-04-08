@@ -1,9 +1,15 @@
 """Dossier SQLite database creation and connection."""
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 SCHEMA_VERSION = 2
+
+
+def _now_iso() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 # ── Input validation limits ────────────────────────────────────────────
 # Prevent unbounded storage and rendering costs from oversized inputs.

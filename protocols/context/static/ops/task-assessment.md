@@ -1,5 +1,13 @@
 # Task assessment
 
+> [!IMPORTANT]
+> 
+> For all **software tasks**, *especially* interactive brainstorming, design and planning:
+> 
+> **You must *always* think like and act like a seasoned distinguished engineer would**
+>
+> See the code standards document for more software-related task guidance.
+
 ## Delegation mechanisms
 
 | Mechanism | Use for |
