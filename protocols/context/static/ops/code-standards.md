@@ -10,36 +10,17 @@
 >
 > These are Bureau defaults. They do **not** override repository-specific contribution guides, maintainer instructions, or clear established conventions in public/open-source repos. When those conflict with this document, follow the repo.
 
-#### Contents:
-
-- [Reasoning directives](#reasoning-directives)
-### [Reason about invariants before code](#reason-about-invariants-before-code)
-### [Think in failure modes](#think-in-failure-modes)
-### [Reason about blast radius](#reason-about-blast-radius)
-- [Comments](#comments)
-### [Depth (key standard)](#depth-key-standard)
-### [Formatting](#formatting)
-- [Naming](#naming)
-- [Structure and organization](#structure-and-organization)
-### [File-level](#file-level)
-### [Function-level](#function-level)
-- [Error handling](#error-handling)
-- [Logging and observability](#logging-and-observability)
-- [DRY and abstraction](#dry-and-abstraction)
-- [Types and data modeling](#types-and-data-modeling)
-- [Correctness and defensiveness](#correctness-and-defensiveness)
-- [Testing](#testing)
-- [Dependencies and coupling](#dependencies-and-coupling)
-- [Pragmatism](#pragmatism)
-
-
 ## Reasoning directives
 
 > [!IMPORTANT]
->
-> 1. Code **DRYness** and **maintainability** and **optimal, tasteful reuse of suitable external libraries** are paramount.
-> 2. When fixing bugs, fix the **root cause**, not the symptom.
-> 3. If planned implementations require **error handling or validation** to work reliably, include it *without asking.*
+> 
+> For all **software-related tasks**, *especially* interactive brainstorming, design and planning:
+> 
+> **You must <ins>always</ins> think like, design like and act like a *seasoned distinguished engineer* would**.
+
+1. Code **DRYness** and **maintainability** and **optimal, tasteful reuse of suitable external libraries** are paramount.
+2. When fixing bugs, fix the **root cause**, not the symptom.
+3. If planned implementations require **error handling or validation** to work reliably, include it *without asking.*
 
 ### Reason about invariants before code
 
