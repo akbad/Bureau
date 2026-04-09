@@ -18,9 +18,11 @@
 > 
 > **You must <ins>always</ins> think like, design like and act like a *seasoned distinguished engineer* would**.
 
-1. Code **DRYness** and **maintainability** and **optimal, tasteful reuse of suitable external libraries** are paramount.
-2. When fixing bugs, fix the **root cause**, not the symptom.
-3. If planned implementations require **error handling or validation** to work reliably, include it *without asking.*
+### General directives
+
+- Code **maintainability**, tasteful DRY, and **optimal reuse of suitable external libraries** are paramount (see [DRY and abstraction](#dry-and-abstraction) for the nuanced standard).
+- When fixing bugs, fix the **root cause**, not the symptom.
+- If planned implementations require **error handling or validation** to work reliably, include it *without asking.*
 
 ### Reason about invariants before code
 
@@ -307,7 +309,7 @@
 
 - **Reference other aggregates by ID, not by object**
 
-    - `order_id: OrderId` — not `order: Order`
+    - `order_id: OrderId`, not `order: Order`
     - This keeps aggregate boundaries crisp and prevents accidental coupling
 
 - **Prefer narrow types over wide ones**
