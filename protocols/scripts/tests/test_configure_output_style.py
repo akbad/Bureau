@@ -23,8 +23,9 @@ def test_compile_output_style_preserves_single_source_body(tmp_path: Path) -> No
     compile_output_style([source], destination)
 
     compiled = destination.read_text(encoding="utf-8")
-    assert "<!-- Bureau-generated output style" in compiled
-    assert "style.md" in compiled
+    assert compiled.startswith("<!-- Bureau protocols -->\n\n")
+    assert "Source files:" not in compiled
+    assert "Do not edit this runtime artifact directly." not in compiled
     assert compiled.endswith(body)
 
 
@@ -39,7 +40,9 @@ def test_compile_output_style_concatenates_multiple_sources_in_order(tmp_path: P
 
     compiled = destination.read_text(encoding="utf-8")
     assert compiled.index("# First") < compiled.index("# Second")
-    assert "Source files:" in compiled
+    assert compiled.startswith("<!-- Bureau protocols -->\n\n")
+    assert "Source files:" not in compiled
+    assert "<!-- Bureau source boundary -->" not in compiled
 
 
 def test_install_claude_output_style_writes_wrapper_and_selects_style(tmp_path: Path) -> None:

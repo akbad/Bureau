@@ -10,9 +10,13 @@ from .config_loader import Config, ProtocolDocumentSetting, find_repo_root, get_
 
 ProtocolArtifactKey = Literal["output_style", "code_standards"]
 
+CODE_STANDARDS_MINDSET_RELATIVE_PATH = Path("protocols/context/static/ops/code-standards.md")
+CODE_STANDARDS_SKILL_WRAPPER_RELATIVE_PATH = Path(
+    "protocols/context/static/code-standards-skill-wrapper.md"
+)
 DEFAULT_SOURCE_RELATIVE_PATHS: dict[ProtocolArtifactKey, Path] = {
     "output_style": Path("protocols/context/static/ops/output-style.md"),
-    "code_standards": Path("protocols/context/static/ops/code-standards.md"),
+    "code_standards": Path("protocols/context/static/code-standards-reference.md"),
 }
 
 ARTIFACT_DISPLAY_NAMES: dict[ProtocolArtifactKey, str] = {
@@ -21,6 +25,7 @@ ARTIFACT_DISPLAY_NAMES: dict[ProtocolArtifactKey, str] = {
 }
 
 OFF_EXIT_CODE = 3
+RUNTIME_ARTIFACT_MARKER = "<!-- Bureau protocols -->\n\n"
 
 
 def resolve_protocol_source_path(raw_path: str, repo_root: Path | None = None) -> Path:
@@ -40,6 +45,18 @@ def get_default_protocol_sources(
     return [(root / DEFAULT_SOURCE_RELATIVE_PATHS[artifact_key]).resolve()]
 
 
+def get_code_standards_mindset_source(repo_root: Path | None = None) -> Path:
+    """Return the shipped startup mindset source for code standards."""
+    root = repo_root or find_repo_root()
+    return (root / CODE_STANDARDS_MINDSET_RELATIVE_PATH).resolve()
+
+
+def get_code_standards_skill_wrapper_source(repo_root: Path | None = None) -> Path:
+    """Return the wrapper template used for the generated code-standards skill."""
+    root = repo_root or find_repo_root()
+    return (root / CODE_STANDARDS_SKILL_WRAPPER_RELATIVE_PATH).resolve()
+
+
 def resolve_protocol_sources(
     artifact_key: ProtocolArtifactKey,
     setting: ProtocolDocumentSetting | None,
@@ -48,7 +65,7 @@ def resolve_protocol_sources(
     """Resolve one protocol document setting into ordered source paths."""
     if setting in (None, "default"):
         return get_default_protocol_sources(artifact_key, repo_root=repo_root)
-    if setting == "off":
+    if setting in ("off", False):
         return None
     return [resolve_protocol_source_path(path, repo_root=repo_root) for path in setting]
 
@@ -77,26 +94,48 @@ def compile_runtime_artifact(
 
     destination.parent.mkdir(parents=True, exist_ok=True)
 
-    preamble_lines = [
-        f"<!-- Bureau-generated {artifact_name}",
-        "Source files:",
-    ]
-    preamble_lines.extend(f"- {source}" for source in sources)
-    preamble_lines.extend(
-        [
-            "Do not edit this runtime artifact directly.",
-            "-->",
-            "",
-        ]
+    body = "".join(source.read_text(encoding="utf-8") for source in sources)
+    destination.write_text(RUNTIME_ARTIFACT_MARKER + body, encoding="utf-8")
+
+
+def compile_code_standards_skill(
+    destination: Path,
+    *,
+    config: Config | None = None,
+    repo_root: Path | None = None,
+    source_overrides: Sequence[Path] | None = None,
+    wrapper_source: Path | None = None,
+) -> bool:
+    """Compile the generated code-standards skill.
+
+    Returns:
+        `True` when the generated skill file was written.
+        `False` when `protocols.code_standards` is explicitly disabled.
+    """
+    sources: list[Path] | None
+    if source_overrides is not None:
+        sources = [Path(path).expanduser().resolve() for path in source_overrides]
+    else:
+        sources = get_protocol_sources_from_config(
+            "code_standards",
+            config=config,
+            repo_root=repo_root,
+        )
+
+    if sources is None:
+        return False
+
+    wrapper_path = (
+        Path(wrapper_source).expanduser().resolve()
+        if wrapper_source is not None
+        else get_code_standards_skill_wrapper_source(repo_root=repo_root)
     )
+    wrapper_text = wrapper_path.read_text(encoding="utf-8").rstrip("\n") + "\n\n"
+    body = "".join(source.read_text(encoding="utf-8") for source in sources)
 
-    body_parts: list[str] = []
-    for index, source in enumerate(sources):
-        body_parts.append(source.read_text(encoding="utf-8"))
-        if index < len(sources) - 1:
-            body_parts.append("\n\n<!-- Bureau source boundary -->\n\n")
-
-    destination.write_text("\n".join(preamble_lines) + "".join(body_parts), encoding="utf-8")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(wrapper_text + RUNTIME_ARTIFACT_MARKER + body, encoding="utf-8")
+    return True
 
 
 def compile_protocol_artifact(

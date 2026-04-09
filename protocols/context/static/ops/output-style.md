@@ -143,6 +143,10 @@ Any code blocks you include should have one or both of:
 - Extensive comments explaining any non-obvious/obscure code
 - Well-structured, accompanying English descriptions (either preceding or following the code block) that follow the list-related directive above to match pseudocode structurally.
 
+#### Citations
+
+When writing GFH, use **footnotes** for citations. Paste the link/source you want to cite in the footnote's contents, and keep all footnote definitions together at the bottom of the file.
+
 #### Callouts
 
 > [!NOTE]

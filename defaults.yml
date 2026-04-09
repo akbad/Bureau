@@ -419,7 +419,10 @@ protocols:
   # - [paths]: merge one or more Markdown files into the runtime artifact
   output_style: default
 
-  # Coding standards sources compiled into ~/.config/bureau/protocols/code-standards.md
+  # Coding standards sources compiled into Bureau's protocol-owned generated
+  # `code-standards` skill. `skills.enabled` and `skills.disabled` do not
+  # control this built-in. When enabled, Bureau still deploys a fixed startup
+  # mindset artifact at ~/.config/bureau/protocols/code-standards.md.
   # Values match protocols.output_style above.
   code_standards: default
 

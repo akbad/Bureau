@@ -101,6 +101,7 @@ log_empty_line
 # ============================================================================
 
 BUREAU_PROTOCOLS_DIR="$HOME/.config/bureau/protocols"
+BUREAU_GENERATED_SKILLS_DIR="$HOME/.config/bureau/generated/skills"
 STATIC_DIR="$REPO_ROOT/protocols/context/static"
 
 # Bureau-managed file manifest — single source of truth for what Bureau "owns"
@@ -206,6 +207,16 @@ remove_managed_file() {
     rm -f "$dest"
 }
 
+remove_legacy_protocol_artifacts() {
+    local legacy_code_standards
+
+    legacy_code_standards="$BUREAU_PROTOCOLS_DIR/ops/code-standards.md"
+    if [[ -e "$legacy_code_standards" ]]; then
+        remove_managed_file "$legacy_code_standards"
+        log_warning "Removed legacy code-standards spoke: $legacy_code_standards"
+    fi
+}
+
 reconcile_protocol_artifact() {
     local setting="$1"
     local destination="$2"
@@ -221,9 +232,10 @@ reconcile_protocol_artifact() {
         rm -f "$tmp_artifact"
         log_success "Compiled Bureau $label to $destination"
         return 0
+    else
+        status=$?
     fi
 
-    status=$?
     rm -f "$tmp_artifact"
 
     if [[ "$status" -eq 3 ]]; then
@@ -232,6 +244,55 @@ reconcile_protocol_artifact() {
         return 1
     fi
 
+    return "$status"
+}
+
+protocol_artifact_enabled() {
+    local setting="$1"
+    local tmp_artifact
+    local status
+
+    tmp_artifact="$(mktemp)"
+    if uv run python "$REPO_ROOT/protocols/scripts/compile-protocol-artifact.py" \
+        --setting "$setting" \
+        --destination "$tmp_artifact" >/dev/null 2>&1; then
+        rm -f "$tmp_artifact"
+        return 0
+    else
+        status=$?
+    fi
+
+    rm -f "$tmp_artifact"
+
+    if [[ "$status" -eq 3 ]]; then
+        return 1
+    fi
+
+    return "$status"
+}
+
+install_single_source_protocol_artifact() {
+    local setting="$1"
+    local source="$2"
+    local destination="$3"
+    local label="$4"
+    local tmp_artifact
+    local status
+
+    tmp_artifact="$(mktemp)"
+    if uv run python "$REPO_ROOT/protocols/scripts/compile-protocol-artifact.py" \
+        --setting "$setting" \
+        --destination "$tmp_artifact" \
+        --source "$source"; then
+        _install_managed_file "$tmp_artifact" "$destination"
+        rm -f "$tmp_artifact"
+        log_success "Compiled Bureau $label to $destination"
+        return 0
+    else
+        status=$?
+    fi
+
+    rm -f "$tmp_artifact"
     return "$status"
 }
 
@@ -253,7 +314,7 @@ text = hub_path.read_text(encoding="utf-8")
 
 if os.environ["CODE_STANDARDS_ENABLED"] != "true":
     text = re.sub(
-        r'(?m)^\| Writing or editing code \| `[^`]+/code-standards\.md` \|\n',
+        r'(?m)^\| Writing or editing code \| Activate the `code-standards` skill \|\n',
         "",
         text,
     )
@@ -278,6 +339,7 @@ deploy_protocols() {
 
     # migrate old files if upgrading from pre-hub-spoke structure
     migrate_old_files
+    remove_legacy_protocol_artifacts
 
     rendered_hub="$(mktemp)"
     sed "s|{{PROTOCOLS_DIR}}|$BUREAU_PROTOCOLS_DIR|g" \
@@ -353,11 +415,16 @@ else
         fi
     fi
 
-    if reconcile_protocol_artifact \
-        "code_standards" \
-        "$BUREAU_PROTOCOLS_DIR/$BUREAU_CODE_STANDARDS" \
-        "code standards"; then
+    if protocol_artifact_enabled "code_standards"; then
+        install_single_source_protocol_artifact \
+            "code_standards" \
+            "$STATIC_DIR/ops/$BUREAU_CODE_STANDARDS" \
+            "$BUREAU_PROTOCOLS_DIR/$BUREAU_CODE_STANDARDS" \
+            "code standards mindset"
         CODE_STANDARDS_ENABLED=true
+    else
+        remove_managed_file "$BUREAU_PROTOCOLS_DIR/$BUREAU_CODE_STANDARDS"
+        log_info "Disabled Bureau code standards startup mindset"
     fi
 
     tailor_deployed_hub "$OUTPUT_STYLE_ENABLED" "$CODE_STANDARDS_ENABLED"
@@ -374,6 +441,9 @@ if [[ "$MODE" != "off" ]]; then
         HOOK_ARGS=(--protocols-dir "$BUREAU_PROTOCOLS_DIR" "${CONFIGURE_HOOK_AGENT_ARGS[@]}")
         if [[ "$OUTPUT_STYLE_ENABLED" == true ]]; then
             HOOK_ARGS+=(--output-style-path "$BUREAU_PROTOCOLS_DIR/$BUREAU_OUTPUT_STYLE")
+        fi
+        if [[ "$CODE_STANDARDS_ENABLED" == true ]]; then
+            HOOK_ARGS+=(--code-standards-path "$BUREAU_PROTOCOLS_DIR/$BUREAU_CODE_STANDARDS")
         fi
 
         if uv run python "$REPO_ROOT/protocols/scripts/configure-hooks.py" \
@@ -415,7 +485,8 @@ if [[ "$MODE" != "off" ]]; then
         echo "  - Runtime output style: $BUREAU_PROTOCOLS_DIR/$BUREAU_OUTPUT_STYLE"
     fi
     if [[ "$CODE_STANDARDS_ENABLED" == true ]]; then
-        echo "  - Runtime code standards: $BUREAU_PROTOCOLS_DIR/$BUREAU_CODE_STANDARDS"
+        echo "  - Startup code standards mindset: $BUREAU_PROTOCOLS_DIR/$BUREAU_CODE_STANDARDS"
+        echo "  - Generated code-standards skill: $BUREAU_GENERATED_SKILLS_DIR/code-standards/SKILL.md"
     fi
     echo "  - Task-specific spokes: $BUREAU_PROTOCOLS_DIR/ops/"
     echo ""

@@ -1,6 +1,7 @@
 import pytest
 
 from operations.validate_config import (
+    validate_config,
     validate_placeholder_cycles,
     validate_service_dependency_cycles,
     validate_dependency_requires_cycles,
@@ -238,6 +239,17 @@ class TestProtocolSettingsValidation:
 
         assert validate_protocol_settings(config) == []
 
+    def test_accepts_boolean_false_for_off_like_yaml_scalars(self):
+        config = {
+            "protocols": {
+                "mode": "replace",
+                "output_style": False,
+                "code_standards": False,
+            }
+        }
+
+        assert validate_protocol_settings(config) == []
+
     def test_rejects_unknown_protocol_mode(self):
         config = {
             "protocols": {
@@ -278,3 +290,59 @@ class TestProtocolSettingsValidation:
         assert any("protocols.update" in error for error in errors)
         assert any("protocols.force" in error for error in errors)
         assert any("protocols.bare" in error for error in errors)
+
+    def test_warns_when_code_standards_is_listed_in_skills_enabled(self):
+        config = {
+            "agents": ["codex"],
+            "retention_period_for": {
+                "claude_mem": "30d",
+                "serena": "30d",
+                "qdrant": "30d",
+                "memory_mcp": "30d",
+            },
+            "cleanup": {"min_interval": "1d"},
+            "trash": {"grace_period": "7d"},
+            "path_to": {"workspace": "~/code"},
+            "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
+            "mcp": {"services": {}, "client_configs": {}},
+            "skills": {
+                "enabled": ["micro-mode", "code-standards"],
+                "disabled": [],
+                "sources": [],
+            },
+            "protocols": {"code_standards": "default"},
+        }
+
+        result = validate_config(config, add_warnings=True)
+
+        assert result.errors == []
+        assert any("skills.enabled" in warning for warning in result.warnings)
+        assert any("protocols.code_standards" in warning for warning in result.warnings)
+
+    def test_warns_when_code_standards_is_listed_in_skills_disabled(self):
+        config = {
+            "agents": ["codex"],
+            "retention_period_for": {
+                "claude_mem": "30d",
+                "serena": "30d",
+                "qdrant": "30d",
+                "memory_mcp": "30d",
+            },
+            "cleanup": {"min_interval": "1d"},
+            "trash": {"grace_period": "7d"},
+            "path_to": {"workspace": "~/code"},
+            "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
+            "mcp": {"services": {}, "client_configs": {}},
+            "skills": {
+                "enabled": ["micro-mode"],
+                "disabled": ["code-standards"],
+                "sources": [],
+            },
+            "protocols": {"code_standards": "default"},
+        }
+
+        result = validate_config(config, add_warnings=True)
+
+        assert result.errors == []
+        assert any("skills.disabled" in warning for warning in result.warnings)
+        assert any("protocols.code_standards" in warning for warning in result.warnings)

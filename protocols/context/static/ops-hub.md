@@ -1,6 +1,6 @@
 # Bureau context routing
 
-Read the spoke file matching your current task:
+Read or activate the context source matching your current task:
 
 | Task | Spoke |
 | :--- | :--- |
@@ -8,7 +8,7 @@ Read the spoke file matching your current task:
 | Deciding to delegate, choosing model/tool, parallelizing | `{{PROTOCOLS_DIR}}/ops/task-assessment.md` |
 | Executing: searching, editing, storing memories | `{{PROTOCOLS_DIR}}/ops/task-execution.md` |
 | Finishing: approvals, memory persistence, handoff | `{{PROTOCOLS_DIR}}/ops/task-completion.md` |
-| Writing or editing code | `{{PROTOCOLS_DIR}}/code-standards.md` |
+| Writing or editing code | Activate the `code-standards` skill |
 
 ## Bureau rules
 

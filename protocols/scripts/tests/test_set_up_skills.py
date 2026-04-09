@@ -27,6 +27,7 @@ def test_installs_unprefixed_skills_into_shared_agents_dir(tmp_path: Path) -> No
 
     assert result.returncode == 0, result.stderr
     assert (home / ".agents" / "skills" / "assess-mode").is_symlink()
+    assert (home / ".agents" / "skills" / "code-standards").is_symlink()
     assert not (home / ".agents" / "skills" / "bureau-assess-mode").exists()
     assert not (home / ".gemini" / "skills" / "assess-mode").exists()
 

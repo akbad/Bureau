@@ -350,6 +350,8 @@ skills:
 - `sources`: list of directories to scan for skills.
   - `path`: absolute path or repo‑relative path.
 
+This section controls normal catalog skills only. The generated `code-standards` skill is protocol-owned and is controlled by `protocols.code_standards`, not by `skills.enabled`, `skills.disabled`, or `skills.sources`.
+
 > [!CAUTION]
 > - `protocols/scripts/set-up-skills.sh` removes Bureau-owned skill symlinks before reinstalling.
 > - Legacy `bureau-*` installs are also cleaned up during migration.
@@ -359,7 +361,7 @@ skills:
 
 **Files:** `defaults.yml` (defaults), `.bureau.yml` (project overrides), `local.yml` (personal overrides)
 
-Controls Bureau-owned protocol deployment plus the source material for the generated `output-style.md` and `code-standards.md` runtime artifacts in `~/.config/bureau/protocols/`.
+Controls Bureau-owned protocol deployment, the source material for the generated `output-style.md` runtime artifact, and the detailed standards content for the generated `code-standards` skill.
 
 ```yaml
 protocols:
@@ -378,16 +380,17 @@ protocols:
   - `off`: disable the output-style feature and remove the runtime artifact.
   - `[paths...]`: merge the listed Markdown files, in order, into the runtime artifact.
 - `code_standards`: one of `default`, `off`, or a non-empty list of file paths.
-  - `default`: compile Bureau's shipped default source file into `~/.config/bureau/protocols/code-standards.md`.
-  - `off`: disable the code-standards runtime artifact.
-  - `[paths...]`: merge the listed Markdown files, in order, into the runtime artifact.
+  - `default`: compile Bureau's shipped default reference source into the protocol-owned generated `code-standards` skill.
+  - `off`: disable both the startup `code-standards.md` mindset artifact and the generated `code-standards` skill.
+  - `[paths...]`: merge the listed Markdown files, in order, into the generated `code-standards` skill.
+  - `skills.enabled`, `skills.disabled`, and `skills.sources` do not control this built-in; if `code-standards` appears there, Bureau warns and ignores it.
 
 Bureau ships with default sources at:
 
 - `protocols/context/static/ops/output-style.md`
-- `protocols/context/static/ops/code-standards.md`
+- `protocols/context/static/code-standards-reference.md`
 
-Setup compiles whichever sources are selected into the two root runtime artifacts in `~/.config/bureau/protocols/`. Bureau treats that directory as generated, Bureau-owned state.
+Setup compiles the selected output-style sources into `~/.config/bureau/protocols/output-style.md`, deploys a fixed startup `code-standards.md` mindset artifact when code standards are enabled, and compiles the selected code-standards sources into the protocol-owned generated `code-standards` skill at `~/.config/bureau/generated/skills/code-standards/SKILL.md`. Bureau treats both directories as generated, Bureau-owned state.
 
 **Path resolution:**
 - Paths starting with `~` → expanded to `$HOME`
@@ -397,6 +400,8 @@ Setup compiles whichever sources are selected into the two root runtime artifact
 **Runtime behavior:**
 - Claude Code: Bureau installs a native Claude output style and selects it in `~/.claude/settings.json` when `protocols.output_style` is enabled
 - Codex and Gemini: SessionStart hooks load `output-style.md` and `ops-hub.md` at session start when `protocols.output_style` is enabled
+- Supported CLIs load the startup `code-standards.md` mindset artifact at session start only when `protocols.code_standards` is enabled
+- Writing or editing code should activate the generated `code-standards` skill for the detailed standards layer
 - OpenCode: generated config includes `output-style.md` only when the runtime artifact exists, and always includes `ops-hub.md`
 - Changes take effect on a new session after re-running `bin/open-bureau`
 
@@ -798,7 +803,7 @@ Bureau maintains a user-scoped directory of generated agent context files that a
 | File | Purpose |
 |:-----|:--------|
 | `output-style.md` | Compiled session-level output style used by all supported CLIs |
-| `code-standards.md` | Compiled coding standards artifact used for code-writing context and assess mode |
+| `code-standards.md` | Fixed startup coding mindset artifact loaded when code standards are enabled |
 | `ops-hub.md` | Routing table pointing to task-specific context (the hub) |
 | `ops/session-start.md` | Memory retrieval, factual accuracy protocol |
 | `ops/task-assessment.md` | Delegation mechanisms, headless CLI invocation |
@@ -808,7 +813,8 @@ Bureau maintains a user-scoped directory of generated agent context files that a
 **How it works:**
 - Setup (`bin/open-bureau`) reconciles Bureau-owned files in this directory according to `protocols.mode`
 - Setup compiles `protocols.output_style` into `~/.config/bureau/protocols/output-style.md` unless the feature is `off`
-- Setup compiles `protocols.code_standards` into `~/.config/bureau/protocols/code-standards.md` unless the feature is `off`
+- Setup deploys the fixed startup `code-standards.md` mindset artifact when `protocols.code_standards` is enabled
+- Setup compiles `protocols.code_standards` into the protocol-owned generated `code-standards` skill under `~/.config/bureau/generated/skills/` unless the feature is `off`
 - Codex and Gemini SessionStart hooks load `output-style.md` and `ops-hub.md` at session start when the output-style artifact exists; Claude uses the compiled file to install a native output style; OpenCode includes `output-style.md` only when the runtime artifact exists
 - Customize these generated artifacts through config, not by editing files in `~/.config/bureau/protocols/` directly
 

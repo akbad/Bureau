@@ -27,6 +27,7 @@ UNINSTALL=false
 SKILL_MODE=""
 SKILLS_CONFIG_PATH="$REPO_ROOT/protocols/context/generated/skills-config.generated.json"
 SKILLS_CONFIG_GENERATOR="$REPO_ROOT/protocols/scripts/generate-skills-config.py"
+CODE_STANDARDS_SKILL_GENERATOR="$REPO_ROOT/protocols/scripts/generate-code-standards-skill.py"
 
 # Skill directory locations for each CLI
 CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
@@ -34,6 +35,7 @@ OPENCODE_SKILLS_DIR="$HOME/.config/opencode/skill"
 CODEX_GEMINI_SKILLS_DIR="$HOME/.agents/skills"
 LEGACY_CODEX_SKILLS_DIR="$HOME/.codex/skills"
 LEGACY_BUREAU_SKILL_PREFIX="bureau-"
+GENERATED_BUREAU_SKILLS_DIR="$HOME/.config/bureau/generated/skills"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -188,11 +190,42 @@ remove_bureau_skill_dirs() {
     remove_legacy_bureau_skill_dirs "$skill_conf_dir"
 }
 
+generate_code_standards_skill() {
+    local skill_dir="$GENERATED_BUREAU_SKILLS_DIR/code-standards"
+    local skill_path="$skill_dir/SKILL.md"
+    local status
+
+    ensure_dir "$GENERATED_BUREAU_SKILLS_DIR"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        log_action "Would reconcile generated skill:" "$skill_path"
+        return 0
+    fi
+
+    if uv run python "$CODE_STANDARDS_SKILL_GENERATOR" --destination "$skill_path"; then
+        log_success "Generated: $skill_path"
+        return 0
+    else
+        status=$?
+    fi
+
+    if [[ "$status" -eq 3 ]]; then
+        rm -rf "$skill_dir"
+        log_info "Disabled generated code-standards skill"
+        return 0
+    fi
+
+    log_error "Failed to generate code-standards skill: $CODE_STANDARDS_SKILL_GENERATOR"
+    exit 1
+}
+
 # Ensure jq is available
 if ! command -v jq >/dev/null 2>&1; then
     log_error "jq is required to parse $SKILLS_CONFIG_PATH"
     exit 1
 fi
+
+generate_code_standards_skill
 
 # Generate skills config
 if ! uv run python "$SKILLS_CONFIG_GENERATOR"; then

@@ -12,6 +12,11 @@ from typing import Any, Mapping
 from operations.config_loader import expand_path, find_repo_root, get_config
 from operations.skills_catalog import resolve_skills_catalog
 
+GENERATED_BUREAU_SKILLS_ROOT = "~/.config/bureau/generated/skills"
+PROTOCOL_OWNED_SKILLS = {
+    "code-standards": "code_standards",
+}
+
 
 def _resolve_source_root(source_path: str, repo_root: Path) -> Path:
     root = expand_path(source_path)
@@ -20,9 +25,42 @@ def _resolve_source_root(source_path: str, repo_root: Path) -> Path:
     return root
 
 
+def _protocol_skill_enabled(config: Mapping[str, Any], protocol_key: str) -> bool:
+    protocols = config.get("protocols", {})
+    if not isinstance(protocols, Mapping):
+        return True
+
+    value = protocols.get(protocol_key, "default")
+    return value != "off" and value is not False
+
+
+def _append_protocol_owned_skill(
+    *,
+    entries: list[dict[str, str]],
+    source_roots: list[str],
+    seen_names: set[str],
+    name: str,
+    root: Path,
+) -> None:
+    skill_dir = root / name
+    if not skill_dir.exists() or name in seen_names:
+        return
+
+    source_root = str(root)
+    if source_root not in source_roots:
+        source_roots.append(source_root)
+
+    entries.append({"name": name, "source_path": str(skill_dir)})
+    seen_names.add(name)
+
+
 def _build_skills_entries(config: Mapping[str, Any], repo_root: Path) -> dict[str, Any]:
     resolved = resolve_skills_catalog(config)
-    resolved_names = resolved.get("skills", [])
+    resolved_names = [
+        name
+        for name in resolved.get("skills", [])
+        if name not in PROTOCOL_OWNED_SKILLS
+    ]
     remaining = Counter(resolved_names)
 
     skills_cfg = config.get("skills", {})
@@ -30,6 +68,7 @@ def _build_skills_entries(config: Mapping[str, Any], repo_root: Path) -> dict[st
 
     entries: list[dict[str, str]] = []
     source_roots: list[str] = []
+    seen_names: set[str] = set()
     for source in sources:
         source_path = source.get("path")
         if not source_path:
@@ -50,7 +89,20 @@ def _build_skills_entries(config: Mapping[str, Any], repo_root: Path) -> dict[st
                     "source_path": str(skill_dir),
                 }
             )
+            seen_names.add(name)
             remaining[name] -= 1
+
+    protocol_root = _resolve_source_root(GENERATED_BUREAU_SKILLS_ROOT, repo_root)
+    for name, protocol_key in PROTOCOL_OWNED_SKILLS.items():
+        if not _protocol_skill_enabled(config, protocol_key):
+            continue
+        _append_protocol_owned_skill(
+            entries=entries,
+            source_roots=source_roots,
+            seen_names=seen_names,
+            name=name,
+            root=protocol_root,
+        )
 
     return {"skills": entries, "source_roots": source_roots}
 

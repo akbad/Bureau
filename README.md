@@ -108,7 +108,8 @@ Handling essential tasks like:
 All agents automatically read these files at startup:
 
 - [`ops-hub.md`](protocols/context/static/ops-hub.md) → central routing table that directs agents to task-specific spokes
-- Task-specific spokes in [`ops/`](protocols/context/static/ops/) → session start, task assessment, execution, completion, code standards
+- Task-specific spokes in [`ops/`](protocols/context/static/ops/) → session start, task assessment, execution, completion
+- Protocol-owned generated `code-standards` skill → detailed, customizable coding standards activated for code-writing and code-editing tasks
 
 - **Custom Bureau skills**: structured workflow protocols (e.g. `assess-mode`) installed for all supported CLIs and activated automatically by matching prompts
 - **[Superpowers](https://github.com/obra/superpowers) skills** — community-maintained skill library *(currently Claude Code and Codex only)*
@@ -161,7 +162,7 @@ The [`protocols/context/static/skills/`](protocols/context/static/skills/) direc
 | [Prompt engineering](protocols/context/static/skills/prompt-engineering/SKILL.md) | Guided prompt creation and refinement for system prompts, agent instructions, skill definitions, or any LLM-facing text. |
 | [Shadow mode](protocols/context/static/skills/shadow-mode/SKILL.md) | Propose-only editing: the agent shows diffs without touching files, with the user applying changes manually. Ideal for learning, maximum transparency, or untrusted environments. |
 
-To enable any of these, add them to the `skills.enabled` [config setting](docs/CONFIGURATION.md#skills):
+To enable any of these normal catalog skills, add them to the `skills.enabled` [config setting](docs/CONFIGURATION.md#skills):
 
 ```yaml
 skills:

@@ -187,6 +187,9 @@ def _validate_protocol_document_setting(value: Any, path: str) -> list[str]:
             f"Unsupported value for '{path}': {value!r}. Expected 'default', 'off', or a non-empty list of file paths."
         ]
 
+    if value is False:
+        return []
+
     if isinstance(value, list):
         if not value:
             return [f"'{path}' must be a non-empty list when using custom file paths"]
@@ -232,6 +235,30 @@ def validate_protocol_settings(config: Mapping[str, Any]) -> list[str]:
             )
 
     return errors
+
+
+def _validate_protocol_owned_skill_settings(config: Mapping[str, Any]) -> ValidationResult:
+    """Warn when protocol-owned skills are configured through the generic skills section."""
+    result = ValidationResult()
+    skills = config.get("skills")
+    if not isinstance(skills, dict):
+        return result
+
+    protocol_owned = {
+        "code-standards": "protocols.code_standards",
+    }
+
+    for key in ("enabled", "disabled"):
+        values = skills.get(key, [])
+        if not isinstance(values, list):
+            continue
+        for name, owner in protocol_owned.items():
+            if name in values:
+                result.warnings.append(
+                    f"skills.{key}: '{name}' is protocol-owned and is ignored here; use {owner} instead."
+                )
+
+    return result
 
 
 def validate_and_raise(config: Mapping[str, Any]) -> None:
@@ -974,9 +1001,12 @@ def validate_config(config: Mapping[str, Any], add_warnings: bool = False) -> Va
 
     # may contain both warnings *and* errors
     validation_result = validate_mcp_rules(config)
+    protocol_owned_skill_result = _validate_protocol_owned_skill_settings(config)
     errors.extend(validation_result.errors)
+    warnings = validation_result.warnings + protocol_owned_skill_result.warnings
+    info = validation_result.info + protocol_owned_skill_result.info
 
-    return ValidationResult(errors=errors, warnings=validation_result.warnings, info=validation_result.info) if add_warnings else errors
+    return ValidationResult(errors=errors, warnings=warnings, info=info) if add_warnings else errors
 
 
 def main() -> int:

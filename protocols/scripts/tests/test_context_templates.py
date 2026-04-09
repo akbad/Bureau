@@ -10,4 +10,4 @@ def test_ops_hub_contains_output_style_session_reminder() -> None:
 
     assert "output style loaded at session start" in content
     assert "{{PROTOCOLS_DIR}}/output-style.md" in content
-    assert "{{PROTOCOLS_DIR}}/code-standards.md" in content
+    assert "Activate the `code-standards` skill" in content

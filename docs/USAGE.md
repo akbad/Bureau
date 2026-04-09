@@ -287,7 +287,7 @@ There are 2 methods for this:
 | [**Task execution**](../protocols/context/static/ops/task-execution.md) | **Tools to use** for a task |
 
 > [!NOTE]
-> Agents read [`ops-hub.md`](../protocols/context/static/ops-hub.md) at startup, which routes them to task-specific spoke files (session start, task assessment, task execution, task completion, code standards) as directed in the [config files set up by this repo](../protocols/).
+> Agents read [`ops-hub.md`](../protocols/context/static/ops-hub.md) at startup, which routes them to task-specific spoke files (session start, task assessment, task execution, task completion) and to the generated `code-standards` skill for code work, as directed in the [config files set up by this repo](../protocols/).
 
 #### Sample comprehensive workflow
 
@@ -353,7 +353,7 @@ A skills library that enforces mandatory workflows for common engineering tasks 
 | [**Task execution**](../protocols/context/static/ops/task-execution.md) | **Tools to use** for a task |
 
 > [!NOTE]
-> Agents read [`ops-hub.md`](../protocols/context/static/ops-hub.md) at startup, which routes them to task-specific spoke files (session start, task assessment, task execution, task completion, code standards) as directed in the [config files set up by this repo](../protocols/).
+> Agents read [`ops-hub.md`](../protocols/context/static/ops-hub.md) at startup, which routes them to task-specific spoke files (session start, task assessment, task execution, task completion) and to the generated `code-standards` skill for code work, as directed in the [config files set up by this repo](../protocols/).
 
 #### How skills activate 
 

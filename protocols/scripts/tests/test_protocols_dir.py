@@ -6,12 +6,14 @@ and shell helper functions (resolve_path, display_name_from_path).
 
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RESET_SCRIPT = REPO_ROOT / "bin" / "reset-protocols"
+SET_UP_PROTOCOLS_SCRIPT = REPO_ROOT / "protocols" / "scripts" / "set-up-protocols.sh"
 STATIC_DIR = REPO_ROOT / "protocols" / "context" / "static"
 
 # hub file and generated runtime artifacts at top level, spokes inside ops/
@@ -140,6 +142,133 @@ class TestResetProtocols:
         )
 
         assert result.returncode != 0
+
+
+class TestSetUpProtocols:
+    """Regression tests for the real setup script."""
+
+    def test_replace_mode_removes_legacy_ops_code_standards(self, tmp_path: Path) -> None:
+        protocols_dir = tmp_path / ".config" / "bureau" / "protocols"
+        legacy_file = protocols_dir / "ops" / CODE_STANDARDS_FILE
+        legacy_file.parent.mkdir(parents=True)
+        legacy_file.write_text("legacy stale file")
+
+        result = subprocess.run(
+            ["bash", str(SET_UP_PROTOCOLS_SCRIPT), "--protocols", "replace"],
+            env={**os.environ, "HOME": str(tmp_path)},
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert not legacy_file.exists()
+        assert (protocols_dir / CODE_STANDARDS_FILE).exists()
+
+    def test_sync_mode_backs_up_legacy_ops_code_standards_before_removal(self, tmp_path: Path) -> None:
+        protocols_dir = tmp_path / ".config" / "bureau" / "protocols"
+        legacy_file = protocols_dir / "ops" / CODE_STANDARDS_FILE
+        legacy_file.parent.mkdir(parents=True)
+        legacy_file.write_text("legacy stale file")
+
+        result = subprocess.run(
+            ["bash", str(SET_UP_PROTOCOLS_SCRIPT), "--protocols", "sync"],
+            env={**os.environ, "HOME": str(tmp_path)},
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert not legacy_file.exists()
+        assert legacy_file.with_name(f"{CODE_STANDARDS_FILE}.bak").read_text() == "legacy stale file"
+        assert (protocols_dir / CODE_STANDARDS_FILE).exists()
+
+    def test_custom_code_standards_only_change_generated_skill(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        home.mkdir()
+        custom_style = tmp_path / "team-style.md"
+        custom_principles = tmp_path / "design-principles.md"
+        custom_style.write_text("# Team style\n\n- favor narrow interfaces\n", encoding="utf-8")
+        custom_principles.write_text("# Design principles\n\n- preserve invariants\n", encoding="utf-8")
+
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT, prefix=".tmp-bureau-config-") as project_dir_str:
+            project_dir = Path(project_dir_str)
+            (project_dir / ".bureau.yml").write_text(
+                "protocols:\n"
+                "  code_standards:\n"
+                f"    - {custom_style}\n"
+                f"    - {custom_principles}\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["bash", str(SET_UP_PROTOCOLS_SCRIPT), "--protocols", "replace"],
+                cwd=project_dir,
+                env={
+                    **os.environ,
+                    "HOME": str(home),
+                    "UV_CACHE_DIR": str(tmp_path / "uv-cache"),
+                },
+                capture_output=True,
+                text=True,
+            )
+
+        assert result.returncode == 0, result.stderr
+
+        protocols_dir = home / ".config" / "bureau" / "protocols"
+        mindset_text = (protocols_dir / CODE_STANDARDS_FILE).read_text(encoding="utf-8")
+        skill_text = (
+            home
+            / ".config"
+            / "bureau"
+            / "generated"
+            / "skills"
+            / "code-standards"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        assert (STATIC_DIR / "ops" / CODE_STANDARDS_FILE).read_text(encoding="utf-8") in mindset_text
+        assert "# Team style" not in mindset_text
+        assert "# Design principles" not in mindset_text
+        assert "# Team style" in skill_text
+        assert "# Design principles" in skill_text
+
+    def test_code_standards_off_disables_mindset_artifact_and_generated_skill(self, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        home.mkdir()
+
+        with tempfile.TemporaryDirectory(dir=REPO_ROOT, prefix=".tmp-bureau-config-") as project_dir_str:
+            project_dir = Path(project_dir_str)
+            (project_dir / ".bureau.yml").write_text(
+                "protocols:\n"
+                "  code_standards: off\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                ["bash", str(SET_UP_PROTOCOLS_SCRIPT), "--protocols", "replace"],
+                cwd=project_dir,
+                env={
+                    **os.environ,
+                    "HOME": str(home),
+                    "UV_CACHE_DIR": str(tmp_path / "uv-cache"),
+                },
+                capture_output=True,
+                text=True,
+            )
+
+        assert result.returncode == 0, result.stderr
+
+        protocols_dir = home / ".config" / "bureau" / "protocols"
+        assert not (protocols_dir / CODE_STANDARDS_FILE).exists()
+        assert not (
+            home
+            / ".config"
+            / "bureau"
+            / "generated"
+            / "skills"
+            / "code-standards"
+        ).exists()
+        assert "Writing or editing code" not in (protocols_dir / HUB_FILE).read_text(encoding="utf-8")
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
