@@ -136,7 +136,7 @@ The default unfold returns compact output: metadata, tasks, and decisions — se
 bureau-dossiers unfold <hash-or-name> --full
 ```
 
-Only use `--full` when the compact output is insufficient to pick up the work.
+Only use `--full` when the compact output is insufficient to pick up the work. By default, the last 5 session digests are rendered; use `--max-sessions N` to adjust.
 
 **With `--claim` (exclusive access):**
 
@@ -230,7 +230,7 @@ When you want to delegate a task to a subagent, use the context extraction primi
 # pre-claim the task for the subagent
 bureau-dossiers tasks <slug> claim --id <task-id> --agent <subagent-label>
 
-# extract task-scoped context
+# extract task-scoped context (add --format json for machine-readable output)
 bureau-dossiers context <slug> --task <task-id>
 ```
 
@@ -293,6 +293,8 @@ The dossier's task list is managed via the CLI. Multiple agents can read from an
 bureau-dossiers tasks <slug> list
 ```
 
+Add `-v` / `--verbose` to include task descriptions in the output.
+
 ### Claim a task (mark as in-progress)
 
 ```bash
@@ -312,15 +314,17 @@ Atomic: succeeds only if the task is `in_progress`.
 ### Update a task (general-purpose, no atomicity guarantees)
 
 ```bash
-bureau-dossiers tasks <slug> update --id <task-id> --status <status> --owner <owner>
+bureau-dossiers tasks <slug> update --id <task-id> --status <status> --owner <owner> --description "..." --context-notes "..."
 ```
 
 Use `update` for corrections and metadata changes. For status transitions during normal workflow, prefer `claim` and `complete` — they provide race-safe guarantees.
 
+Pass `--context-notes` to attach hints that appear in worker context output. Pass `""` to clear.
+
 ### Add a new task
 
 ```bash
-bureau-dossiers tasks <slug> add --subject "Task subject" --status pending
+bureau-dossiers tasks <slug> add --subject "Task subject" --status pending --context-notes "hints for worker"
 ```
 
 ### Remove a task
@@ -356,6 +360,21 @@ bureau-dossiers lock <slug> release --agent <your-agent-id>
 ```
 
 This frees the dossier for other agents to claim.
+
+---
+
+## CLI error tags
+
+The CLI produces structured error tags for programmatic handling:
+
+| Tag | Meaning |
+|-----|---------|
+| `[not-found]` | No dossier matches the query |
+| `[lock-conflict]` | Dossier is locked by another agent |
+| `[ambiguous]` | Query matches multiple dossiers |
+| `[task-not-found]` | Task ID does not exist in the dossier |
+
+Check stderr for these tags when a command exits non-zero. They appear at the start of the error message.
 
 ---
 

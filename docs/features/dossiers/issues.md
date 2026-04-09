@@ -351,12 +351,16 @@ def escape_md(text: str) -> str:
 
 ### D1. `--context-notes` undocumented in SKILLs
 
+> **Status:** Fixed. Added to `tasks add` and `tasks update` examples in unfold SKILL, with explanation of clear-via-empty-string behavior.
+
 **Location:** `cli.py:428-429,437-438`
 
 The `--context-notes` flag is available on both `tasks add` and `tasks update` but is not mentioned in either SKILL file. This flag provides context hints for worker agents and is rendered in `context` command output.
 
 
 ### D2. `--description` on `tasks update` undocumented
+
+> **Status:** Fixed. Added to `tasks update` example in unfold SKILL.
 
 **Location:** `cli.py:424,439`
 
@@ -365,12 +369,16 @@ Both `tasks add` and `tasks update` support `--description`, but only `tasks add
 
 ### D3. `--verbose` on `tasks list` undocumented
 
+> **Status:** Fixed. Added `-v` / `--verbose` note after `tasks list` example in unfold SKILL.
+
 **Location:** `cli.py:420`
 
 The `tasks list` command supports `--verbose` / `-v` to show task descriptions. Not mentioned in either SKILL.
 
 
 ### D4. Typed error tags undocumented
+
+> **Status:** Fixed. New "CLI error tags" section added to unfold SKILL with all four tags.
 
 **Location:** `cli.py:204,208,212,359,364`
 
@@ -379,6 +387,8 @@ The CLI produces structured error tags (`[not-found]`, `[lock-conflict]`, `[ambi
 
 ### D5. `--format` on `list` and `context` undocumented
 
+> **Status:** Fixed. `--format json` noted on `list` (in D6 fix) and `context` (in delegating-to-workers section) in unfold SKILL.
+
 **Location:** `cli.py:411,478`
 
 Both `list` (supports `table`/`json`) and `context` (supports `markdown`/`json`) have `--format` options. Undocumented.
@@ -386,12 +396,16 @@ Both `list` (supports `table`/`json`) and `context` (supports `markdown`/`json`)
 
 ### D6. `list` output columns mismatch in unfold SKILL
 
+> **Status:** Fixed. Description updated to list all six columns: `Hash`, `Name`, `Branch`, `Tasks`, `Lock`, `Updated`.
+
 **Location:** `unfold-dossier/SKILL.md:74` vs `cli.py:232`
 
 The unfold SKILL describes the `list` output as containing "hash, name, branch, relative time, and lock status" (5 columns). The CLI actually outputs 6 columns: `Hash, Name, Branch, Tasks, Lock, Updated`. The `Tasks` count column is missing from the description. The example table also reflects the wrong column order.
 
 
 ### D7. `--max-sessions` on `unfold` undocumented
+
+> **Status:** Fixed. `--max-sessions N` documented alongside `--full` in unfold SKILL.
 
 **Location:** `cli.py:399`
 
