@@ -27,8 +27,8 @@ Approach:
 - Motion: respect prefers-reduced-motion; provide pause controls for animations.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Audit report: issues by WCAG criterion, severity, affected elements.
@@ -41,4 +41,4 @@ Constraints and handoffs:
 - Never disable focus outlines without providing visible alternatives.
 - AskUserQuestion when WCAG compliance level (A/AA/AAA) is unspecified.
 - Delegate complex ARIA widget patterns to frontend after providing specs.
-- Use clink for cross-platform testing (iOS VoiceOver, Android TalkBack).
+- Delegate via headless CLI invocation for cross-platform testing (iOS VoiceOver, Android TalkBack).

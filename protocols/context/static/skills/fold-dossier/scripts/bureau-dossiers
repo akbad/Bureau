@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Self-locating wrapper for the bureau-dossiers CLI.
+#
+# Resolves the bureau-concierge repo root by following symlinks back
+# from this script's location, so agents can invoke the CLI from any
+# working directory without knowing where the repo lives.
+#
+# Symlink chain: ~/.claude/skills/fold-dossier/scripts/bureau-dossiers
+#   → protocols/context/static/skills/fold-dossier/scripts/bureau-dossiers
+#   → repo root discovered via ancestor traversal
+set -euo pipefail
+
+# resolve symlinks to find the real script location
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  # resolve relative symlinks
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+# walk up to find the repo root (contains pyproject.toml)
+REPO_ROOT="$SCRIPT_DIR"
+while [ ! -f "$REPO_ROOT/pyproject.toml" ] && [ "$REPO_ROOT" != "/" ]; do
+  REPO_ROOT="$(dirname "$REPO_ROOT")"
+done
+
+if [ ! -f "$REPO_ROOT/pyproject.toml" ]; then
+  echo "Error: could not locate bureau-concierge repo root from $SCRIPT_DIR" >&2
+  exit 1
+fi
+
+exec uv run --project "$REPO_ROOT" bureau-dossiers "$@"

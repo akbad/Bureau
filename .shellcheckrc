@@ -1,0 +1,5 @@
+# For shellcheck (e.g. as extension in VSCode)
+
+# Equivalent of always passing `shellcheck -x`, which allows ShellCheck to follow 
+# `source`/`.` directives and lint the referenced files too
+external-sources=true

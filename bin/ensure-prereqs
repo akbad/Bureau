@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+#
+# Purpose:
+#   - Verifies Bureau prerequisites are installed
+#   - Installs pinned Python version via uv
+#   - Syncs project deps from pyproject.toml
+#
+# Usage:
+#   ./bin/ensure-prereqs           # Check prerequisites and set up Python
+#   ./bin/ensure-prereqs --quiet   # Exit 0 if all present, 1 if any missing (no output)
+#
+# Exit codes:
+#   0 - All prerequisites installed
+#   1 - One or more prerequisites missing
+
+set -e
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$REPO_ROOT/bin/lib/logging.sh"
+
+QUIET=false
+MISSING=0
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -q|--quiet)
+            QUIET=true
+            shift
+            ;;
+        -h|--help)
+            sed -n '2,/^$/p' "$0" | sed 's/^# //g'
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+check_cmd() {
+    local cmd=$1
+    local install_msg=$2
+
+    if command -v "$cmd" &>/dev/null; then
+        if [[ "$QUIET" == false ]]; then
+            log_success "$cmd"
+        fi
+        return 0
+    else
+        if [[ "$QUIET" == false ]]; then
+            log_error "$cmd"
+            log_warning "  └─ $install_msg"
+        fi
+        MISSING=1
+        return 1
+    fi
+}
+
+if [[ "$QUIET" == false ]]; then
+    log_action "Checking" "Bureau prerequisites..."
+    log_empty_line
+fi
+
+# check required prerequisites
+check_cmd "npx" "Install Node.js: https://nodejs.org or use nvm" 
+check_cmd "uvx" "Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh" 
+check_cmd "docker" "Install Docker: https://docs.docker.com/get-docker/"
+
+[[ "$QUIET" == false ]] && log_empty_line
+
+if [[ $MISSING -ne 0 ]]; then
+    [[ "$QUIET" == false ]] && log_error "Install missing prerequisites and try again."
+    exit 1
+fi
+
+[[ "$QUIET" == false ]] && log_success "All prerequisites are present."
+
+# Reuse Python version in .python-version
+PYTHON_VERSION=$(cat "$REPO_ROOT/.python-version" | tr -d '[:space:]')
+
+# Verify .python-version and pyproject.toml's `requires-python` match
+PYPROJECT_PYTHON=$(grep 'requires-python' "$REPO_ROOT/pyproject.toml" | grep -oE '[0-9]+\.[0-9]+')
+if [[ "$PYTHON_VERSION" != "$PYPROJECT_PYTHON" ]]; then
+    log_warning "Version mismatch: .python-version ($PYTHON_VERSION) vs pyproject.toml ($PYPROJECT_PYTHON)"
+    log_warning "  └─ Update both files to match"
+fi
+
+# Ensure correct Python version and sync dependencies
+if [[ "$QUIET" == false ]]; then
+    log_empty_line
+    log_action "Setting up" "Python environment..."
+    log_empty_line
+fi
+
+uv python install "$PYTHON_VERSION" --quiet 2>/dev/null || true
+[[ "$QUIET" == false ]] && log_success "Python $PYTHON_VERSION ready"
+
+if ! (cd "$REPO_ROOT" && uv sync); then
+    log_error "Failed to sync Python dependencies"
+    exit 1
+fi
+[[ "$QUIET" == false ]] && log_success "Python dependencies installed"
+
+if [[ "$QUIET" == false ]]; then
+    log_empty_line
+    log_success "Python environment is ready."
+    log_empty_line
+fi
+exit 0

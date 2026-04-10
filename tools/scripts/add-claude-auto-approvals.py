@@ -4,7 +4,8 @@ Helper script to update Claude Code settings.json with tool auto-approval config
 (only if the user specifies the appropriate flag in the calling script).
 
 Usage:
-    uv run add-claude-auto-approvals.py <settings_file_path> <server_name_1> <server_name_2> ...
+    uv run add-claude-auto-approvals.py <settings_file_path> <server_name_1> <server_name_2> ... \
+        [--bash-allow "<prefix>"] [--bash-deny "<prefix>"] [--read-allow "<path>"]
 
 This script:
 1. Creates the settings file if it doesn't exist
@@ -12,8 +13,7 @@ This script:
 3. Preserves existing settings
 """
 
-import sys
-
+from operations.approval_rules import build_claude_bash_rules, build_claude_read_rules
 from operations.json_config_utils import load_json_config, save_json_config
 
 
@@ -35,7 +35,13 @@ BUILTIN_TOOLS_AUTO_APPROVE = [
 ]
 
 
-def update_claude_settings(settings_path: str, mcp_servers: list[str]) -> None:
+def update_claude_settings(
+    settings_path: str,
+    mcp_servers: list[str],
+    bash_allow: list[str] | None = None,
+    bash_deny: list[str] | None = None,
+    read_allow: list[str] | None = None,
+) -> None:
     """
     Update Claude settings.json with MCP auto-approval configuration.
 
@@ -53,6 +59,9 @@ def update_claude_settings(settings_path: str, mcp_servers: list[str]) -> None:
     if 'allow' not in settings['permissions']:
         settings['permissions']['allow'] = []
 
+    if 'deny' not in settings['permissions']:
+        settings['permissions']['deny'] = []
+
     # Add explicit mcp__<server_name> permissions for each server
     added_count = 0
     for server in mcp_servers:
@@ -64,10 +73,25 @@ def update_claude_settings(settings_path: str, mcp_servers: list[str]) -> None:
         else:
             print(f"'{mcp_permission}' already in permissions.allow")
 
+    # Add bash allow/deny prefixes (native Claude Code Bash permission rules)
+    for rule in build_claude_bash_rules(bash_allow or []):
+        if rule not in settings['permissions']['allow']:
+            settings['permissions']['allow'].append(rule)
+
+    for rule in build_claude_bash_rules(bash_deny or []):
+        if rule not in settings['permissions']['deny']:
+            settings['permissions']['deny'].append(rule)
+
+    # allow reading from Bureau-managed directories without per-file prompts
+    for rule in build_claude_read_rules(read_allow or []):
+        if rule not in settings['permissions']['allow']:
+            settings['permissions']['allow'].append(rule)
+
     # Add explicit auto-approvals for non-destructive built-in tools
-    for perm in BUILTIN_TOOLS_AUTO_APPROVE:
-        if perm not in settings['permissions']['allow']:
-            settings['permissions']['allow'].append(perm)
+    if mcp_servers:
+        for perm in BUILTIN_TOOLS_AUTO_APPROVE:
+            if perm not in settings['permissions']['allow']:
+                settings['permissions']['allow'].append(perm)
 
     if added_count > 0:
         print(f"Added {added_count} new MCP permission(s)")
@@ -75,11 +99,12 @@ def update_claude_settings(settings_path: str, mcp_servers: list[str]) -> None:
         print("All MCP permissions already present")
 
     # Add enableAllProjectMcpServers if not already set
-    if 'enableAllProjectMcpServers' not in settings:
-        settings['enableAllProjectMcpServers'] = True
-        print("Added 'enableAllProjectMcpServers': true")
-    else:
-        print(f"'enableAllProjectMcpServers' already set to: {settings['enableAllProjectMcpServers']}")
+    if mcp_servers:
+        if 'enableAllProjectMcpServers' not in settings:
+            settings['enableAllProjectMcpServers'] = True
+            print("Added 'enableAllProjectMcpServers': true")
+        else:
+            print(f"'enableAllProjectMcpServers' already set to: {settings['enableAllProjectMcpServers']}")
 
     # Write updated settings
     save_json_config(settings_path, settings)
@@ -87,10 +112,22 @@ def update_claude_settings(settings_path: str, mcp_servers: list[str]) -> None:
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: uv run add-claude-auto-approvals.py <settings_file_path> [server_name_1] [server_name_2] ...")
-        sys.exit(1)
+    import argparse
 
-    settings_path = sys.argv[1]
-    mcp_servers = sys.argv[2:] if len(sys.argv) > 2 else []
-    update_claude_settings(settings_path, mcp_servers)
+    parser = argparse.ArgumentParser(
+        description="Update Claude settings.json with MCP and Bash auto-approval configuration."
+    )
+    parser.add_argument("settings_path", help="Path to Claude settings.json")
+    parser.add_argument("mcp_servers", nargs="*", help="MCP servers to auto-approve")
+    parser.add_argument("--bash-allow", action="append", default=[], help="Bash prefix to allow")
+    parser.add_argument("--bash-deny", action="append", default=[], help="Bash prefix to deny")
+    parser.add_argument("--read-allow", action="append", default=[], help="Directory path to auto-approve for Read")
+    args = parser.parse_args()
+
+    update_claude_settings(
+        args.settings_path,
+        args.mcp_servers,
+        bash_allow=args.bash_allow,
+        bash_deny=args.bash_deny,
+        read_allow=args.read_allow,
+    )

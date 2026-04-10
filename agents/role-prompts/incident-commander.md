@@ -22,10 +22,8 @@ Approach:
 - Patterns: track recurring issues, MTTR, alert noise; propose systemic fixes.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [code search guide](../reference/by-category/code-search.md) (Tier 2)
-- the [Sourcegraph deep dive](../reference/deep-dives/sourcegraph.md) (Tier 3 as needed)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Incident brief: severity, impact, start time, status, war room link.
@@ -39,4 +37,4 @@ Constraints and handoffs:
 - Document everything live; timeline is source of truth for postmortem.
 - Blameless culture: focus on systems, not individuals; "how did process allow this?"
 - AskUserQuestion for severity assessment, escalation paths, or communication channels.
-- Use cross‑model delegation (clink) for technical deep dives during or after incidents.
+- Use cross‑model delegation (headless CLI invocation) for technical deep dives during or after incidents.

@@ -38,7 +38,7 @@
 - A **suite of specialized coding agent roles** with consistent behaviour on any platform, with **flexible ways of invoking them:**
 
     - **Direct use:** use an agent at any time in your current conversation *(Claude Code, OpenCode)* or launch instances of the CLI with the chosen agent *(Codex & Gemini CLIs)*
-    - **As subagents:** delegate specific, isolated tasks to specialized agents that run in the background, <ins>automatically</ins> using [PAL MCP's `clink`](https://github.com/BeehiveInnovations/pal-mcp-server/blob/main/docs/tools/clink.md) to **enable cross-CLI subagent spawning & collaboration**
+    - **As subagents:** delegate specific, isolated tasks to specialized agents that run in the background via headless CLI invocation
 
 - A set of **open-source/free/freemium MCP servers** *(i.e. you won't pay a cent)* that make tasks (such as `git`, web browsing and static code analysis) **reliable and token-efficient**
 - **Automatic setup scripts** for:
@@ -64,7 +64,7 @@
 | :------ | :--------- |
 | **Skill** | *Superpowers* workflow (e.g., `superpowers:test-driven-development`) + any extra Claude/Codex skills files you define |
 | **Agent** |  Roles (e.g., `debugger`, `architect`) usable as agents, either [directly in your main chat](#direct-use) or [as **subagents**](#as-subagents) |
-| **Subagent** | A child **agent**, isolated from the main chat, spawned to complete a particular task by *either* (1) Claude Code or OpenCode native subagents feature or (2) `clink` |
+| **Subagent** | A child **agent**, isolated from the main chat, spawned to complete a particular task using Claude Code or OpenCode native subagents, or headless CLI invocation |
 | **MCP** | MCP servers available for CLIs to use |
 
 ## Using agents: quick guide
@@ -74,13 +74,13 @@
 > | Location | Used when? |
 > | :--- | :--- |
 > | [`agents/claude-subagents`](../agents/claude-subagents/) | (1) Spawning **subagents via Claude Code**'s first-party "subagents" feature or (2) spawning agents for **direct use in chat via slash commands** |
-> | [`agents/role-prompts`](../agents/role-prompts/) | (1) Spawning **subagents via `clink`** (from *any* CLI, including Claude Code) or (2) spawning agents for **direct use in Codex/Gemini CLIs via wrapper scripts** or (3) spawning **OpenCode subagents** |
+> | [`agents/role-prompts`](../agents/role-prompts/) | (1) Spawning agents for **direct use in Codex/Gemini CLIs via wrapper scripts**, (2) spawning **OpenCode subagents**, or (3) headless CLI invocation |
 >
 > - **Read through the files to see the full list of roles available for use.**
 > - Prompts for the <ins>same role</ins> have the <ins>same body across both locations</ins> *(the `claude-subagents` files simply have some extra header YAML that makes them smoother to use with Claude Code)*
 
 > [!TIP]
-> Read [`handoff-guide.md`](../protocols/context/static/handoff-guide.md) to see the guidance that the CLIs will read at startup that will teach them:
+> Read [`ops/task-assessment.md`](../protocols/context/static/ops/task-assessment.md) to see the guidance that the CLIs will read at startup that will teach them:
 > - when to delegate tasks to subagents
 > - which CLIs/models to use for specific subagent tasks
 
@@ -89,7 +89,7 @@
 Bureau configures CLIs based on the `agents` config setting:
 
 ```yaml
-# directives.yml (or local.yml for personal overrides)
+# defaults.yml (or .bureau.yml / local.yml for overrides)
 agents:
   - claude    # Claude Code
   - gemini    # Gemini CLI
@@ -121,21 +121,21 @@ Activate an agent <ins>within a Claude Code session</ins> using its **correspond
 
 #### Codex & Gemini CLIs
 
-Launch the CLI using the **generated wrapper scripts**, named in the format **`<codex|gemini>-<rolename>`** (e.g. `gemini-architect`, `codex-debugger`)
+Launch the CLI using the **generated wrapper scripts**, named in the format **`<codex|gemini>-<rolename>`** (e.g. `gemini-architect`, `codex-code-reviewer`)
 
 > <ins>Example</ins>:
 >
-> - Starting Gemini CLI to interact with the [*Explainer*](../agents/role-prompts/explainer.md) agent in the main conversation:
+> - Starting Gemini CLI to interact with the [*Architect*](../agents/role-prompts/architect.md) agent in the main conversation:
 >   ```bash
->   $ gemini-explainer
->   # Gemini CLI is now running w/ the Explainer agent active
->   # Ask it to clarify code and docs
+>   $ gemini-architect
+>   # Gemini CLI is now running w/ the Architect agent active
+>   # Ask it to design a system or review high-level structure
 >   ```
-> - Starting Codex to interact with the [*Debugger*](../agents/role-prompts/debugger.md) agent in the main conversation:
+> - Starting Codex to interact with the [*Code reviewer*](../agents/role-prompts/code-reviewer.md) agent in the main conversation:
 >   ```bash
->   $ codex-debugger
->   # Codex is now running w/ the Debugger agent active
->   # Give it error logs or code snippets to analyze
+>   $ codex-code-reviewer
+>   # Codex is now running w/ the Code Reviewer agent active
+>   # Ask it to review a diff for bugs, risks, and missing tests
 >   ```
 
 #### OpenCode
@@ -150,19 +150,9 @@ Use the [**primary agents mechanism**](https://opencode.ai/docs/agents/#primary-
 > [!IMPORTANT]
 > You should **not** need to explicitly follow the steps below; after reading startup guidance, **agents will know when to spawn subagents <ins>automatically</ins>** (assuming you've set up the global config files).
 
-#### Spawning subagents using any CLI, from any CLI (via `clink`)
+#### Via headless CLI invocation
 
-For cross-CLI subagent spawning and collaboration, use PAL MCP's `clink` tool. It allows specifying:
-
-- the agent role
-- the CLI to use to spawn the agent
-- the task prompt
-
-> <ins>Example</ins>:
-> ```bash
-> # within any of Claude Code, Codex, Gemini CLI, or OpenCode
-> > clink with gemini with architect role to map out how to
->   migrate from our monorepo to a microservices architecture
+Agents can delegate tasks by launching other CLIs in headless (non-interactive) mode. The parent agent constructs the subagent prompt and invokes the target CLI directly.
 
 #### Within Claude Code & OpenCode (via native subagents)
 
@@ -222,16 +212,8 @@ Simply explicitly mention the subagent you want to use and it will automatically
     - **Filesystem**: For efficient batch file
       operations (read_multiple_files only).
 
-- **Orchestration**:
-    - **PAL (`clink` tool only)**: enables cross-CLI collaboration/subagent spawning, [as discussed above](#spawning-subagents-using-any-cli-from-any-cli-via-clink)
-
 > [!TIP]
-> To learn more about the available MCPs and the specific guidance agents receive on how to use them, read:
->
-> - [`tools-guide.md`](../protocols/context/static/tools-guide.md): quick decision guide for selecting the best tool for a given task.
-> - [`deep-dives/`](../protocols/context/static/deep-dives/): 
-> 
->     - Collection of in-depth guides for each MCP, detailing their capabilities and advanced usage patterns. Only read by agents when necessary to preserve context
+> To learn more about the available MCPs and the specific guidance agents receive on how to use them, read [`ops/task-execution.md`](../protocols/context/static/ops/task-execution.md) *(tool selection, memory storage, and limits)*.
 
 ### Non-MCP CLI tools
 
@@ -244,6 +226,34 @@ Simply explicitly mention the subagent you want to use and it will automatically
     | `uv run get-config` | Display resolved Bureau configuration |
     | `uv run sweep` | Clean up temporary/generated files |
     | `uv run validate-config` | Validate configuration files |
+
+## Telegram bot
+
+The Concierge can run as a personal Telegram bot for always-on access to the pipeline outside of coding sessions. See [SETUP.md](SETUP.md#telegram-bot-setup-optional) for initial setup.
+
+### Starting the bot
+
+```bash
+bin/start-concierge-bot
+# or: uv run concierge-bot
+```
+
+### What happens when you send a message
+
+1. The bot sends a typing indicator
+2. Your message is classified (deterministic rules → DistilBERT ONNX model → fuzzy command matching)
+3. The 6-stage feature pipeline runs (suite detection → attache selection → hard rules → feature evaluation → scoring → lottery)
+4. An LLM generates a response using the system prompt, memory context, and any selected feature
+5. The response is sanitized (code blocks, tool prompts, and other machine artifacts stripped) and sent back
+6. Session state is persisted to disk
+
+### Background checks
+
+While running, the bot periodically executes background checks (dispatch scans, brew analysis, distillation, probe/valet delivery) via the same `BackgroundRunner` used elsewhere in the pipeline.
+
+### Configuration
+
+Telegram-specific settings live in `concierge/config/defaults/pipeline.yml` under the `telegram` key. See [CONFIGURATION.md](CONFIGURATION.md) for details.
 
 ## Preserving context & memories across sessions
 
@@ -273,20 +283,20 @@ There are 2 methods for this:
 | :--- | :--- |
 | **GitHub SpecKit** *(optional user-called CLI tool)* | **What** to build and **why** (i.e. top-down planning & specification) |
 | ***Superpowers*-defined** (and other) **skills** | **How** to perform a task *(if defined for that task)*
-| [**Handoff guidelines**](../protocols/context/static/handoff-guide.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
-| [**Tool guidance**](../protocols/context/static/tools-guide.md) | **Tools to use** for a task |
+| [**Task assessment**](../protocols/context/static/ops/task-assessment.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
+| [**Task execution**](../protocols/context/static/ops/task-execution.md) | **Tools to use** for a task |
 
 > [!NOTE]
-> The [handoff guidelines](../protocols/context/static/handoff-guide.md) and [tool guidance](../protocols/context/static/tools-guide.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../protocols/)).
+> Agents read [`ops-hub.md`](../protocols/context/static/ops-hub.md) at startup, which routes them to task-specific spoke files (session start, task assessment, task execution, task completion) and to the generated `code-standards` skill for code work, as directed in the [config files set up by this repo](../protocols/).
 
 #### Sample comprehensive workflow
 
 1. Use `/speckit.specify` and `/speckit.tasks` to define feature and generate task list
-2. Read `specs/<new-feature>/tasks.md` and delegate tasks to specialized agents via `clink`
+2. Read `specs/<new-feature>/tasks.md` and delegate tasks to specialized agents
 3. Within each agent session:
-    
-    - [Tool guidance doc](../protocols/context/static/tools-guide.md) ensures agents know appropriate tools to use for their task
-    - [Handoff guidelines doc](../protocols/context/static/handoff-guide.md) teaches agents:
+
+    - [Task execution spoke](../protocols/context/static/ops/task-execution.md) ensures agents know appropriate tools to use for their task
+    - [Task assessment spoke](../protocols/context/static/ops/task-assessment.md) teaches agents:
         
         - When to delegate *(i.e. recursively)*
         - The *right* agents to delegate subtasks to
@@ -339,11 +349,11 @@ A skills library that enforces mandatory workflows for common engineering tasks 
 | :--- | :--- |
 | **GitHub SpecKit** *(optional user-called CLI tool)* | **What** to build and **why** (i.e. top-down planning & specification) |
 | ***Superpowers*-defined** (and other) **skills** | **How** to perform a task *(if defined for that task)*
-| [**Handoff guidelines**](../protocols/context/static/handoff-guide.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
-| [**Tool guidance**](../protocols/context/static/tools-guide.md) | **Tools to use** for a task |
+| [**Task assessment**](../protocols/context/static/ops/task-assessment.md) | **Who** performs each task *(i.e. when to delegate to subagents + recommended agent/model combos)* |
+| [**Task execution**](../protocols/context/static/ops/task-execution.md) | **Tools to use** for a task |
 
 > [!NOTE]
-> The [handoff guidelines](../protocols/context/static/handoff-guide.md) and [tool guidance](../protocols/context/static/tools-guide.md) are part of the required files agents must read upon startup (as directed in the [config files set up by this repo](../protocols/)).
+> Agents read [`ops-hub.md`](../protocols/context/static/ops-hub.md) at startup, which routes them to task-specific spoke files (session start, task assessment, task execution, task completion) and to the generated `code-standards` skill for code work, as directed in the [config files set up by this repo](../protocols/).
 
 #### How skills activate 
 
@@ -366,8 +376,9 @@ A skills library that enforces mandatory workflows for common engineering tasks 
 > 
 > You can check which skills are available to (be automatically loaded by) Codex by running:
 > ```bash
-> ~/.codex/superpowers/.codex/superpowers-codex find-skills
+> ls -ld ~/.agents/skills/superpowers
 > ```
+> The symlink target should be `~/.codex/superpowers/skills`.
 
 ### Using `claude-mem` *(Claude Code only)*
 

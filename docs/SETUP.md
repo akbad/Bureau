@@ -17,7 +17,7 @@ Bureau's bootstrap script handles all setup automatically, providing sensible de
 >       - [`bureau/bin/`](../bin/)
 >       - `~/.local/bin` *(only if using **Gemini CLI** and/or **Codex**)*
 > 
-> 3. **Create `local.yml` in the repo root (recommended)** or edit [`directives.yml`](../directives.yml) to set `path_to.workspace` to where you keep the repos/projects you want to work on, e.g.:
+> 3. **Create `local.yml` in the repo root (recommended)** or edit [`defaults.yml`](../defaults.yml) to set `path_to.workspace` to where you keep the repos/projects you want to work on, e.g.:
 >       
 >       ```yml
 >       # local.yml
@@ -101,7 +101,7 @@ In your shell profile (`~/.zshrc`, `~/.bashrc`, etc.), add the following paths t
 
 ### Set Bureau workspace path (`path_to.workspace`)
 
-**Create `local.yml` in the repo root (recommended)** or edit [`directives.yml`](../directives.yml) to set `path_to.workspace` to where you keep the repos/projects you want to work on, e.g.:
+**Create `local.yml` in the repo root (recommended)** or edit [`defaults.yml`](../defaults.yml) to set `path_to.workspace` to where you keep the repos/projects you want to work on, e.g.:
        
 ```yml
 # local.yml
@@ -131,7 +131,7 @@ $ open-bureau  # in this repo's bin/
 
 > [!IMPORTANT]
 >
-> **`open-bureau` <ins>must</ins> be re-run after editing any config values** in the Bureau `.yml` files, i.e. [`charter.yml`](../charter.yml), [`directives.yml`](../directives.yml) (and `local.yml` if you've created one).
+> **`open-bureau` <ins>must</ins> be re-run after editing any config values** in the Bureau `.yml` files, i.e. [`defaults.yml`](../defaults.yml), `.bureau.yml` (if you've created one), and `local.yml` (if you've created one).
 
 #### What `open-bureau` does *(optional extra info)*
 
@@ -140,22 +140,18 @@ $ open-bureau  # in this repo's bin/
 3. Clones MCP servers that must be run from source
 4. Starts MCP servers (and backing containers where needed) and sets up all enabled CLI agents to use them
 5. Sets up agent role prompts and custom slash commands/launch wrappers for them *(to allow interactive use as main agents)*
-6. Generates context files for each enabled CLI *(and symlinks into the appropriate user-scoped config dir)*: 
+6. Configures context injection hooks for each enabled CLI:
     
-    - `~/.claude/CLAUDE.md`
-    - `~/.codex/AGENTS.md`
-    - `~/.gemini/GEMINI.md`
+    - Claude Code, Codex, Gemini CLI: SessionStart hooks configured in each CLI's settings
+    - OpenCode: `instructions` array in `~/.config/opencode/opencode.json`
     
 > [!NOTE]
-> These are the files enabling *automatic context injection*: 
+> These hooks enable *automatic context injection*: 
 > 
-> - They guide agents to read *Bureau's custom context files* that teach them to **<ins>autonomously</ins> use Bureau's functionality** *without* explicitly being prompted to by the user.
+> - They load *Bureau's custom context files* at session start, teaching agents to **<ins>autonomously</ins> use Bureau's functionality** *without* explicitly being prompted to by the user.
 > - This **<ins>minimizes the learning curve</ins>, letting you get to work as fast as possible.**
 
-7. Generates:
-
-    - PAL MCP config files for each enabled CLI and symlinks into the PAL MCP config dir (`~/.pal/cli_clients/`)
-    - the **`close-bureau` script allowing easy shutdown** of *all* daemons/containers launched by Bureau *(placed in the `bureau/bin/` directory)*
+7. Generates the **`close-bureau` script allowing easy shutdown** of *all* daemons/containers launched by Bureau *(placed in the `bureau/bin/` directory)*
 
 ### Install plugins *(Claude Code only)*
 
@@ -176,8 +172,7 @@ $ claude
 
 > [!NOTE]
 > 
-> Codex also works with Superpowers: Bureau sets it up **automatically** (via cloning the repo to the user-scoped `~/.codex/`).\
-> No manual setup is needed.
+> Codex also works with Superpowers; Bureau sets it up **automatically**.
 
 > [!IMPORTANT]
 > 
@@ -195,9 +190,9 @@ $ claude
 <details>
 <summary><strong>Claude Code</strong></summary>
 
-1. Run `/status`: it should show `Memory: user (~/.claude/CLAUDE.md)`
+1. Start a new session and ask "What operational context were you given?" — it should reference Bureau's ops-hub and task-specific spokes
 2. Run `/mcp`: it should list Bureau's MCP servers (qdrant, sourcegraph, etc.)
-3. Run `/explainer` *(custom role activation command set up by Bureau)*: it should launch the [`explainer`](../agents/role-prompts/explainer.md) agent for interactive use in the main conversation.
+3. Run `/architect` *(custom role activation command set up by Bureau)*: it should launch the [`architect`](../agents/claude-subagents/architect.md) agent for interactive use in the main conversation.
 
     > You can test this with any role prompt in [`agents/claude-subagents/`](../agents/claude-subagents/): the custom command created for each role will have the form `/<basename>`, using the basename of each file in the directory.
 
@@ -208,9 +203,8 @@ $ claude
 <details>
 <summary><strong>Gemini CLI</strong></summary>
 
-1. Run `/memory show`: should show content from `GEMINI.md`
-2. Check `Using:` line shows `1 GEMINI.md file`
-3. Run `gemini-explainer` *(custom launch wrapper set up by Bureau)* from the command line to see if it launches Gemini with the [`explainer`](../agents/role-prompts/explainer.md) agent active in the *main conversation*
+1. Start a new session and ask "What operational context were you given?" — it should reference Bureau's ops-hub and task-specific spokes
+2. Run `gemini-architect` *(custom launch wrapper set up by Bureau)* from the command line to see if it launches Gemini with the [`architect`](../agents/role-prompts/architect.md) agent active in the *main conversation*
     
     > You can test this with any role prompt in [`agents/role-prompts/`](../agents/role-prompts/): the launch wrapper created for each role will have the form `gemini-<basename>` for each file in the directory.
 
@@ -220,9 +214,9 @@ $ claude
 <summary><strong>Codex</strong></summary>
 
 1. Ask: "What must-read files were you given?"
-2. Should reference delegation rules and clink
-3. Run `~/.codex/superpowers/.codex/superpowers-codex find-skills` to verify Superpowers
-4. Run `codex-explainer` *(custom launch wrapper set up by Bureau)* from the command line to see if it launches Codex with the [`explainer`](../agents/role-prompts/explainer.md) agent active in the *main conversation*
+2. Should reference delegation rules and agent roles
+3. Run `ls -ld ~/.agents/skills/superpowers`: it should be a symlink to `~/.codex/superpowers/skills`
+4. Run `codex-architect` *(custom launch wrapper set up by Bureau)* from the command line to see if it launches Codex with the [`architect`](../agents/role-prompts/architect.md) agent active in the *main conversation*
     
     > You can test this with any role prompt in [`agents/role-prompts/`](../agents/role-prompts/): the launch wrapper created for each role will have the form `codex-<basename>` for each file in the directory.
 
@@ -238,6 +232,47 @@ $ claude
 2. Press Tab to cycle through agents: Bureau agents should appear
 
 </details>
+
+## Telegram bot setup (optional)
+
+The Concierge can run as a personal Telegram bot, receiving messages and responding via the full classification + feature pipeline.
+
+### 1. Create a bot via BotFather
+
+1. Open [@BotFather](https://t.me/BotFather) in Telegram
+2. Send `/newbot` and follow the prompts
+3. Copy the bot token (format: `123456:ABC-DEF...`)
+
+### 2. Get your Telegram user ID
+
+Send a message to [@userinfobot](https://t.me/userinfobot) in Telegram — it replies with your numeric user ID. This is used to restrict the bot to only respond to you.
+
+### 3. Set environment variables
+
+Add to your shell profile (`~/.zshrc`/`~/.bashrc`):
+
+```bash
+export BUREAU_TELEGRAM_TOKEN="your-bot-token-here"
+export BUREAU_TELEGRAM_USER_ID="your-numeric-user-id"  # fallback if no wizard config
+```
+
+### 4. Install the telegram dependency
+
+```bash
+uv pip install -e ".[telegram]"
+```
+
+### 5. Start the bot
+
+```bash
+bin/start-concierge-bot
+# or: uv run concierge-bot
+```
+
+The bot uses long-polling (no webhooks or public server needed). It runs until you stop it with Ctrl+C.
+
+> [!NOTE]
+> The bot token is **never** stored in config files — it is always read from the `BUREAU_TELEGRAM_TOKEN` environment variable at startup.
 
 ## Stopping servers
 
@@ -259,7 +294,7 @@ $ close-bureau  # in this repo's bin/
 
 ### How to tweak settings
 
-1. Create a file called `local.yml` in the Bureau repo root **(recommended over changing `directives.yml`)**
+1. Create a file called `local.yml` in the Bureau repo root **(recommended over changing `defaults.yml`)**
 2. Place your overrides there *(see the [simple power user `local.yml` config below](#simple-power-user-configuration-example) for inspiration)*.
 3. Re-run `open-bureau`. 
 
@@ -273,23 +308,16 @@ The new `local.yml` will be:
 | Setting | Default | How to customize |
 | :--- | :--- | :--- |
 | Enabled CLI agents | All 4 [supported CLIs](#supported-cli-coding-agents) | Set `agents` list in `local.yml` |
-| Bureau workspace path | `~/code` | Set `path_to.fs_mcp_whitelist` in `local.yml` |
+| Bureau workspace path | `~/code` | Set `path_to.workspace` in `local.yml` |
 | Memory retention | 30d–365d, depending on the backend | Set `retention_period_for.*` in `local.yml` |
-| [Role prompts](../agents/role-prompts/) and models for PAL `clink` to use with coding CLIs | All role prompts; Sonnet for Claude Code; gpt-5.2-codex with medium reasoning effort for Codex | Set `pal.*` settings in `local.yml` *(see [`directives.yml`](../directives.yml) for quick examples)* | 
+| [Role prompts](../agents/role-prompts/) | All role prompts enabled by default | Set `roles.*` settings in `local.yml` *(see [`defaults.yml`](../defaults.yml) for quick examples)* |
 
 ### Simple power user configuration example
 
 ```yml
 # bureau/local.yml (create if it doesn't exist)
-mcp:
-  auto_approve: yes  
-
-pal:
-  claude: 
-    model: opus
-  codex:
-    model: gpt-5.2-codex
-    effort: xhigh
+auto_approved:
+  mcps: true
 ```
 
 ## Troubleshooting
@@ -299,7 +327,7 @@ pal:
 | MCP server not starting | Check logs in `/tmp/mcp-*-server.log` |
 | Docker not running | Start Docker Desktop / Rancher Desktop first |
 | Missing API key warnings | Set the environment variables listed in prerequisites |
-| Port conflicts | Override ports in `local.yml` (see [CONFIGURATION.md](CONFIGURATION.md#port_for)) |
+| Port conflicts | Override MCP ports in `local.yml` (see [CONFIGURATION.md](CONFIGURATION.md#change-mcp-ports-to-avoid-conflicts)) |
 
 > [!NOTE]
 > For manual setup steps (symlinking, running individual scripts), see the scripts' sources:
@@ -308,5 +336,5 @@ pal:
 > | --- | --- |
 > | [`bin/open-bureau`](../bin/open-bureau) | Main bootstrap/setup convenience/wrapper script |
 > | [`tools/scripts/set-up-tools.sh`](../tools/scripts/set-up-tools.sh) | MCP/tooling setup | 
-> | [`protocols/scripts/set-up-configs.sh`](../protocols/scripts/set-up-configs.sh) | Config/context file setup |
+> | [`protocols/scripts/set-up-protocols.sh`](../protocols/scripts/set-up-protocols.sh) | Config/context file setup |
 > | [`agents/scripts/set-up-agents.sh`](../agents/scripts/set-up-agents.sh) | Agent-/role-related setup |

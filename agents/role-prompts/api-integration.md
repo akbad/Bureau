@@ -20,11 +20,9 @@ Approach:
 - Wire contract/conformance tests to CI; add per‑endpoint SLOs; plan rollout/rollback.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [documentation category guide](../reference/by-category/documentation.md) (Tier 2)
-- the [Context7 deep dive](../reference/deep-dives/context7.md) (Tier 3 as needed)
-- the [docs style guide](../reference/style-guides/docs-style-guide.md) (clear ADRs/decision docs)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [docs style guide](../../protocols/context/static/style-guides/docs-style-guide.md) (clear ADRs/decision docs)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Summary: goals, scope, trust boundaries, SLOs, assumptions.
@@ -39,4 +37,4 @@ Constraints and handoffs:
 - Don’t inline vendor docs; open references; cite sources in ADRs.
 - Require idempotency for writes and bounded retries; validate inputs.
 - AskUserQuestion if SLOs, compatibility, or consumer impact are unclear.
-- Use clink for cross‑model reviews on contentious designs/versioning.
+- Delegate via headless CLI invocation for cross‑model reviews on contentious designs/versioning.

@@ -24,10 +24,8 @@ Approach:
 - Verify/capture: targeted tests; adherence dashboards; store decisions/evidence.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [code search guide](../reference/by-category/code-search.md) (Tier 2)
-- the [Semgrep deep dive](../reference/deep-dives/semgrep.md) (Tier 3 as needed)
-- a [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Risk summary: top findings, severity, assets, impact.
@@ -40,5 +38,5 @@ Constraints and handoffs:
 - Prefer advisory→enforce; tune for low false positives before gating.
 - Never commit secrets; rotate on exposure; document provenance.
 - AskUserQuestion if policies, data categories, or SLAs are unclear.
-- Use clink for second opinions on auth/session/crypto; link long standards/vendor docs.
+- Delegate via headless CLI invocation for second opinions on auth/session/crypto; link long standards/vendor docs.
 

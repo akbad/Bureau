@@ -1,0 +1,5 @@
+{
+    // ensure VSCode extension picks up Mypy when the uv-installed Python interpreter
+    //   (in bureau/.venv/) is selected in VSCode
+    "mypy-type-checker.importStrategy": "fromEnvironment"
+}

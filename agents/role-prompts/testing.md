@@ -21,10 +21,8 @@ Approach:
 - Document patterns; prepare minimal, safe diffs and rollout notes.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md)
-- the [code search guide](../reference/by-category/code-search.md)
-- the [Semgrep deep dive](../reference/deep-dives/semgrep.md)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Findings: flake hotspots and gaps with evidence (paths:lines).
@@ -38,5 +36,5 @@ Constraints and handoffs:
 - Prefer smallest change; avoid wide rewrites.
 - No network in unit tests; isolate state and reset per test.
 - Ensure reproducibility (seeds/time/env) and fast feedback.
-- Use clink for cross‑model review; AskUserQuestion when approvals unclear.
+- Delegate via headless CLI invocation for cross‑model review; AskUserQuestion when approvals unclear.
 - Link to references; don’t inline long docs.

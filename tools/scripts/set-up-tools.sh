@@ -17,79 +17,33 @@
 
 set -e  # exit on error
 
+# setup flags
+MODE_BARE=false
+for arg in "$@"; do
+    case "$arg" in
+        --bare) MODE_BARE=true ;;
+    esac
+done
+
 # --- CONFIG ---
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Helper to read from merged config (merge order: charter.yml → directives.yml → local.yml → env)
+# Helper to read from merged config (merge order: defaults.yml → .bureau.yml → local.yml → env)
 cfg() {
     local key="$1"
     (cd "$REPO_ROOT" && uv run get-config "$key" 2>/dev/null) || true
 }
 
-# Setting MCP source clone paths
-CLONE_DIR="$(cfg path_to.mcp_clones)"
-export SOURCEGRAPH_REPO_PATH="$CLONE_DIR/sourcegraph-mcp"
-
 SERVER_START_TIMEOUT="$(cfg startup_timeout_for.mcp_servers)"
 DOCKER_TIMEOUT="$(cfg startup_timeout_for.docker_daemon)"
 
-# Remote server URLs
-export SOURCEGRAPH_ENDPOINT="${SOURCEGRAPH_ENDPOINT:-$(cfg endpoint_for.sourcegraph)}"
-export CONTEXT7_URL="${CONTEXT7_URL:-$(cfg endpoint_for.context7)}"
-export TAVILY_URL="${TAVILY_URL:-$(cfg endpoint_for.tavily)}"
-
-# PAL MCP: disable all tools except clink (since they need an API key)
-export PAL_DISABLED_TOOLS="${PAL_DISABLED_TOOLS:-$(cfg pal_disabled_tools)}"
-
-# Add CLI bin paths (resolved directly for portability) to the PATH provided to PAL MCP
-#   on startup so that each can be called directly via clink (i.e. to spawn subagents)
-CLI_BIN_PATHS=""
-for cli in claude gemini codex; do
-    if cli_path="$(command -v "$cli" 2>/dev/null)"; then
-        cli_dir="$(dirname "$cli_path")"
-        # Add to path if not already present (dedup)
-        if [[ ":$CLI_BIN_PATHS:" != *":$cli_dir:"* ]]; then
-            CLI_BIN_PATHS="${CLI_BIN_PATHS:+$CLI_BIN_PATHS:}$cli_dir"
-        fi
-    else
-        log_warning "CLI '$cli' not found in PATH - clink won't be able to use it"
-    fi
-done
-export CLI_BIN_PATHS
-
-# Ports for local HTTP servers
-export QDRANT_DB_PORT="${QDRANT_DB_PORT:-$(cfg port_for.qdrant_db)}"
-export QDRANT_MCP_PORT="${QDRANT_MCP_PORT:-$(cfg port_for.qdrant_mcp)}"
-export SOURCEGRAPH_MCP_PORT="${SOURCEGRAPH_MCP_PORT:-$(cfg port_for.sourcegraph_mcp)}"
-export SEMGREP_MCP_PORT="${SEMGREP_MCP_PORT:-$(cfg port_for.semgrep_mcp)}"
-export SERENA_MCP_PORT="${SERENA_MCP_PORT:-$(cfg port_for.serena_mcp)}"
-
-# Configure Qdrant MCP (handles semantic memory)
-# Derive QDRANT_URL if not provided in env
-if [[ -z "${QDRANT_URL:-}" ]]; then
-    QDRANT_URL="http://127.0.0.1:$QDRANT_DB_PORT"
-fi
-export QDRANT_URL
-export QDRANT_COLLECTION_NAME="${QDRANT_COLLECTION_NAME:-$(cfg qdrant.collection)}"
-export QDRANT_EMBEDDING_PROVIDER="${QDRANT_EMBEDDING_PROVIDER:-$(cfg qdrant.embedding_provider)}"
-
-# Expand ~ to $HOME for:
-# - Docker compatibility (QDRANT_STORAGE_PATH)
-# - mkdir/Node compatibility (MEMORY_MCP_STORAGE_PATH)
-MEMORY_MCP_STORAGE_PATH="${MEMORY_MCP_STORAGE_PATH:-$(cfg path_to.storage_for.memory_mcp)}"
-QDRANT_STORAGE_PATH="${QDRANT_STORAGE_PATH:-$(cfg path_to.storage_for.qdrant)}"
-export QDRANT_STORAGE_PATH="${QDRANT_STORAGE_PATH/#\~/$HOME}"
-export MEMORY_MCP_STORAGE_PATH="${MEMORY_MCP_STORAGE_PATH/#\~/$HOME}"
-
-# Directories
-FS_MCP_WHITELIST="${FS_MCP_WHITELIST:-$(cfg path_to.fs_mcp_whitelist)}"
-
-# Source agent selection library
+# Source internal Bureau libraries
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
+source "$REPO_ROOT/bin/lib/logging.sh"
 
-# Supported agents' printable string names 
+# Supported agents' printable string names
 CLAUDE="Claude Code"
 CODEX="Codex"
 GEMINI="Gemini CLI"
@@ -99,61 +53,196 @@ GEMINI_CONFIG="$HOME/.gemini/settings.json"
 CODEX_CONFIG="$HOME/.codex/config.toml"
 CLAUDE_CONFIG="$HOME/.claude/settings.json"
 CLAUDE_CLI_STATE="$HOME/.claude.json"
+OPENCODE_CONFIG="$HOME/.config/opencode/opencode.json"
 
-# Contains the list of agents to be configured by this script to use Bureau and its tools;
-# Populated by discover_agents(); agentic CLIs above are added if their corresponding 
-#   user-level config dir exists
+# Contains the list of agents to be configured by this script to use Bureau and its tools
+# Populated later by discover_agents() based on the YML configs
 AGENTS=()
-
-# Colors
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
 
 # --- CONFIG VALUES ---
 
-# Read auto-approve setting from config (accepts yes/true/no/false)
-_auto_approve_cfg="$(cfg mcp.auto_approve)"
-case "${_auto_approve_cfg,,}" in
-    yes|true) AUTO_APPROVE_MCP=true ;;
-    *) AUTO_APPROVE_MCP=false ;;
-esac
-
-# Detect installed CLIs based on config directory existence (exits if none found, logs detected CLIs)
+# Detect enabled agents based on YML configs (exits if none found, logs detected CLIs)
 discover_agents
+
+# Render resolved MCP setup plan (used throughout the script)
+SETUP_PLAN_JSON="$(uv run python "$REPO_ROOT/tools/scripts/render-mcp-setup.py")"
+SETUP_PLAN_FILE="$(mktemp)"
+echo "$SETUP_PLAN_JSON" > "$SETUP_PLAN_FILE"
+
+declare -A HTTP_SERVICE_PIDS
+declare -A HTTP_SERVICE_PORTS
+declare -A HTTP_SERVICE_LOGS
+DOCKER_CONTAINERS=()
 
 # --- HELPERS ---
 
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+plan_jq() {
+    local query=$1
+    jq -r "$query" "$SETUP_PLAN_FILE"
 }
 
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+AUTO_APPROVE_MCP=false
+if [[ "$(plan_jq '.auto_approved.mcp_tools // false')" == "true" ]]; then
+    AUTO_APPROVE_MCP=true
+fi
+
+AUTO_CLEAN_MCP=false
+if [[ "$(plan_jq '.prune_disabled_mcps // false')" == "true" ]]; then
+    AUTO_CLEAN_MCP=true
+fi
+
+
+expand_tilde() {
+    local value=$1
+    if [[ "$value" == "~"* ]]; then
+        echo "${value/#\~/$HOME}"
+    else
+        echo "$value"
+    fi
 }
 
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+# Parse common stdio MCP arguments into global variables
+# Sets: _STDIO_ENV_PAIRS, _STDIO_TIMEOUT_MS, _STDIO_STARTUP_TIMEOUT, _STDIO_TOOL_TIMEOUT, _STDIO_CMD_ARGS
+# Usage: parse_stdio_mcp_args "$@"
+parse_stdio_mcp_args() {
+    _STDIO_ENV_PAIRS=()
+    _STDIO_TIMEOUT_MS=""
+    _STDIO_STARTUP_TIMEOUT=""
+    _STDIO_TOOL_TIMEOUT=""
+    _STDIO_CMD_ARGS=()
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --env)
+                # Expand shell variables in env values so they're resolved at
+                # setup time, not left as literals in configs.
+                _STDIO_ENV_PAIRS+=("$(eval echo "$2")")
+                shift 2
+                ;;
+            --timeout-ms)
+                _STDIO_TIMEOUT_MS=$2
+                shift 2
+                ;;
+            --startup-timeout-sec)
+                _STDIO_STARTUP_TIMEOUT=$2
+                shift 2
+                ;;
+            --tool-timeout-sec)
+                _STDIO_TOOL_TIMEOUT=$2
+                shift 2
+                ;;
+            --)
+                shift
+                _STDIO_CMD_ARGS+=("$@")
+                break
+                ;;
+            *)
+                _STDIO_CMD_ARGS+=("$1")
+                shift
+                ;;
+        esac
+    done
 }
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+MANAGED_MCP_REGISTRY_DIR="$HOME/.config/bureau/internal"
+
+managed_registry_path() {
+    local cli=$1
+    echo "$MANAGED_MCP_REGISTRY_DIR/managed-mcps.$cli.json"
 }
 
-log_empty_line() {
-    echo ""
+remove_opencode_servers() {
+    local target=$1
+    shift
+    local servers=("$@")
+    if [[ ${#servers[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    uv run "$SCRIPT_DIR/remove-opencode-servers.py" "$target" "${servers[@]}"
 }
 
-log_divider_line() {
-    echo "--------------------"
+remove_managed_servers() {
+    local cli=$1
+    shift
+    local servers=("$@")
+    if [[ ${#servers[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    case "$cli" in
+        claude)
+            for server_id in "${servers[@]}"; do
+                claude mcp remove "$server_id" --scope user
+            done
+            ;;
+        gemini)
+            for server_id in "${servers[@]}"; do
+                gemini mcp remove "$server_id"
+            done
+            ;;
+        codex)
+            for server_id in "${servers[@]}"; do
+                codex mcp remove "$server_id"
+            done
+            ;;
+        opencode)
+            remove_opencode_servers "$OPENCODE_CONFIG" "${servers[@]}"
+            ;;
+        *)
+            log_warning "Unknown CLI for managed MCP cleanup: $cli"
+            ;;
+    esac
 }
 
-log_separator() {
-    log_empty_line
-    log_divider_line
-    log_empty_line
+managed_registry_reconcile() {
+    local cli=$1
+    local config_path=$2
+    local allow_prune=$3
+    local registry_path
+    registry_path="$(managed_registry_path "$cli")"
+
+    local reconcile_json
+    reconcile_json="$(uv run python "$REPO_ROOT/tools/scripts/managed-mcp-registry.py" \
+        --mode reconcile \
+        --cli "$cli" \
+        --plan "$SETUP_PLAN_FILE" \
+        --registry "$registry_path" \
+        --config "$config_path")"
+
+    local -a to_update
+    local -a to_remove
+    local -a servers_to_remove
+    mapfile -t to_update < <(echo "$reconcile_json" | jq -r '.to_update[]?')
+    if [[ "$allow_prune" == "true" ]]; then
+        mapfile -t to_remove < <(echo "$reconcile_json" | jq -r '.to_remove[]?')
+    else
+        to_remove=()
+    fi
+    servers_to_remove=("${to_update[@]}" "${to_remove[@]}")
+
+    if [[ ${#to_update[@]} -gt 0 ]]; then
+        log_info "Refreshing Bureau-managed MCPs for $cli: ${to_update[*]}"
+    fi
+    if [[ ${#to_remove[@]} -gt 0 ]]; then
+        log_info "Removing disabled Bureau-managed MCPs for $cli: ${to_remove[*]}"
+    fi
+
+    remove_managed_servers "$cli" "${servers_to_remove[@]}"
+}
+
+managed_registry_record() {
+    local cli=$1
+    local config_path=$2
+    local registry_path
+    registry_path="$(managed_registry_path "$cli")"
+
+    uv run python "$REPO_ROOT/tools/scripts/managed-mcp-registry.py" \
+        --mode record \
+        --cli "$cli" \
+        --plan "$SETUP_PLAN_FILE" \
+        --registry "$registry_path" \
+        --config "$config_path" >/dev/null
 }
 
 # Check if a port is already in use 
@@ -167,53 +256,76 @@ check_port() {
     fi
 }
 
-# Kill process on a port
-kill_port() {
-    local port=$1
-    if check_port "$port"; then
-        log_warning "Port $port is in use. Killing existing process..."
-        lsof -ti:"$port" | xargs kill -9 2>/dev/null || true
+
+wait_for_tcp() {
+    local service_name=$1
+    local port=$2
+    local timeout=$3
+    local elapsed=0
+
+    while [ $elapsed -lt $timeout ]; do
         sleep 1
-    fi
+        elapsed=$((elapsed + 1))
+        if check_port "$port"; then
+            log_success "$service_name is ready on port $port"
+            return 0
+        fi
+    done
+
+    log_error "$service_name did not open port $port within ${timeout}s"
+    return 1
 }
 
-# Start Qdrant Docker container idempotently
-start_qdrant_docker() {
-    local container_name="qdrant"
+start_docker_container() {
+    local service_id=$1
+    local container_name
+    local image
+    local host_port
+    local container_port
+
+    container_name=$(plan_jq ".services[\"$service_id\"].container_name // \"$service_id\"")
+    image=$(plan_jq ".services[\"$service_id\"].image")
+    host_port=$(plan_jq ".services[\"$service_id\"].host_port")
+    container_port=$(plan_jq ".services[\"$service_id\"].container_port")
 
     # Check if container exists and is running
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        log_success "Qdrant container already running"
-        return 0
-    fi
-
-    # Check if container exists but is stopped
-    if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        log_info "Starting existing Qdrant container..."
+        log_success "$service_id container already running"
+    elif docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        log_info "Starting existing $service_id container..."
         docker start "$container_name" >/dev/null
         sleep 2
-        log_success "Qdrant container started"
-        return 0
+        log_success "$service_id container started"
+    else
+        log_info "Creating and starting $service_id container..."
+        local mount_args=()
+        while IFS= read -r mount; do
+            local host_path
+            local container_path
+            host_path=$(echo "$mount" | jq -r '.host_path')
+            container_path=$(echo "$mount" | jq -r '.container_path')
+            host_path=$(expand_tilde "$host_path")
+            mkdir -p "$host_path"
+            mount_args+=(-v "$host_path:$container_path")
+        done < <(plan_jq ".services[\"$service_id\"].mounts // [] | .[] | @json")
+
+        docker run -d \
+            --name "$container_name" \
+            -p "${host_port}:${container_port}" \
+            "${mount_args[@]}" \
+            "$image" >/dev/null
+
+        sleep 2
+        log_success "$service_id container started on port $host_port"
     fi
 
-    # Create data directory if it doesn't exist
-    mkdir -p "$QDRANT_STORAGE_PATH"
+    DOCKER_CONTAINERS+=("$container_name")
 
-    # Start new container
-    log_info "Creating and starting Qdrant container..."
-
-    # mappings:
-    # - uses port $QDRANT_DB_PORT on host machine, 6333 within container
-    # - maps the directory $QDRANT_STORAGE_PATH on host machine to `/qdrant/storage`
-    #   in the container's filesystem
-    docker run -d \
-        --name "$container_name" \
-        -p "$QDRANT_DB_PORT:6333" \
-        -v "$QDRANT_STORAGE_PATH:/qdrant/storage" \
-        qdrant/qdrant >/dev/null
-
-    sleep 2
-    log_success "Qdrant container started on port $QDRANT_DB_PORT"
+    local health_port
+    health_port=$(plan_jq ".services[\"$service_id\"].healthcheck.tcp // .services[\"$service_id\"].host_port")
+    if [[ "$health_port" != "null" ]]; then
+        wait_for_tcp "$service_id" "$health_port" "$SERVER_START_TIMEOUT"
+    fi
 }
 
 # Wait for a server process to open its port or exit (success/failure)
@@ -307,6 +419,79 @@ start_http_server() {
     fi
 }
 
+clean_fastembed_cache_if_corrupt() {
+    # If a fastembed model download was interrupted, the cache contains .incomplete
+    # blob files and an empty onnx/ dir. ONNX runtime then fails with NoSuchFile.
+    # Detect this and wipe the model cache so fastembed re-downloads cleanly.
+    local env_pairs=("$@")
+    local provider="" model=""
+    for pair in "${env_pairs[@]}"; do
+        case "$pair" in
+            EMBEDDING_PROVIDER=*) provider="${pair#*=}" ;;
+            EMBEDDING_MODEL=*)    model="${pair#*=}" ;;
+        esac
+    done
+    [[ "$provider" == "fastembed" && -n "$model" ]] || return 0
+
+    local cache_dir="$HOME/.cache/fastembed/models--${model//\//--}"
+    [[ -d "$cache_dir" ]] || return 0
+
+    if compgen -G "$cache_dir/blobs/*.incomplete" > /dev/null 2>&1; then
+        log_warning "Detected incomplete fastembed model download for $model — clearing cache to re-download"
+        rm -rf "$cache_dir"
+    fi
+}
+
+start_http_process() {
+    local service_id=$1
+    local service_name=$2
+
+    local port
+    local health_port
+    port=$(plan_jq ".services[\"$service_id\"].port")
+    health_port=$(plan_jq ".services[\"$service_id\"].healthcheck.tcp // .services[\"$service_id\"].port")
+
+    mapfile -t cmd_args < <(plan_jq ".services[\"$service_id\"].command[]")
+    mapfile -t env_pairs < <(plan_jq ".services[\"$service_id\"].env // {} | to_entries[] | \"\(.key)=\(.value)\"")
+
+    clean_fastembed_cache_if_corrupt "${env_pairs[@]}"
+
+    local start_cmd=("${cmd_args[@]}")
+    if [[ ${#env_pairs[@]} -gt 0 ]]; then
+        start_cmd=("env" "${env_pairs[@]}" "${cmd_args[@]}")
+    fi
+
+    local pid_var="HTTP_PID_${service_id}"
+    start_http_server "$service_name" "$health_port" "$pid_var" "${start_cmd[@]}"
+
+    # Always resolve to the actual port-binding PID (the process holding the
+    # LISTEN socket), not the PID from $! which may be a parent wrapper (e.g.
+    # uv/uvx forks a child Python process rather than exec'ing into it).
+    # This ensures consistent PID reporting across first-run and reuse paths,
+    # and that the kill command targets the correct process.
+    local pid
+    pid=$(lsof -ti:"$health_port" -sTCP:LISTEN | head -1)
+    if [[ -z "$pid" ]]; then
+        # Fallback to the PID from start_http_server (should not happen if
+        # the server started or was found successfully)
+        pid=$(eval "echo \${$pid_var}")
+    fi
+    HTTP_SERVICE_PIDS["$service_id"]="$pid"
+    HTTP_SERVICE_PORTS["$service_id"]="$health_port"
+    HTTP_SERVICE_LOGS["$service_id"]="/tmp/mcp-${service_name}-server.log"
+}
+
+ensure_file_dependency() {
+    local service_id=$1
+    local storage_path
+    storage_path=$(plan_jq ".services[\"$service_id\"].path")
+    storage_path=$(expand_tilde "$storage_path")
+    mkdir -p "$(dirname "$storage_path")"
+    if [[ ! -f "$storage_path" ]]; then
+        touch "$storage_path"
+    fi
+}
+
 # Add or update Gemini MCP entry (supports HTTP and stdio transports)
 add_mcp_to_gemini() {
     local transport=$1
@@ -320,13 +505,6 @@ add_mcp_to_gemini() {
     # Initialize file if it doesn't exist
     if [[ ! -f "$GEMINI_CONFIG" ]]; then
         echo '{"mcpServers":{}}' > "$GEMINI_CONFIG"
-    fi
-
-    # Check if server already exists
-    # IMPORTANT: must check for `\"$server_name\": {`  since the string \"$server_name\" 
-    #            may already exist in the `autoApprovedTools` array
-    if grep -q "\"$server_name\": {" "$GEMINI_CONFIG" 2>/dev/null; then
-        return 1
     fi
 
     uv run "$SCRIPT_DIR/add-mcp-to-gemini.py" "$transport" "$server_name" "$GEMINI_CONFIG" "$@"
@@ -347,21 +525,61 @@ add_mcp_to_codex() {
 
     if [[ "$transport" == "http" ]]; then
         local url=$1
+        local bearer_env=${2:-}  # optional bearer_token_env_var
         cat >> "$CODEX_CONFIG" << EOF
 
 [mcp_servers.$server_name]
 url = "$url"
 transport = "http"
 EOF
+        # Codex uses bearer_token_env_var instead of custom HTTP headers for auth
+        if [[ -n "$bearer_env" ]]; then
+            cat >> "$CODEX_CONFIG" << EOF
+bearer_token_env_var = "$bearer_env"
+EOF
+        fi
     else  # stdio server
-        local cmd_args=("$@")
+        parse_stdio_mcp_args "$@"
+
+        # Build TOML args array with proper escaping (inner quotes → \")
+        local toml_args_str="" sep=""
+        for arg in "${_STDIO_CMD_ARGS[@]:1}"; do
+            local escaped="${arg//\\/\\\\}"  # escape backslashes first
+            escaped="${escaped//\"/\\\"}"    # then escape double quotes
+            toml_args_str+="${sep}\"${escaped}\""
+            sep=", "
+        done
+
         cat >> "$CODEX_CONFIG" << EOF
 
 [mcp_servers.$server_name]
-command = "${cmd_args[0]}"
-args = [$(printf '"%s", ' "${cmd_args[@]:1}" | sed 's/, $//')]
+command = "${_STDIO_CMD_ARGS[0]}"
+args = [$toml_args_str]
 transport = "stdio"
 EOF
+        if [[ -n "$_STDIO_STARTUP_TIMEOUT" ]]; then
+            cat >> "$CODEX_CONFIG" << EOF
+startup_timeout_sec = $_STDIO_STARTUP_TIMEOUT
+EOF
+        fi
+        if [[ -n "$_STDIO_TOOL_TIMEOUT" ]]; then
+            cat >> "$CODEX_CONFIG" << EOF
+tool_timeout_sec = $_STDIO_TOOL_TIMEOUT
+EOF
+        fi
+        if [[ ${#_STDIO_ENV_PAIRS[@]} -gt 0 ]]; then
+            cat >> "$CODEX_CONFIG" << EOF
+
+[mcp_servers.$server_name.env]
+EOF
+            for env_pair in "${_STDIO_ENV_PAIRS[@]}"; do
+                local key=${env_pair%%=*}
+                local value=${env_pair#*=}
+                cat >> "$CODEX_CONFIG" << EOF
+$key = "$value"
+EOF
+            done
+        fi
     fi
 }
 
@@ -399,12 +617,25 @@ add_http_mcp_to_agent() {
             "${claude_cmd[@]}"
             ;;
         "$CODEX")
-            # Codex HTTP mode doesn't support custom headers, only bearer_token
-            # Skip if headers are required (usually checked by caller but repeat here for safety)
-            if [[ ${#headers[@]} -gt 0 ]]; then
-                return 2  # Cannot configure - headers not supported
+            # Codex HTTP mode doesn't support custom headers — it uses
+            # bearer_token_env_var for auth instead.  Try to derive the env
+            # var from an Authorization: Bearer header when present; otherwise
+            # fall back to the explicit bearer_token_env_var passed by the
+            # caller.  If neither is available and headers exist, we cannot
+            # configure this server on Codex.
+            local bearer_env=""
+            for header in "${headers[@]}"; do
+                # match "Authorization:Bearer ${VAR}" or "Authorization:Bearer $VAR"
+                if [[ "$header" =~ ^Authorization:Bearer[[:space:]]*\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$ ]]; then
+                    bearer_env="${BASH_REMATCH[1]}"
+                    break
+                fi
+            done
+
+            if [[ -z "$bearer_env" && ${#headers[@]} -gt 0 ]]; then
+                return 2  # Cannot configure - unsupported headers
             fi
-            add_mcp_to_codex "$server" "http" "$url"
+            add_mcp_to_codex "$server" "http" "$url" "$bearer_env"
             ;;
     esac
 }
@@ -414,11 +645,18 @@ add_stdio_mcp_to_agent() {
     local agent=$1
     local server=$2
     shift 2
-    local cmd_args=("$@")
+    parse_stdio_mcp_args "$@"
 
     case $agent in
         "$GEMINI")
-            add_mcp_to_gemini "stdio" "$server" "${cmd_args[@]}"
+            local gemini_args=("${_STDIO_CMD_ARGS[@]}")
+            if [[ -n "$_STDIO_TIMEOUT_MS" ]]; then
+                gemini_args+=("--timeout" "$_STDIO_TIMEOUT_MS")
+            fi
+            for env_pair in "${_STDIO_ENV_PAIRS[@]}"; do
+                gemini_args+=("--env" "$env_pair")
+            done
+            add_mcp_to_gemini "stdio" "$server" "${gemini_args[@]}"
             ;;
         "$CLAUDE")
             # Check user scope config directory for existing server
@@ -426,165 +664,33 @@ add_stdio_mcp_to_agent() {
                 return 1 # Already exists
             fi
 
+            local env_args=()
+            for env_pair in "${_STDIO_ENV_PAIRS[@]}"; do
+                env_args+=(-e "$env_pair")
+            done
+
             echo "Adding $server as local stdio to Claude with the command:"
-            local claude_cmd=(claude mcp add --transport stdio "$server" --scope user -- "${cmd_args[@]}")
+            local claude_cmd=(claude mcp add --transport stdio "$server" --scope user "${env_args[@]}" -- "${_STDIO_CMD_ARGS[@]}")
             printf '  %q' "${claude_cmd[@]}"
             log_empty_line
             "${claude_cmd[@]}"
             ;;
         "$CODEX")
-            add_mcp_to_codex "$server" "stdio" "${cmd_args[@]}" 
+            local codex_args=()
+            for env_pair in "${_STDIO_ENV_PAIRS[@]}"; do
+                codex_args+=("--env" "$env_pair")
+            done
+            if [[ -n "$_STDIO_STARTUP_TIMEOUT" ]]; then
+                codex_args+=("--startup-timeout-sec" "$_STDIO_STARTUP_TIMEOUT")
+            fi
+            if [[ -n "$_STDIO_TOOL_TIMEOUT" ]]; then
+                codex_args+=("--tool-timeout-sec" "$_STDIO_TOOL_TIMEOUT")
+            fi
+            add_mcp_to_codex "$server" "stdio" "${codex_args[@]}" -- "${_STDIO_CMD_ARGS[@]}"
             ;;
     esac
 }
 
-# Configure all agents for HTTP MCP server
-setup_http_mcp() {
-    local server=$1
-    local url=$2
-    shift 2
-    local headers=("$@")  # Remaining args are headers (format: KEY=value)
-
-    log_info "Setting up $server (HTTP - shared)..."
-
-    for agent in "${AGENTS[@]}"; do
-        log_info "Configuring $agent..."
-
-        if [[ $agent == "$CODEX" && ${#headers[@]} -gt 0 ]]; then
-            log_warning "Skipping setting up ${CODEX} with ${server} via HTTP since it does not support custom headers beyond bearer_token"
-            return
-        fi
-        
-        (add_http_mcp_to_agent "$agent" "$server" "$url" "${headers[@]}" && log_success "$agent configured") || log_warning "Already exists"
-    done
-}
-
-# Configure all agents for stdio MCP server
-setup_stdio_mcp() {
-    local server=$1
-    shift
-    local cmd_args=("$@")
-
-    log_info "Setting up $server (stdio - per-agent)..."
-
-    for agent in "${AGENTS[@]}"; do
-        log_info "Configuring $agent..."
-        (add_stdio_mcp_to_agent "$agent" "$server" "${cmd_args[@]}" && log_success "$agent configured") || log_warning "Already exists"
-    done
-}
-
-# Configure PAL MCP with stdio transport for all agents
-# Implemented separately to avoid cluttering setup_stdio_mcp() with PAL-specific workarounds
-setup_pal_stdio_mcp() {
-    log_info "Setting up PAL MCP (stdio - per-agent with clink only)..."
-
-    # Official uvx bootstrap command from PAL MCP docs w/
-    #   portable uvx discovery loop that works across different install locations
-    local pal_bootstrap_script='for p in $(which uvx 2>/dev/null) $HOME/.local/bin/uvx /opt/homebrew/bin/uvx /usr/local/bin/uvx uvx; do [ -x "$p" ] && exec "$p" --from git+https://github.com/BeehiveInnovations/pal-mcp-server.git pal-mcp-server; done; echo "uvx not found" >&2; exit 1'
-
-    # Environment variables for PAL:
-    # - PATH: ensures uvx can be found & includes paths to coding CLIs (to be called by clink)
-    #   which are resolved at script launch
-    # - DISABLED_TOOLS: disables all PAL tools except clink (no API key needed for clink)
-    # - CUSTOM_API_URL: dummy endpoint to satisfy PAL's provider validation at startup
-    #   (clink has requires_model() -> False, so this URL is never actually used)
-
-    local pal_env_path="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/bin"
-    if [[ -n "$CLI_BIN_PATHS" ]]; then
-        pal_env_path="${pal_env_path}:${CLI_BIN_PATHS}"
-    fi
-
-    # Add "dummy" API URL to Ollama's default port to satisfy
-    #   PAL's validation without having to set a real API key
-    local pal_custom_api_url="http://localhost:11434"  
-
-    for agent in "${AGENTS[@]}"; do
-        log_info "Configuring $agent..."
-
-        case $agent in
-            "$CLAUDE")
-                # Claude Code: add stdio MCP + configure timeouts
-                if grep -q '"pal"' "$CLAUDE_CLI_STATE" 2>/dev/null; then
-                    log_warning "Already exists"
-                    continue
-                fi
-
-                # Add PAL MCP via Claude CLI using official sh -c bootstrap pattern
-                local claude_cmd=(claude mcp add --transport stdio "pal" --scope user \
-                    -e "PATH=$pal_env_path" \
-                    -e "DISABLED_TOOLS=$PAL_DISABLED_TOOLS" \
-                    -e "CUSTOM_API_URL=$pal_custom_api_url" \
-                    -- sh -c "$pal_bootstrap_script")
-                echo "Adding pal as local stdio to Claude with the command:"
-                printf '  %q' "${claude_cmd[@]}"
-                log_empty_line
-                "${claude_cmd[@]}" && log_success "$agent configured" || log_warning "Failed to configure"
-
-                # Add MCP timeout settings to ~/.claude/settings.json
-                log_info "Configuring Claude MCP timeouts (startup: 5min, tool: 20min)..."
-                if [[ -f "$CLAUDE_CONFIG" ]]; then
-                    # Add/update env block with MCP timeouts
-                    # - MCP_TIMEOUT: 300000ms (5 min) for server startup
-                    # - MCP_TOOL_TIMEOUT: 1200000ms (20 min) for tool calls (clink needs this)
-                    local tmp_file
-                    tmp_file=$(mktemp)
-                    jq '.env = (.env // {}) | .env.MCP_TIMEOUT = "300000" | .env.MCP_TOOL_TIMEOUT = "1200000"' "$CLAUDE_CONFIG" > "$tmp_file" && mv "$tmp_file" "$CLAUDE_CONFIG"
-                    log_success "Claude MCP timeouts configured"
-                else
-                    log_warning "Claude settings.json not found - timeouts not configured"
-                fi
-                ;;
-            "$GEMINI")
-                # Gemini CLI: add stdio MCP with timeout in server config
-                # add_mcp_to_gemini() handles JSON manipulation and properly places
-                # --timeout and --env as top-level fields (not in args array)
-                if grep -q '"pal": {' "$GEMINI_CONFIG" 2>/dev/null; then
-                    log_warning "Already exists"
-                    continue
-                fi
-
-                # Add with 20-minute timeout for clink calls and env vars
-                add_mcp_to_gemini "stdio" "pal" "sh" "-c" "$pal_bootstrap_script" \
-                    "--timeout" "1200000" \
-                    "--env" "PATH=$pal_env_path" \
-                    "--env" "DISABLED_TOOLS=$PAL_DISABLED_TOOLS" \
-                    "--env" "CUSTOM_API_URL=$pal_custom_api_url" \
-                    && log_success "$agent configured" || log_warning "Already exists"
-                ;;
-            "$CODEX")
-                # Codex CLI: add stdio MCP with startup and tool timeouts
-                if grep -q '^\[mcp_servers.pal\]' "$CODEX_CONFIG" 2>/dev/null; then
-                    log_warning "Already exists"
-                    continue
-                fi
-
-                # Use upstream-prescribed `sh -c` PAL bootstrap pattern for Codex with TOML literal string (single quotes)
-                #   around $pal_bootstrap_script var to avoid escaping the double quotes in the var's contents
-                # Note the single quotes don't inhibit bash's expansion of the variable due to the special parsing rules
-                #   used for heredocs (i.e. string below by the EOF delimiters)
-                cat >> "$CODEX_CONFIG" << EOF
-
-[mcp_servers.pal]
-command = "sh"
-args = ["-c", '$pal_bootstrap_script']
-transport = "stdio"
-startup_timeout_sec = 300
-tool_timeout_sec = 1200
-
-[mcp_servers.pal.env]
-PATH = "$pal_env_path"
-DISABLED_TOOLS = "$PAL_DISABLED_TOOLS"
-CUSTOM_API_URL = "$pal_custom_api_url"
-EOF
-                log_success "$agent configured"
-                ;;
-            *)
-                # Other agents (OpenCode handled separately via template)
-                log_info "Skipping $agent - handled separately or not supported"
-                ;;
-        esac
-    done
-}
 
 # Check for required environment variable and warn if not set
 check_env_var() {
@@ -665,6 +771,38 @@ install_or_update_pip_pkg_from_git() {
     fi
 }
 
+sync_npm_runtime() {
+    local sync_json
+    sync_json="$(uv run python "$REPO_ROOT/tools/scripts/sync-npm-runtime.py" --plan "$SETUP_PLAN_FILE")"
+
+    local installed
+    local reason
+    installed="$(echo "$sync_json" | jq -r '.installed')"
+    reason="$(echo "$sync_json" | jq -r '.reason')"
+
+    case "$reason" in
+        disabled)
+            return 0
+            ;;
+        up_to_date)
+            log_success "Shared local npm MCP runtime already up to date"
+            ;;
+        manifest_changed)
+            log_success "Shared local npm MCP runtime installed/updated from manifest"
+            ;;
+        missing_binaries)
+            log_warning "Shared local npm MCP runtime repaired missing binaries"
+            ;;
+        *)
+            if [[ "$installed" == "true" ]]; then
+                log_success "Shared local npm MCP runtime synced"
+            else
+                log_warning "Shared local npm MCP runtime returned unexpected status: $reason"
+            fi
+            ;;
+    esac
+}
+
 # Ensure a git repository is cloned to a target path
 ensure_git_repo_cloned() {
     local repo_name=$1
@@ -701,33 +839,51 @@ ensure_git_repo_cloned() {
     fi
 }
 
+run_post_clone_commands() {
+    local service_id=$1
+    local repo_path
+    repo_path=$(plan_jq ".services[\"$service_id\"].path")
+    repo_path=$(expand_tilde "$repo_path")
+
+    while IFS= read -r cmd_json; do
+        mapfile -t cmd_args < <(echo "$cmd_json" | jq -r '.[]')
+        log_info "Running post-clone command: ${cmd_args[*]}"
+        (cd "$repo_path" && "${cmd_args[@]}")
+    done < <(plan_jq ".services[\"$service_id\"].post_clone // [] | .[] | @json")
+}
+
+# Returns sorted list of keys of the `dependencies` obj in the file given
+dependency_order() {
+    jq -r '.dependencies | keys | sort[]' "$SETUP_PLAN_FILE"
+}
+
+service_order() {
+    uv run "$SCRIPT_DIR/service-order.py" "$SETUP_PLAN_FILE"
+}
+
 # Configure auto-approval for all agents
 configure_auto_approve() {
     log_info "Configuring auto-approval for agents..."
     log_empty_line
 
-    # Build list of MCP server names being configured
-    local mcp_servers=()
-    mcp_servers+=("pal" "serena" "qdrant" "semgrep" "fs" "fetch" "git" "memory" "playwright")
-
-    # Add the other servers if they're available
-    [[ "$SOURCEGRAPH_AVAILABLE" == true ]] && mcp_servers+=("sourcegraph")
-    [[ "$CONTEXT7_AVAILABLE" == true ]] && mcp_servers+=("context7")
-    [[ "$TAVILY_AVAILABLE" == true ]] && mcp_servers+=("tavily")
-    [[ "$BRAVE_AVAILABLE" == true ]] && mcp_servers+=("brave")
+    mapfile -t claude_auto_approve < <(plan_jq '.auto_approved.mcp_servers.claude // [] | .[]')
+    mapfile -t gemini_auto_approve < <(plan_jq '.auto_approved.mcp_servers.gemini // [] | .[]')
+    mapfile -t codex_auto_approve < <(plan_jq '.auto_approved.mcp_servers.codex // [] | .[]')
 
     # Configure each agent
     for agent in "${AGENTS[@]}"; do
         log_info "→ Configuring $agent..."
         case "$agent" in
             "$CLAUDE")
-                uv run "$SCRIPT_DIR/add-claude-auto-approvals.py" "$CLAUDE_CONFIG" "${mcp_servers[@]}"
+                # auto-approve reading Bureau's user-scoped protocol files
+                uv run "$SCRIPT_DIR/add-claude-auto-approvals.py" "$CLAUDE_CONFIG" "${claude_auto_approve[@]}" \
+                    --read-allow "~/.config/bureau/protocols"
                 ;;
             "$CODEX")
-                uv run "$SCRIPT_DIR/add-codex-auto-approvals.py" "$CODEX_CONFIG"
+                uv run "$SCRIPT_DIR/add-codex-auto-approvals.py" "$CODEX_CONFIG" --plan "$SETUP_PLAN_FILE" "${codex_auto_approve[@]}"
                 ;;
             "$GEMINI")
-                uv run "$SCRIPT_DIR/add-gemini-auto-approvals.py" "$GEMINI_CONFIG" "${mcp_servers[@]}"
+                uv run "$SCRIPT_DIR/add-gemini-auto-approvals.py" "$GEMINI_CONFIG" "${gemini_auto_approve[@]}"
                 ;;
             *)
                 log_warning "  Unknown agent: $agent (skipping)"
@@ -740,12 +896,72 @@ configure_auto_approve() {
     log_info "MCP tools will now be auto-approved without permission prompts"
 }
 
+configure_bash_approvals() {
+    local approvals_enabled
+    approvals_enabled="$(plan_jq '.auto_approved.bash.enabled // false')"
+    if [[ "$approvals_enabled" != "true" ]]; then
+        return 0
+    fi
+
+    log_separator
+    log_info "Configuring Bash allow/deny approvals..."
+
+    local -a approvals_allow
+    local -a approvals_deny
+    mapfile -t approvals_allow < <(plan_jq '.auto_approved.bash.ruleset.allow[]?')
+    mapfile -t approvals_deny < <(plan_jq '.auto_approved.bash.ruleset.deny[]?')
+
+    for agent in "${AGENTS[@]}"; do
+        log_info "→ Configuring $agent Bash approvals..."
+        case "$agent" in
+            "$CLAUDE")
+                local -a claude_bash_args
+                claude_bash_args=()
+                for prefix in "${approvals_allow[@]}"; do
+                    claude_bash_args+=(--bash-allow "$prefix")
+                done
+                for prefix in "${approvals_deny[@]}"; do
+                    claude_bash_args+=(--bash-deny "$prefix")
+                done
+                uv run "$SCRIPT_DIR/add-claude-auto-approvals.py" "$CLAUDE_CONFIG" "${claude_bash_args[@]}"
+                ;;
+            "$GEMINI")
+                local -a gemini_bash_args
+                gemini_bash_args=()
+                for prefix in "${approvals_allow[@]}"; do
+                    gemini_bash_args+=(--bash-allow "$prefix")
+                done
+                for prefix in "${approvals_deny[@]}"; do
+                    gemini_bash_args+=(--bash-deny "$prefix")
+                done
+                uv run "$SCRIPT_DIR/add-gemini-auto-approvals.py" "$GEMINI_CONFIG" "${gemini_bash_args[@]}"
+                ;;
+            "$CODEX")
+                local -a codex_bash_args
+                codex_bash_args=()
+                for prefix in "${approvals_allow[@]}"; do
+                    codex_bash_args+=(--allow "$prefix")
+                done
+                for prefix in "${approvals_deny[@]}"; do
+                    codex_bash_args+=(--deny "$prefix")
+                done
+                uv run "$SCRIPT_DIR/write-codex-exec-policy.py" "${codex_bash_args[@]}"
+                ;;
+            *)
+                log_warning "  Unknown agent: $agent (skipping)"
+                ;;
+        esac
+    done
+
+    log_success "Bash allow/deny approvals successfully configured."
+}
+
 # --- CHECK DEPENDENCIES ---
 
 log_info "Checking prerequisites..."
 
 # Use centralized prereq checker (exits with error if any missing)
-if ! "$REPO_ROOT/bin/check-prereqs"; then
+if ! "$REPO_ROOT/bin/ensure-prereqs"; then
     log_error "Missing prerequisites. Please install them and try again."
     exit 1
 fi
@@ -761,171 +977,213 @@ log_empty_line
 log_info "→ Installing/checking for update for GitHub Spec Kit CLI..."
 install_or_update_pip_pkg_from_git "https://github.com/github/spec-kit.git" "specify-cli"
 
-log_info "Checking API keys..."
+sync_npm_runtime
 
-CONTEXT7_AVAILABLE=false
-TAVILY_AVAILABLE=false
-BRAVE_AVAILABLE=false
-SOURCEGRAPH_AVAILABLE=false
+log_info "Preparing MCP dependencies..."
 
-if check_env_var "CONTEXT7_API_KEY" "Context7 MCP will not work. Get a key at https://console.upstash.com/"; then
-    CONTEXT7_AVAILABLE=true
+# Prepare dependencies first (no docker needed for dependencies)
+while IFS= read -r dep_id; do
+    dep_kind=$(plan_jq ".dependencies[\"$dep_id\"].kind")
+    case "$dep_kind" in
+        git_repo)
+            log_info "Ensuring git repo dependency: $dep_id"
+            repo_url=$(plan_jq ".dependencies[\"$dep_id\"].repo_url")
+            repo_branch=$(plan_jq ".dependencies[\"$dep_id\"].branch // empty")
+            repo_path=$(plan_jq ".dependencies[\"$dep_id\"].path")
+            repo_path=$(expand_tilde "$repo_path")
+            if [[ -n "$repo_branch" ]]; then
+                ensure_git_repo_cloned "$dep_id" "$repo_url" "$repo_path" "$repo_branch"
+            else
+                ensure_git_repo_cloned "$dep_id" "$repo_url" "$repo_path"
+            fi
+            # Run post-clone commands if any
+            while IFS= read -r cmd_json; do
+                mapfile -t cmd_args < <(echo "$cmd_json" | jq -r '.[]')
+                log_info "Running post-clone command for $dep_id: ${cmd_args[*]}"
+                (cd "$repo_path" && "${cmd_args[@]}")
+            done < <(plan_jq ".dependencies[\"$dep_id\"].post_clone // [] | .[] | @json")
+            ;;
+        file)
+            log_info "Ensuring file dependency: $dep_id"
+            storage_path=$(plan_jq ".dependencies[\"$dep_id\"].path")
+            storage_path=$(expand_tilde "$storage_path")
+            mkdir -p "$(dirname "$storage_path")"
+            if [[ ! -f "$storage_path" ]]; then
+                touch "$storage_path"
+            fi
+            ;;
+        *)
+            log_warning "Unknown dependency kind '$dep_kind' for $dep_id (skipping)"
+            ;;
+    esac
+done < <(dependency_order)
+
+log_info "Starting MCP services from catalog..."
+
+docker_services_count=$(plan_jq '.services | to_entries | map(select(.value.kind == "docker_container")) | length')
+if [[ "$docker_services_count" -gt 0 ]]; then
+    log_info "Ensuring Rancher Desktop is running..."
+    ensure_rancher_running
 fi
 
-if check_env_var "TAVILY_API_KEY" "Tavily MCP will not work. Get a key at https://www.tavily.com/"; then
-    TAVILY_AVAILABLE=true
+while IFS= read -r service_id; do
+    service_kind=$(plan_jq ".services[\"$service_id\"].kind")
+    case "$service_kind" in
+        docker_container)
+            log_info "Starting container service: $service_id"
+            start_docker_container "$service_id"
+            ;;
+        http_process)
+            log_info "Starting HTTP service: $service_id"
+            start_http_process "$service_id" "$service_id"
+            ;;
+        *)
+            log_warning "Unknown service kind '$service_kind' for $service_id (skipping)"
+            ;;
+    esac
+done < <(service_order)
+
+log_separator
+log_info "Configuring agents to use MCP servers..."
+
+log_separator
+if [[ "$AUTO_CLEAN_MCP" == true ]]; then
+    log_info "Reconciling Bureau-managed MCPs and pruning disabled entries..."
+else
+    log_info "Reconciling Bureau-managed MCPs..."
+fi
+if agent_enabled "$CLAUDE"; then
+    managed_registry_reconcile "claude" "$CLAUDE_CLI_STATE" "$AUTO_CLEAN_MCP"
+fi
+if agent_enabled "$GEMINI"; then
+    managed_registry_reconcile "gemini" "$GEMINI_CONFIG" "$AUTO_CLEAN_MCP"
+fi
+if agent_enabled "$CODEX"; then
+    managed_registry_reconcile "codex" "$CODEX_CONFIG" "$AUTO_CLEAN_MCP"
+fi
+if agent_enabled "$OPENCODE"; then
+    managed_registry_reconcile "opencode" "$OPENCODE_CONFIG" "$AUTO_CLEAN_MCP"
 fi
 
-if check_env_var "BRAVE_API_KEY" "Brave Search MCP will not work. Get a key at https://brave.com/search/api/"; then
-    BRAVE_AVAILABLE=true
-fi
-
-log_success "API key check complete."
-
-# Check if Sourcegraph MCP repo is available (must be cloned from GitHub)
-if ensure_git_repo_cloned "Sourcegraph MCP" "https://github.com/akbad/sourcegraph-mcp.git" "$SOURCEGRAPH_REPO_PATH" "fix/server-startup"; then
-    SOURCEGRAPH_AVAILABLE=true
-fi
-
-if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
-    log_info "Attempting to sync Sourcegraph deps (via uv sync)..."
-    if (cd "$SOURCEGRAPH_REPO_PATH" && uv sync); then
-        log_success "Deps synced successfully."
-    else
-        log_error "Failed to install/sync Sourcegraph dependencies."
-        SOURCEGRAPH_AVAILABLE=false
+apply_claude_post_config() {
+    local server_id=$1
+    local env_json=$2
+    if [[ -z "$env_json" || "$env_json" == "null" ]]; then
+        return 0
     fi
+
+    if [[ -f "$CLAUDE_CONFIG" ]]; then
+        local tmp_file
+        tmp_file=$(mktemp)
+        jq --argjson env "$env_json" '.env = (.env // {}) | .env += $env' "$CLAUDE_CONFIG" > "$tmp_file" && mv "$tmp_file" "$CLAUDE_CONFIG"
+        log_success "Claude MCP settings updated for $server_id"
+    else
+        log_warning "Claude settings.json not found - post_config not applied for $server_id"
+    fi
+}
+
+already_exists_count=0
+
+for agent in "${AGENTS[@]}"; do
+    if [[ "$agent" == "$OPENCODE" ]]; then
+        log_info "Skipping OpenCode MCP setup in per-agent loop (configured separately)"
+        continue
+    fi
+    agent_key="$(_agent_config_name "$agent")"
+    if [[ -z "$agent_key" ]]; then
+        log_warning "Skipping unknown agent: $agent"
+        continue
+    fi
+
+    while IFS= read -r entry_json; do
+        server_id=$(echo "$entry_json" | jq -r '.key')
+        client_cfg=$(echo "$entry_json" | jq -c '.value')
+        transport=$(echo "$client_cfg" | jq -r '.transport')
+
+        if [[ "$transport" == "http" ]]; then
+            url=$(echo "$client_cfg" | jq -r '.url')
+            mapfile -t headers < <(echo "$client_cfg" | jq -r '.headers // {} | to_entries[] | "\(.key):\(.value)"')
+            # If the client config has bearer_token_env_var (Codex-specific field)
+            # but no explicit Authorization header, synthesize one so
+            # add_http_mcp_to_agent can extract the env var name uniformly
+            bearer_token_env_var=$(echo "$client_cfg" | jq -r '.bearer_token_env_var // empty')
+            if [[ -n "$bearer_token_env_var" ]]; then
+                has_auth=false
+                for h in "${headers[@]}"; do
+                    [[ "$h" == Authorization:* ]] && has_auth=true && break
+                done
+                if [[ "$has_auth" == false ]]; then
+                    headers+=("Authorization:Bearer \${${bearer_token_env_var}}")
+                fi
+            fi
+            if add_http_mcp_to_agent "$agent" "$server_id" "$url" "${headers[@]}"; then
+                log_success "$agent configured ($server_id)"
+            else
+                case $? in
+                    1) already_exists_count=$((already_exists_count + 1)) ;;
+                    2) log_warning "Skipping $agent ($server_id): headers not supported" ;;
+                    *) log_warning "Failed to configure $agent ($server_id)" ;;
+                esac
+            fi
+        else
+            mapfile -t command < <(echo "$client_cfg" | jq -r '.command[]')
+            mapfile -t env_pairs < <(echo "$client_cfg" | jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"')
+            timeout_ms=$(echo "$client_cfg" | jq -r '.timeout_ms // empty')
+            startup_timeout=$(echo "$client_cfg" | jq -r '.startup_timeout_sec // empty')
+            tool_timeout=$(echo "$client_cfg" | jq -r '.tool_timeout_sec // empty')
+
+            stdio_args=()
+            for env_pair in "${env_pairs[@]}"; do
+                stdio_args+=(--env "$env_pair")
+            done
+            if [[ -n "$timeout_ms" ]]; then
+                stdio_args+=(--timeout-ms "$timeout_ms")
+            fi
+            if [[ -n "$startup_timeout" ]]; then
+                stdio_args+=(--startup-timeout-sec "$startup_timeout")
+            fi
+            if [[ -n "$tool_timeout" ]]; then
+                stdio_args+=(--tool-timeout-sec "$tool_timeout")
+            fi
+            stdio_args+=(-- "${command[@]}")
+
+            if add_stdio_mcp_to_agent "$agent" "$server_id" "${stdio_args[@]}"; then
+                log_success "$agent configured ($server_id)"
+            else
+                case $? in
+                    1) already_exists_count=$((already_exists_count + 1)) ;;
+                    *) log_warning "Failed to configure $agent ($server_id)" ;;
+                esac
+            fi
+        fi
+
+        if [[ "$agent" == "$CLAUDE" ]]; then
+            post_env=$(echo "$client_cfg" | jq -c '.post_config.claude_settings_env // empty')
+            apply_claude_post_config "$server_id" "$post_env"
+        fi
+    done < <(plan_jq ".client_configs[\"$agent_key\"] // {} | to_entries[] | @json")
+
+done
+
+if [[ $already_exists_count -gt 0 ]]; then
+    log_info "Already configured: $already_exists_count (suppressed)"
+fi
+
+if agent_enabled "$CLAUDE"; then
+    managed_registry_record "claude" "$CLAUDE_CLI_STATE"
+fi
+if agent_enabled "$GEMINI"; then
+    managed_registry_record "gemini" "$GEMINI_CONFIG"
+fi
+if agent_enabled "$CODEX"; then
+    managed_registry_record "codex" "$CODEX_CONFIG"
 fi
 
 # Configure MCP auto-approvals if requested
+configure_bash_approvals
 if [[ "$AUTO_APPROVE_MCP" == true ]]; then
     log_separator
     configure_auto_approve
-fi
-
-# ============================================================================
-#   Start central HTTP servers
-# ============================================================================
-
-log_info "Idempotently starting up HTTP MCP servers..."
-
-log_info "Ensuring Rancher Desktop is running..."
-ensure_rancher_running
-
-# Qdrant (Docker container for semantic memory backend)
-log_info "Starting Qdrant Docker container..."
-start_qdrant_docker
-
-# Qdrant MCP (wrapper server for semantic memory)
-start_http_server "Qdrant MCP" "$QDRANT_MCP_PORT" "QDRANT_PID" \
-    env QDRANT_URL="$QDRANT_URL" \
-    COLLECTION_NAME="$QDRANT_COLLECTION_NAME" \
-    EMBEDDING_PROVIDER="$QDRANT_EMBEDDING_PROVIDER" \
-    FASTMCP_SERVER_PORT="$QDRANT_MCP_PORT" \
-    uvx --from "mcp-server-qdrant>=0.8.0" mcp-server-qdrant --transport streamable-http
-
-# Sourcegraph MCP (wrapper for Sourcegraph.com public search)
-if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
-    start_http_server "Sourcegraph MCP" "$SOURCEGRAPH_MCP_PORT" "SOURCEGRAPH_PID" \
-        env SRC_ENDPOINT="$SOURCEGRAPH_ENDPOINT" \
-        MCP_STREAMABLE_HTTP_PORT="$SOURCEGRAPH_MCP_PORT" \
-        uv --directory "$SOURCEGRAPH_REPO_PATH" run sourcegraph-mcp
-fi
-
-# Semgrep MCP (static analysis and security scanning)
-start_http_server "Semgrep MCP" "$SEMGREP_MCP_PORT" "SEMGREP_PID" \
-    semgrep mcp -t streamable-http --port "$SEMGREP_MCP_PORT"
-
-# Serena MCP (semantic code analysis and editing)
-start_http_server "Serena MCP" "$SERENA_MCP_PORT" "SERENA_PID" \
-    uvx --from git+https://github.com/oraios/serena \
-    serena start-mcp-server --transport streamable-http --port "$SERENA_MCP_PORT"
-
-# ============================================================================
-#   Configure agents to use MCP servers
-# ============================================================================
-
-# Servers to use in HTTP mode
-# - Qdrant MCP (local)
-# - Sourcegraph MCP (local wrapper for Sourcegraph.com)
-# - Semgrep MCP (local)
-# - Serena MCP (local, semantic code analysis and editing)
-# - Context7 MCP (remote Upstash - for Gemini & Claude only)
-# - Tavily MCP (remote Tavily - all agents)
-
-log_separator
-log_info "Configuring agents to use Qdrant MCP (HTTP)..."
-setup_http_mcp "qdrant" "http://localhost:$QDRANT_MCP_PORT/mcp/"
-
-if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
-    log_separator
-    log_info "Configuring agents to use Sourcegraph MCP (HTTP - local wrapper for Sourcegraph.com)..."
-    setup_http_mcp "sourcegraph" "http://localhost:$SOURCEGRAPH_MCP_PORT/sourcegraph/mcp/"
-fi
-
-log_separator
-log_info "Configuring agents to use Semgrep MCP (HTTP)..."
-setup_http_mcp "semgrep" "http://localhost:$SEMGREP_MCP_PORT/mcp/"
-
-log_separator
-log_info "Configuring agents to use Serena MCP (HTTP - local semantic code analysis)..."
-setup_http_mcp "serena" "http://localhost:$SERENA_MCP_PORT/mcp/"
-
-if [[ "$CONTEXT7_AVAILABLE" == true ]] && (agent_enabled "$GEMINI" || agent_enabled "$CLAUDE"); then
-    log_separator
-    log_info "Configuring Gemini and/or Claude to use Context7 MCP (HTTP - remote Upstash)..."
-    # Note: Uses colon format for headers
-    # Codex will use stdio mode (configured below) since HTTP doesn't support custom headers
-    # Gemini requires both CONTEXT7_API_KEY and Accept headers
-    setup_http_mcp "context7" "$CONTEXT7_URL" "CONTEXT7_API_KEY:${CONTEXT7_API_KEY}" "Accept:application/json, text/event-stream"
-fi
-
-if [[ "$TAVILY_AVAILABLE" == true ]]; then
-    log_separator
-    log_info "Configuring all agents to use Tavily MCP (HTTP - remote)..."
-    # Tavily uses API key in URL query parameter, so no custom headers needed
-    setup_http_mcp "tavily" "$TAVILY_URL"
-fi
-
-
-# Servers to use in stdio mode
-# - PAL MCP (clink only - cross-CLI orchestration, uses stdio for better compatibility)
-# - Filesystem MCP (per-agent, filtered to read_multiple_files only via mcp-filter)
-# - Fetch MCP (per-agent, only supports stdio transport)
-# - Context7 MCP (for Codex only, since Codex HTTP doesn't support custom headers)
-log_separator
-log_info "Configuring agents to use PAL MCP for clink (stdio)..."
-setup_pal_stdio_mcp
-
-log_separator
-log_info "Configuring agents to use Filesystem MCP (stdio, filtered to read_multiple_files only)..."
-log_info "Whitelisted directory for Filesystem MCP: $FS_MCP_WHITELIST"
-setup_stdio_mcp "fs" "npx" "-y" "mcp-filter" "-s" "npx -y @modelcontextprotocol/server-filesystem $FS_MCP_WHITELIST" "-a" "read_multiple_files"
-
-log_separator
-log_info "Configuring agents to use Fetch MCP (stdio)..."
-setup_stdio_mcp "fetch" "uvx" "mcp-server-fetch"
-
-log_separator
-log_info "Configuring agents to use Memory MCP (stdio)..."
-log_info "Memory file path: $MEMORY_MCP_STORAGE_PATH"
-mkdir -p "$(dirname "$MEMORY_MCP_STORAGE_PATH")"
-setup_stdio_mcp "memory" "env" "MEMORY_FILE_PATH=$MEMORY_MCP_STORAGE_PATH" "npx" "-y" "@modelcontextprotocol/server-memory"
-
-log_separator
-log_info "Configuring agents to use Playwright MCP (stdio)..."
-setup_stdio_mcp "playwright" "npx" "-y" "@playwright/mcp@latest"
-
-if [[ "$BRAVE_AVAILABLE" == true ]]; then
-    log_separator
-    log_info "Configuring agents to use Brave Search MCP (stdio)..."
-    setup_stdio_mcp "brave" "env" "BRAVE_API_KEY=$BRAVE_API_KEY" "npx" "-y" "@brave/brave-search-mcp-server" "--transport" "stdio"
-fi
-
-if [[ "$CONTEXT7_AVAILABLE" == true ]] && agent_enabled "$CODEX"; then
-    log_separator
-    log_info "Configuring Codex to use Context7 MCP (stdio)..."
-    (add_stdio_mcp_to_agent "$CODEX" "context7" "npx" "-y" "@upstash/context7-mcp" "--api-key" "\$CONTEXT7_API_KEY") || log_warning "Already exists"
 fi
 
 # ============================================================================
@@ -935,78 +1193,31 @@ fi
 log_empty_line
 log_success "Setup complete."
 log_empty_line
-log_info "Local HTTP servers running:"
-log_info "  • Qdrant MCP: http://localhost:$QDRANT_MCP_PORT/mcp/ (PID: $QDRANT_PID)"
-log_info "    └─ Backend: Qdrant Docker container on port $QDRANT_DB_PORT"
-log_info "    └─ Storage directory: $QDRANT_STORAGE_PATH"
-
-if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
-    log_info "  • Sourcegraph MCP: http://localhost:$SOURCEGRAPH_MCP_PORT/sourcegraph/mcp/ (PID: $SOURCEGRAPH_PID)"
-    log_info "    └─ Endpoint: $SOURCEGRAPH_ENDPOINT (free public search)"
-    log_info "    └─ Repository: $SOURCEGRAPH_REPO_PATH"
-fi
-
-log_info "  • Semgrep MCP: http://localhost:$SEMGREP_MCP_PORT/mcp/ (PID: $SEMGREP_PID)"
-log_info "    └─ Static analysis and security scanning (5000+ rules)"
-
-log_info "  • Serena MCP: http://localhost:$SERENA_MCP_PORT/mcp/ (PID: $SERENA_PID)"
-log_info "    └─ Semantic code analysis and editing with LSP integration"
-
-log_empty_line
-
-# Only show remote servers section if at least one is configured
-if [[ "$CONTEXT7_AVAILABLE" == true || "$TAVILY_AVAILABLE" == true ]]; then
-    log_info "Remote HTTP servers configured:"
-
-    if [[ "$CONTEXT7_AVAILABLE" == true ]]; then
-        log_info "  • Context7 MCP: $CONTEXT7_URL"
-        agent_enabled "$GEMINI" && log_info "    └─ Gemini: Headers configured automatically in ~/.gemini/settings.json"
-        agent_enabled "$CLAUDE" && log_info "    └─ Claude: Header configured automatically via CLI"
-        agent_enabled "$CODEX"  && log_info "    └─ Codex: Using stdio mode instead (HTTP doesn't support custom headers)"
-    fi
-
-    if [[ "$TAVILY_AVAILABLE" == true ]]; then
-        log_info "  • Tavily MCP: https://mcp.tavily.com/mcp/"
-        log_info "    └─ All agents: Configured via HTTP with API key in URL"
-    fi
-
+if [[ ${#HTTP_SERVICE_PIDS[@]} -gt 0 ]]; then
+    log_info "Local HTTP services running:"
+    for service_id in "${!HTTP_SERVICE_PIDS[@]}"; do
+        local_port="${HTTP_SERVICE_PORTS[$service_id]}"
+        local_pid="${HTTP_SERVICE_PIDS[$service_id]}"
+        log_info "  • ${service_id}: http://localhost:${local_port} (PID: ${local_pid})"
+    done
     log_empty_line
 fi
 
-log_info "Configured stdio servers:"
-log_info "  → Each agent starts its own server when launched, stops when exited."
-log_info "  • Filesystem MCP (all agents)"
-log_info "    └─ Filtered to read_multiple_files only (30-60% token savings on bulk reads)"
-log_info "    └─ Whitelisted directory: $FS_MCP_WHITELIST"
-log_info "  • Fetch MCP (all agents)"
-log_info "    └─ HTML to Markdown conversion"
-log_info "  • Memory MCP (all agents)"
-log_info "    └─ Knowledge graph for persistent structured memory (entities, relations, observations)"
-log_info "    └─ Data file: $MEMORY_MCP_STORAGE_PATH"
-log_info "  • Playwright MCP (all agents)"
-log_info "    └─ Browser automation and UI interaction via Playwright"
-
-if [[ "$BRAVE_AVAILABLE" == true ]]; then
-    log_info "  • Brave Search MCP (all agents)"
-    log_info "    └─ Privacy-focused web search (2,000 queries/month free)"
+if [[ ${#DOCKER_CONTAINERS[@]} -gt 0 ]]; then
+    log_info "Docker containers:"
+    for container_name in "${DOCKER_CONTAINERS[@]}"; do
+        log_info "  • ${container_name}"
+    done
+    log_empty_line
 fi
 
-if [[ "$CONTEXT7_AVAILABLE" == true ]] && agent_enabled "$CODEX"; then
-    log_info "  • Context7 MCP (Codex only)"
-    log_info "    └─ Codex HTTP doesn't support custom headers, so using stdio mode"
+if [[ ${#HTTP_SERVICE_LOGS[@]} -gt 0 ]]; then
+    log_info "Logs:"
+    for service_id in "${!HTTP_SERVICE_LOGS[@]}"; do
+        log_info "  • ${service_id}: ${HTTP_SERVICE_LOGS[$service_id]}"
+    done
+    log_empty_line
 fi
-
-log_empty_line
-log_info "Logs:"
-log_info "  • Qdrant MCP: /tmp/mcp-Qdrant MCP-server.log"
-log_info "  • Qdrant Docker: docker logs qdrant"
-
-if [[ "$SOURCEGRAPH_AVAILABLE" == true ]]; then
-    log_info "  • Sourcegraph MCP: /tmp/mcp-Sourcegraph MCP-server.log"
-fi
-
-log_info "  • Semgrep MCP: /tmp/mcp-Semgrep MCP-server.log"
-log_info "  • Serena MCP: /tmp/mcp-Serena MCP-server.log"
 
 if agent_enabled "OpenCode"; then
     log_separator
@@ -1017,14 +1228,36 @@ if agent_enabled "OpenCode"; then
 
     if [[ -f "$TEMPLATE_OC" ]]; then
         mkdir -p "$(dirname "$GENERATED_OC")"
-        if ! sed -e "s|{{REPO_ROOT}}|$REPO_ROOT|g" -e "s|{{FS_MCP_WHITELIST}}|$FS_MCP_WHITELIST|g" -e "s|{{PAL_DISABLED_TOOLS}}|$PAL_DISABLED_TOOLS|g" -e "s|{{CLI_BIN_PATHS}}|$CLI_BIN_PATHS|g" "$TEMPLATE_OC" > "$GENERATED_OC"; then
-            log_warning "Failed to render OpenCode template; skipping OpenCode sync"
+        MCP_OC_TMP="$(mktemp)"
+        if ! uv run python "$REPO_ROOT/protocols/scripts/render-opencode-mcp.py" > "$MCP_OC_TMP"; then
+            log_warning "Failed to render OpenCode MCP config; skipping OpenCode sync"
             GENERATED_OC=""
+        else
+            PERMS_OC_TMP="$(mktemp)"
+            if ! uv run python "$REPO_ROOT/protocols/scripts/render-opencode-permissions.py" > "$PERMS_OC_TMP"; then
+                log_warning "Failed to render OpenCode permissions; skipping permission updates"
+                PERMS_OC_TMP=""
+            fi
+
+            if ! uv run "$REPO_ROOT/protocols/scripts/render-opencode-template.py" \
+                --template "$TEMPLATE_OC" \
+                --output "$GENERATED_OC" \
+                --repo-root "$REPO_ROOT" \
+                --protocols-dir "$HOME/.config/bureau/protocols" \
+                --mcp "$MCP_OC_TMP" \
+                ${PERMS_OC_TMP:+--permissions "$PERMS_OC_TMP"}; then
+                log_warning "Failed to render OpenCode template; skipping OpenCode sync"
+                GENERATED_OC=""
+            fi
         fi
         mkdir -p "$(dirname "$TARGET_OC")"
 
         if [[ -n "$GENERATED_OC" && -f "$GENERATED_OC" ]]; then
-            if uv run "$SCRIPT_DIR/configure-opencode.py" --target "$TARGET_OC" --generated "$GENERATED_OC"; then
+            OPENCODE_ARGS=(--target "$TARGET_OC" --generated "$GENERATED_OC")
+            if [[ "$MODE_BARE" == true ]]; then
+                OPENCODE_ARGS+=(--bare)
+            fi
+            if uv run "$SCRIPT_DIR/configure-opencode.py" "${OPENCODE_ARGS[@]}"; then
                 log_success "OpenCode config merged into $TARGET_OC (preserved user overrides)"
             else
                 log_warning "OpenCode merge failed; leaving $TARGET_OC unchanged"
@@ -1035,6 +1268,7 @@ if agent_enabled "OpenCode"; then
     else
         log_warning "OpenCode config template not found at $TEMPLATE_OC; skipping OpenCode sync"
     fi
+    managed_registry_record "opencode" "$OPENCODE_CONFIG"
 fi
 
 if agent_enabled "$CODEX"; then
@@ -1053,32 +1287,68 @@ log_info "  3. Type '/mcp' to see available tools"
 log_empty_line
 log_info "To stop local HTTP servers:"
 pidlist=""
-[[ -n "$QDRANT_PID" ]] && pidlist+=" $QDRANT_PID"
-[[ "$SOURCEGRAPH_AVAILABLE" == "true" && -n "$SOURCEGRAPH_PID" ]] && pidlist+=" $SOURCEGRAPH_PID"
-[[ -n "$SEMGREP_PID" ]] && pidlist+=" $SEMGREP_PID"
-[[ -n "$SERENA_PID" ]] && pidlist+=" $SERENA_PID"
+for pid in "${HTTP_SERVICE_PIDS[@]}"; do
+    pidlist+=" $pid"
+done
 
 # Trim leading space and create kill command
 pidlist="${pidlist# }"
-KILL_HTTPS_CMD="kill ${pidlist}"
-log_info "  $KILL_HTTPS_CMD"
+if [[ -n "$pidlist" ]]; then
+    KILL_HTTPS_CMD="kill ${pidlist}"
+    log_info "  $KILL_HTTPS_CMD"
+else
+    KILL_HTTPS_CMD=""
+    log_info "  (none)"
+fi
 
 log_empty_line
-QDRANT_STOP_CMD="docker stop qdrant"
-log_info "To stop Qdrant Docker container:"
-log_info "  $QDRANT_STOP_CMD"
+docker_stop_cmd=""
+if [[ ${#DOCKER_CONTAINERS[@]} -gt 0 ]]; then
+    docker_stop_cmd="docker stop ${DOCKER_CONTAINERS[*]}"
+fi
+log_info "To stop Docker containers:"
+if [[ -n "$docker_stop_cmd" ]]; then
+    log_info "  $docker_stop_cmd"
+else
+    log_info "  (none)"
+fi
 
 log_empty_line
 TAKE_DOWN_FILE="$REPO_ROOT/bin/close-bureau"
-echo "#!/usr/bin/env bash" > "$TAKE_DOWN_FILE"
-echo -e "# Run this script to stop servers and containers launched by Bureau's tools script\n" >> "$TAKE_DOWN_FILE"
-echo -e "$KILL_HTTPS_CMD\n$QDRANT_STOP_CMD" >> "$TAKE_DOWN_FILE"
+{
+    echo "#!/usr/bin/env bash"
+    echo "# Stop servers and containers launched by Bureau's tools script"
+    echo "#"
+    echo "# Port-based shutdown: finds the actual port-binding process at run time"
+    echo "# rather than relying on stale PIDs that may have been recycled by the OS."
+    echo "# Also kills the parent wrapper (uv/uvx) to avoid orphaned processes."
+    echo ""
+    if [[ ${#HTTP_SERVICE_PORTS[@]} -gt 0 ]]; then
+        echo "for port in ${HTTP_SERVICE_PORTS[*]}; do"
+        # Use heredoc-style indentation for clarity in the generated script
+        cat <<'SHUTDOWN_BODY'
+    pid=$(lsof -ti:"$port" -sTCP:LISTEN 2>/dev/null)
+    if [[ -n "$pid" ]]; then
+        ppid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+        kill "$pid" 2>/dev/null
+        # Kill the wrapper parent (e.g. uv/uvx) if it's not init/launchd
+        if [[ -n "$ppid" && "$ppid" -gt 1 ]]; then
+            kill "$ppid" 2>/dev/null
+        fi
+    fi
+done
+SHUTDOWN_BODY
+    fi
+    if [[ -n "$docker_stop_cmd" ]]; then
+        echo "$docker_stop_cmd"
+    fi
+} > "$TAKE_DOWN_FILE"
 chmod +x "$TAKE_DOWN_FILE"
-log_info "✔︎ Stop commands also saved to $RED$TAKE_DOWN_FILE$NC for convenience"
+log_info "Stop commands saved to $RED$TAKE_DOWN_FILE$NC for convenience"
 
 if [[ "$AUTO_APPROVE_MCP" == true ]]; then
     log_empty_line
-    log_success "All agents configured to auto-approve MCP tools (mcp.auto_approve: yes)"
+    log_success "All agents configured to auto-approve MCP tools (auto_approved.mcp_tools: true)"
     log_info "  → Updated: ~/.claude/settings.json"
     log_info "  → Updated: ~/.codex/config.toml"
     log_info "  → Updated: ~/.gemini/settings.json"

@@ -1,0 +1,508 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Bureau defaults — the single source of all git-tracked configuration
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# This file ships with Bureau and defines every configurable setting with its
+# default value. It is the base layer of a four-tier precedence hierarchy:
+#
+#   defaults.yml  →  .bureau.yml  →  local.yml  →  env vars
+#     (package)       (project)       (personal)    (runtime)
+#
+# - .bureau.yml: optional project-level overrides, discovered by CWD walk-up
+#                (like ESLint/Prettier/Ruff configs); shareable via git
+# - local.yml: personal overrides (gitignored)
+# - env vars: highest-priority runtime overrides
+#
+# See docs/CONFIGURATION.md for full details.
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MCP catalog: dependencies, runtime services, and client configurations
+# ─────────────────────────────────────────────────────────────────────────────
+
+mcp:
+  # Non-daemon prerequisites (git repos, local files) prepared before services start
+  dependencies:
+    sourcegraph_repo:
+      enabled: true
+      kind: git_repo
+      repo_url: https://github.com/akbad/sourcegraph-mcp.git
+      branch: master
+      path: ${path_to.mcp_clones}/sourcegraph-mcp
+      post_clone:
+        - ["uv", "sync"]
+
+    claude_mem_storage:
+      enabled: true
+      kind: file
+      path: ~/.claude-mem/claude-mem.db
+
+  services:
+    qdrant_db:
+      enabled: true
+      kind: docker_container
+      container_name: qdrant
+      image: qdrant/qdrant
+      host_port: 8780
+      container_port: 6333
+      mounts:
+        - host_path: ~/.qdrant/storage
+          container_path: /qdrant/storage
+      healthcheck:
+        tcp: ${mcp.services.qdrant_db.host_port}
+
+    qdrant_mcp:
+      enabled: true
+      kind: http_process
+      port: 8782
+      depends_on:
+        services: [qdrant_db]
+      settings:
+        collection: coding-memory
+        embedding_provider: fastembed
+        # FastEmbed model for vector embeddings (1024-dim, Apache-2.0)
+        # note: changing this requires recreating the collection — old vectors
+        # are dimensionally incompatible and must be re-embedded
+        embedding_model: snowflake/snowflake-arctic-embed-l
+      command:
+        - uvx
+        - --from
+        - mcp-server-qdrant>=0.8.0
+        - mcp-server-qdrant
+        - --transport
+        - streamable-http
+      env:
+        QDRANT_URL: "http://127.0.0.1:${mcp.services.qdrant_db.host_port}"
+        COLLECTION_NAME: "${mcp.services.qdrant_mcp.settings.collection}"
+        EMBEDDING_PROVIDER: "${mcp.services.qdrant_mcp.settings.embedding_provider}"
+        EMBEDDING_MODEL: "${mcp.services.qdrant_mcp.settings.embedding_model}"
+        FASTMCP_SERVER_PORT: "${mcp.services.qdrant_mcp.port}"
+        FASTMCP_SERVER_STATELESS_HTTP: "true"
+      healthcheck:
+        tcp: ${mcp.services.qdrant_mcp.port}
+
+    sourcegraph_mcp:
+      enabled: true
+      kind: http_process
+      port: 8783
+      depends_on:
+        dependencies: [sourcegraph_repo]
+      command:
+        - uv
+        - --directory
+        - ${mcp.dependencies.sourcegraph_repo.path}
+        - run
+        - sourcegraph-mcp
+      env:
+        SRC_ENDPOINT: https://sourcegraph.com
+        MCP_STREAMABLE_HTTP_PORT: "${mcp.services.sourcegraph_mcp.port}"
+      healthcheck:
+        tcp: ${mcp.services.sourcegraph_mcp.port}
+
+    semgrep_mcp:
+      enabled: false
+      kind: http_process
+      port: 8784
+      command:
+        - semgrep
+        - mcp
+        - -t
+        - streamable-http
+        - --port
+        - ${mcp.services.semgrep_mcp.port}
+      healthcheck:
+        tcp: ${mcp.services.semgrep_mcp.port}
+
+    serena_mcp:
+      enabled: true
+      kind: http_process
+      port: 8785
+      command:
+        - uvx
+        - --from
+        - git+https://github.com/oraios/serena
+        - serena
+        - start-mcp-server
+        - --transport
+        - streamable-http
+        - --port
+        - ${mcp.services.serena_mcp.port}
+      healthcheck:
+        tcp: ${mcp.services.serena_mcp.port}
+
+  client_configs:
+    qdrant:
+      enabled: true
+      # Tool names for Codex per-tool auto-approval (update when server adds/removes tools)
+      tools: [qdrant-find, qdrant-store]
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.services.qdrant_mcp.port}/mcp/"
+
+    sourcegraph:
+      enabled: true
+      tools: [search, fetch_content, search_prompt_guide]
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.services.sourcegraph_mcp.port}/sourcegraph/mcp/"
+
+    semgrep:
+      enabled: false
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.services.semgrep_mcp.port}/mcp/"
+
+    serena:
+      enabled: true
+      tools: [activate_project, check_onboarding_performed, create_text_file, delete_memory, edit_memory, execute_shell_command, find_file, find_referencing_symbols, find_symbol, get_current_config, get_symbols_overview, initial_instructions, insert_after_symbol, insert_before_symbol, list_dir, list_memories, onboarding, prepare_for_new_conversation, read_file, read_memory, rename_memory, rename_symbol, replace_content, replace_symbol_body, search_for_pattern, switch_modes, write_memory]
+      clients:
+        default:
+          transport: http
+          url: "http://localhost:${mcp.services.serena_mcp.port}/mcp/"
+
+    context7:
+      enabled: true
+      requires_env: [CONTEXT7_API_KEY]
+      tools: [resolve-library-id, query-docs]
+      clients:
+        default:
+          transport: http
+          url: "https://mcp.context7.com/mcp"
+          headers:
+            CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}"
+            Accept: "application/json, text/event-stream"
+        codex:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@upstash/context7-mcp"
+            - --api-key
+            - ${CONTEXT7_API_KEY}
+
+    tavily:
+      enabled: true
+      requires_env: [TAVILY_API_KEY]
+      tools: [tavily_search, tavily_extract, tavily_crawl, tavily_map, tavily_research]
+      clients:
+        default:
+          transport: http
+          url: "https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}"
+
+    brave:
+      enabled: true
+      requires_env: [BRAVE_API_KEY]
+      tools: [brave_web_search, brave_local_search, brave_news_search, brave_image_search, brave_video_search, brave_summarizer]
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@brave/brave-search-mcp-server"
+            - --transport
+            - stdio
+          env:
+            BRAVE_API_KEY: "${BRAVE_API_KEY}"
+
+    filesystem:
+      enabled: true
+      tools: [read_multiple_files]
+      npm_runtime:
+        packages:
+          - mcp-filter
+          - "@modelcontextprotocol/server-filesystem"
+        binaries:
+          - mcp-filter
+          - mcp-server-filesystem
+      settings:
+        whitelist: "${path_to.workspace}"
+        allowed_methods:
+          - read_multiple_files
+      clients:
+        default:
+          transport: stdio
+          command:
+            - ${path_to.mcp_clones}/npm-tools/node_modules/.bin/mcp-filter
+            - --include
+            - read_multiple_files
+            - --
+            - ${path_to.mcp_clones}/npm-tools/node_modules/.bin/mcp-server-filesystem
+            - ${mcp.client_configs.filesystem.settings.whitelist}
+
+    fetch:
+      enabled: true
+      tools: [fetch]
+      clients:
+        default:
+          transport: stdio
+          command:
+            - uvx
+            - mcp-server-fetch
+
+    github:
+      enabled: true
+      requires_env: [GITHUB_PAT]
+      tools: [get_me, get_file_contents, search_code, search_issues, search_pull_requests, search_repositories, list_issues, list_pull_requests, issue_read, issue_write, pull_request_read, create_pull_request, merge_pull_request, create_branch, list_commits, list_branches, add_issue_comment]
+      clients:
+        default:
+          transport: http
+          url: "https://api.githubcopilot.com/mcp/"
+          headers:
+            Authorization: "Bearer ${GITHUB_PAT}"
+        codex:
+          transport: http
+          url: "https://api.githubcopilot.com/mcp/"
+          bearer_token_env_var: GITHUB_PAT
+
+    memory:
+      enabled: true
+      tools: [create_entities, create_relations, add_observations, search_nodes, open_nodes, read_graph, delete_entities, delete_observations, delete_relations]
+      storage_path: ~/.memory-mcp/memory.jsonl
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@modelcontextprotocol/server-memory"
+          env:
+            MEMORY_FILE_PATH: "${mcp.client_configs.memory.storage_path}"
+
+    playwright:
+      enabled: true
+      tools: [browser_click, browser_close, browser_console_messages, browser_drag, browser_evaluate, browser_file_upload, browser_fill_form, browser_handle_dialog, browser_hover, browser_install, browser_navigate, browser_navigate_back, browser_network_requests, browser_press_key, browser_resize, browser_run_code, browser_select_option, browser_snapshot, browser_tabs, browser_take_screenshot, browser_type, browser_wait_for]
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - "@playwright/mcp@latest"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Agent configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# Coding agent CLIs that Bureau should configure
+# Available: claude, gemini, codex, opencode
+
+agents:
+  - claude
+  - gemini
+  - codex
+  - opencode
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Roles and skills
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Role prompt availability: choose which agents are available when launching 
+# CLIs directly
+# 
+# Options: "all", explicit list, or empty list []
+roles:
+  enabled:
+    - architect
+    - code-reviewer
+    - testing
+    - migration-refactoring
+
+  # roles to explicitly exclude (takes precedence over enabled)
+  disabled: []
+
+  # source directories for role discovery
+  sources:
+    - path: agents/role-prompts        # For Codex, Gemini, OpenCode
+      cli: [codex, gemini, opencode]
+    - path: agents/claude-subagents    # For Claude Code (has frontmatter)
+      cli: [claude]
+
+# Skills configuration (installed via protocols/scripts/set-up-skills.sh)
+skills:
+  enabled: [micro-mode, assess-mode, fold-dossier, unfold-dossier]
+  disabled: []
+  sources:
+    - path: protocols/context/static/skills
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────────────────────────────────────────
+
+# File paths for config files, connection settings, etc.
+# Note: environment variables take precedence over these values
+path_to:
+  # Base workspace for user projects (override using: $BUREAU_WORKSPACE)
+  # When set, the following paths are automatically derived from it
+  # (unless explicitly overridden):
+  #   - serena_memories_root (root for recursive scanning of Serena memory
+  #     files during Bureau-run cleanup)
+  workspace: ~/code
+
+  # MCP server clone location (relative paths resolve from main repo root,
+  # shared across Bureau worktrees)
+  mcp_clones: .mcp-servers
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auto-approval rules
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Auto-approval settings
+# When true, agents won't prompt for permission before using MCP tools
+auto_approved:
+  mcp_tools: false
+  bash:
+    enabled: false
+    ruleset:
+      allow:
+        - "ls"
+        - "rg"
+        - "git status"
+        - "git diff"
+        - "git log"
+        - "npm run test"
+        - "python"
+        - "sed -i"
+        - "tee"
+        - "cat"
+        - "printf"
+        - "mkdir -p"
+      # deny:
+      #   - "rm"
+      #   - "git add"
+      #   - "git commit"
+      #   - "git reset"
+      #   - "git checkout"
+      #   - "git merge"
+      #   - "git rebase"
+      #   - "git push"
+      #   - "git pull"
+      #   - "git clean"
+      #   - "pip install"
+      #   - "npm install"
+      #   - "pnpm install"
+      #   - "yarn add"
+      #   - "sudo"
+      #   - "dd"
+      #   - "mkfs"
+
+prune_disabled_mcps: true
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Protocol file deployment
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Controls how Bureau-owned protocol runtime files are reconciled in the
+# user-scoped protocols directory (~/.config/bureau/protocols/).
+#
+# Equivalent CLI flag:
+#   open-bureau --protocols|-p <replace|r|sync|s|off|o>
+# CLI flags override these config settings for a single run.
+protocols:
+  # Protocol deployment mode:
+  # - replace: always reconcile Bureau-owned protocol files without backup
+  # - sync:    always reconcile Bureau-owned protocol files, backing up replaced files
+  # - off:     remove Bureau-owned protocol files, hooks, and generated context wiring
+  mode: replace
+
+  # Output-style sources compiled into ~/.config/bureau/protocols/output-style.md
+  # Values:
+  # - default: use Bureau's shipped default source file
+  # - off:     disable this feature and remove the runtime artifact
+  # - [paths]: merge one or more Markdown files into the runtime artifact
+  output_style: default
+
+  # Coding standards sources compiled into Bureau's protocol-owned generated
+  # `code-standards` skill. `skills.enabled` and `skills.disabled` do not
+  # control this built-in. When enabled, Bureau still deploys a fixed startup
+  # mindset artifact at ~/.config/bureau/protocols/code-standards.md.
+  # Values match protocols.output_style above.
+  code_standards: default
+
+# Assess mode skill configuration
+assess_mode:
+  default_target: git-diff
+  default_diff: HEAD
+
+# Dossiers: cross-agent conversation continuity
+# Fold saves a conversation snapshot; unfold resumes it.
+conversations:
+  save: fold-dossier
+  resume: unfold-dossier
+  storage_dir: ~/.config/bureau/dossiers
+  stale_dossier_days: 30
+  max_retained_sessions: 5
+  concierge:
+    preferred_agent: claude
+    auto_offer_resume: true
+    auto_offer_save: true
+    notify_task_updates: true
+    notify_interval: 30s
+  keywords:
+    save:
+      - "save this"
+      - "fold this"
+      - "fold conversation"
+      - "create dossier"
+      - "update dossier"
+    resume:
+      - "pick up where I left off"
+      - "resume"
+      - "unfold"
+      - "my dossiers"
+      - "folded dossiers"
+      - "folded conversations"
+      - "saved conversations"
+      - "saved with Bureau"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Retention & cleanup
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Retention periods (per memory backend), after which memories older than
+# this threshold will be moved to trash automatically by the cleanup process
+# Formats: never, 24h (hours), 30d (days), 2w (weeks), 3m (months), 1y (years)
+retention_period_for:
+  claude_mem: 30d    # Claude-mem SQLite database (Claude Code only)
+  serena: 90d        # Serena project memories (.serena/memories/)
+  qdrant: 180d       # Qdrant vector database (used by all enabled CLIs)
+  memory_mcp: 365d   # Memory MCP JSONL file (used by all enabled CLIs)
+  dossiers: 30d      # Conversation dossiers (matches stale_dossier_days)
+
+# Cleanup interval (for stale memories)
+cleanup:
+  min_interval: 24h
+
+# Grace period after stale items are moved to trash before permanent deletion
+trash:
+  grace_period: 30d
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Concierge (ML-based message classifier)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# When enabled, open-bureau installs ML dependencies and trains/updates
+# the DistilBERT classifier model on each run.  Equivalent to passing
+# --concierge/-c to open-bureau, but persisted in config.
+concierge:
+  enabled: false
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Startup timeouts
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Timeouts (in seconds) when starting up
+# (increase for slower machines)
+startup_timeout_for:
+  mcp_servers: 200       # HTTP MCP servers
+  docker_daemon: 120     # Docker containers

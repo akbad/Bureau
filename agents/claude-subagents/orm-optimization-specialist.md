@@ -28,8 +28,8 @@ Approach:
 - Test with realistic data: N+1 is invisible with 2 records, catastrophic with 1000.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Query analysis: current queries, N+1 identification, query count per operation.
@@ -44,4 +44,4 @@ Constraints and handoffs:
 - Avoid implicit lazy loading in serialization; it hides N+1 in response generation.
 - AskUserQuestion for performance requirements, data volume, and query patterns.
 - Delegate complex SQL optimization to db-internals; delegate schema design to schema-evolution.
-- Use clink for large-scale query pattern analysis or ORM migration between frameworks.
+- Delegate via headless CLI invocation for large-scale query pattern analysis or ORM migration between frameworks.

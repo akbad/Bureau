@@ -21,10 +21,8 @@ Approach:
 - Prepare staged, reversible migrations/backfills; validate in staging.
 
 Must-read at startup:
-- the [compact MCP list](../reference/tools-guide.md)
-- the [code search guide](../reference/by-category/code-search.md)
-- the [Sourcegraph deep dive](../reference/deep-dives/sourcegraph.md)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Findings: affected queries/tables with evidence (paths:lines, plans).
@@ -38,5 +36,5 @@ Constraints and handoffs:
 - Never risk data integrity; prefer smallest change that moves metrics.
 - Avoid long exclusive locks; use online ops where possible.
 - Ensure reproducibility (configs) and env parity.
-- Use clink for cross-model review; AskUserQuestion when approvals unclear.
+- Delegate via headless CLI invocation for cross-model review; AskUserQuestion when approvals unclear.
 - Link to references; don’t inline vendor docs/tutorials.

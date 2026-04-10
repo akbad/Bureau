@@ -19,10 +19,8 @@ Approach:
 - Validate with load/soak/replay/chaos; stage behind flags/canaries; re‑measure.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [code search guide](../reference/by-category/code-search.md) (Tier 2)
-- the [Context7 deep dive](../reference/deep-dives/context7.md) (Tier 3 as needed)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Budget: topology, per‑hop targets, assumptions, and constraints.
@@ -35,4 +33,4 @@ Constraints and handoffs:
 - No dynamic allocation or floating point in ISRs; bound loops and queue sizes.
 - Timeouts on all external interactions; explicit backpressure; avoid unbounded retries.
 - AskUserQuestion for SLO targets, certification levels, and hardware limits.
-- Use cross‑model delegation (clink) for protocol/certification trade‑offs.
+- Use cross‑model delegation (headless CLI invocation) for protocol/certification trade‑offs.
