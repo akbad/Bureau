@@ -1,10 +1,26 @@
 """Tests for dossier fold (create/update) operations."""
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
-from operations.dossiers.db import connect_dossier_db
+import pytest
+
+import operations.dossiers.fold as fold_module
+from operations.dossiers.db import (
+    MAX_CONTEXT_NOTES_LENGTH,
+    MAX_DESCRIPTION_LENGTH,
+    MAX_DIGEST_LENGTH,
+    MAX_SUBJECT_LENGTH,
+    MAX_TASKS_PER_DOSSIER,
+    connect_dossier_db,
+)
 from operations.dossiers.fold import fold_dossier
+
+
+def _over_limit(limit: int, ch: str = "x") -> str:
+    """Return a string one character longer than the provided limit."""
+    return ch * (limit + 1)
 
 
 class TestFoldNewDossier:
@@ -249,3 +265,179 @@ class TestRefoldTaskDuplication:
         count = conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
         conn.close()
         assert count == 2  # Both decisions should exist
+
+
+class TestFoldInputValidation:
+    """Tests for fold-path validation limits and status enforcement."""
+
+    def test_rejects_digest_over_max_length(self, tmp_path: Path):
+        with pytest.raises(ValueError, match="Digest exceeds maximum length"):
+            fold_dossier(
+                dossiers_dir=tmp_path,
+                name="Test",
+                agent="claude-code",
+                digest=_over_limit(MAX_DIGEST_LENGTH),
+            )
+
+    def test_rejects_task_list_over_max_count(self, tmp_path: Path):
+        tasks = [{"subject": f"Task {i}", "status": "pending"} for i in range(MAX_TASKS_PER_DOSSIER + 1)]
+
+        with pytest.raises(ValueError, match="Task list exceeds maximum count"):
+            fold_dossier(
+                dossiers_dir=tmp_path,
+                name="Test",
+                agent="claude-code",
+                digest="Test.",
+                tasks=tasks,
+            )
+
+    @pytest.mark.parametrize(
+        ("task", "error_match"),
+        [
+            (
+                {"subject": _over_limit(MAX_SUBJECT_LENGTH), "status": "pending"},
+                "Subject exceeds maximum length",
+            ),
+            (
+                {
+                    "subject": "Task",
+                    "description": _over_limit(MAX_DESCRIPTION_LENGTH),
+                    "status": "pending",
+                },
+                "Description exceeds maximum length",
+            ),
+            (
+                {
+                    "subject": "Task",
+                    "context_notes": _over_limit(MAX_CONTEXT_NOTES_LENGTH),
+                    "status": "pending",
+                },
+                "Context notes exceeds maximum length",
+            ),
+            (
+                {"subject": "Task", "status": "invalid"},
+                "Invalid status",
+            ),
+        ],
+        ids=[
+            "subject-too-long",
+            "description-too-long",
+            "context-notes-too-long",
+            "invalid-status",
+        ],
+    )
+    def test_rejects_invalid_initial_task_fields(
+        self,
+        tmp_path: Path,
+        task: dict[str, str],
+        error_match: str,
+    ):
+        with pytest.raises(ValueError, match=error_match):
+            fold_dossier(
+                dossiers_dir=tmp_path,
+                name="Test",
+                agent="claude-code",
+                digest="Test.",
+                tasks=[task],
+            )
+
+    def test_accepts_digest_at_max_length(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path,
+            name="Test",
+            agent="claude-code",
+            digest="d" * MAX_DIGEST_LENGTH,
+        )
+
+        assert result["task_count"] == 0
+
+    def test_accepts_task_list_at_max_count(self, tmp_path: Path):
+        tasks = [{"subject": f"Task {i}", "status": "pending"} for i in range(MAX_TASKS_PER_DOSSIER)]
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path,
+            name="Test",
+            agent="claude-code",
+            digest="Test.",
+            tasks=tasks,
+        )
+
+        assert result["task_count"] == MAX_TASKS_PER_DOSSIER
+
+    def test_accepts_initial_task_fields_at_max_length(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path,
+            name="Test",
+            agent="claude-code",
+            digest="Test.",
+            tasks=[{
+                "subject": "s" * MAX_SUBJECT_LENGTH,
+                "description": "d" * MAX_DESCRIPTION_LENGTH,
+                "context_notes": "c" * MAX_CONTEXT_NOTES_LENGTH,
+                "status": "blocked",
+            }],
+        )
+
+        conn = connect_dossier_db(tmp_path / f"{result['slug']}.db")
+        task = conn.execute(
+            "SELECT subject, description, context_notes, status FROM tasks"
+        ).fetchone()
+        conn.close()
+        assert len(task["subject"]) == MAX_SUBJECT_LENGTH
+        assert len(task["description"]) == MAX_DESCRIPTION_LENGTH
+        assert len(task["context_notes"]) == MAX_CONTEXT_NOTES_LENGTH
+        assert task["status"] == "blocked"
+
+
+class TestFoldResultCounts:
+    """Tests for fold result summary counts."""
+
+    def test_counts_reflect_the_fold_transaction(self, tmp_path: Path, monkeypatch):
+        """Returned counts should ignore post-commit concurrent writes."""
+
+        class RacingConnection:
+            def __init__(self, conn: sqlite3.Connection, path: Path):
+                self._conn = conn
+                self._path = path
+
+            def __enter__(self):
+                self._conn.__enter__()
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                result = self._conn.__exit__(exc_type, exc, tb)
+                if exc_type is None:
+                    with sqlite3.connect(self._path) as other_conn:
+                        other_conn.execute(
+                            "INSERT INTO tasks (subject, status) VALUES (?, ?)",
+                            ("concurrent task", "pending"),
+                        )
+                return result
+
+            def __getattr__(self, name):
+                return getattr(self._conn, name)
+
+        @contextmanager
+        def patched_open_dossier_db(path: Path):
+            conn = connect_dossier_db(path)
+            try:
+                yield RacingConnection(conn, path)
+            finally:
+                conn.close()
+
+        monkeypatch.setattr(fold_module, "open_dossier_db", patched_open_dossier_db)
+
+        result = fold_module.fold_dossier(
+            dossiers_dir=tmp_path,
+            name="Test",
+            agent="claude-code",
+            digest="Test.",
+            tasks=[{"subject": "initial task", "status": "pending"}],
+        )
+
+        assert result["task_count"] == 1
+
+        conn = connect_dossier_db(tmp_path / f"{result['slug']}.db")
+        count = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        conn.close()
+        assert count == 2

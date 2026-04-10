@@ -157,6 +157,41 @@ class TestUnfoldDossier:
         assert "Decisions" in output
         assert "Use SQLite" in output
 
+    @pytest.mark.parametrize("full", [False, True], ids=["compact", "full"])
+    def test_omits_deleted_tasks_from_rendered_tasks_table(
+        self,
+        tmp_path: Path,
+        make_dossier_with_deleted_tasks,
+        full: bool,
+    ):
+        """Deleted tasks should not leak into unfold output in either mode."""
+        result = make_dossier_with_deleted_tasks(
+            name="Deleted",
+            tasks=[
+                {"subject": "Live task", "status": "pending"},
+                {"subject": "Deleted task", "status": "pending"},
+            ],
+            delete_ids=(2,),
+        )
+
+        output = unfold_dossier(tmp_path, result["hash"], full=full)
+
+        assert "Live task" in output
+        assert "Deleted task" not in output
+
+    def test_omits_tasks_section_when_all_tasks_are_deleted(self, tmp_path: Path, make_dossier_with_deleted_tasks):
+        """The tasks section should disappear when no live tasks remain."""
+        result = make_dossier_with_deleted_tasks(
+            name="Deleted",
+            tasks=[{"subject": "Deleted task", "status": "pending"}],
+            delete_ids=(1,),
+        )
+
+        output = unfold_dossier(tmp_path, result["hash"])
+
+        assert "## Tasks" not in output
+        assert "Deleted task" not in output
+
 
 class TestListDossiers:
     """Tests for listing all dossiers."""
@@ -172,3 +207,20 @@ class TestListDossiers:
         """Returns empty list for empty dossiers directory."""
         results = list_dossiers(tmp_path)
         assert results == []
+
+    def test_task_count_excludes_deleted_tasks(self, tmp_path: Path, make_dossier_with_deleted_tasks):
+        """List output should count only non-deleted tasks."""
+        make_dossier_with_deleted_tasks(
+            name="Alpha",
+            tasks=[
+                {"subject": "Live task 1", "status": "pending"},
+                {"subject": "Deleted task", "status": "pending"},
+                {"subject": "Live task 2", "status": "completed"},
+            ],
+            delete_ids=(2,),
+        )
+
+        results = list_dossiers(tmp_path)
+
+        assert len(results) == 1
+        assert results[0]["tasks"] == 2

@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from operations.dossiers.db import create_dossier_db, connect_dossier_db, SCHEMA_VERSION
+from operations.dossiers.db import (
+    SCHEMA_VERSION,
+    connect_dossier_db,
+    create_dossier_db,
+    escape_md,
+    safe_db_path,
+)
 
 
 class TestCreateDossierDb:
@@ -65,3 +71,91 @@ class TestConnectDossierDb:
         db_path = tmp_path / "nonexistent.db"
         with pytest.raises(FileNotFoundError):
             connect_dossier_db(db_path)
+
+
+class TestSafeDbPath:
+    """Tests for slug-to-path containment enforcement."""
+
+    def test_accepts_normal_slug(self, tmp_path: Path):
+        """A normal slug resolves under the dossiers directory."""
+        dossiers_dir = tmp_path / "dossiers"
+        dossiers_dir.mkdir()
+
+        path = safe_db_path(dossiers_dir, "team-plan")
+
+        assert path == (dossiers_dir / "team-plan.db").resolve()
+
+    def test_accepts_slug_with_spaces_and_brackets(self, tmp_path: Path):
+        """Containment checks should not over-restrict non-traversal slugs."""
+        dossiers_dir = tmp_path / "dossiers"
+        dossiers_dir.mkdir()
+
+        path = safe_db_path(dossiers_dir, "name with [brackets] and spaces")
+
+        assert path == (dossiers_dir / "name with [brackets] and spaces.db").resolve()
+
+    @pytest.mark.parametrize(
+        "slug",
+        ["../evil", "../../etc/passwd", "/tmp/evil"],
+        ids=["parent-traversal", "deep-traversal", "absolute-path"],
+    )
+    def test_rejects_path_escape_attempts(self, tmp_path: Path, slug: str):
+        """Escaping the dossiers directory raises ValueError."""
+        dossiers_dir = tmp_path / "dossiers"
+        dossiers_dir.mkdir()
+
+        with pytest.raises(ValueError, match="Path escapes allowed directory"):
+            safe_db_path(dossiers_dir, slug)
+
+    def test_rejects_sibling_prefix_escape(self, tmp_path: Path):
+        """Sibling paths that share the old prefix still count as escapes."""
+        dossiers_dir = tmp_path / "dossiers"
+        dossiers_dir.mkdir()
+
+        with pytest.raises(ValueError, match="Path escapes allowed directory"):
+            safe_db_path(dossiers_dir, "../dossiers-evil/escape")
+
+
+class TestEscapeMd:
+    """Tests for markdown escaping of stored dossier content."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("|", "\\|"),
+            ("*", "\\*"),
+            ("#", "\\#"),
+            (">", "\\>"),
+            ("`", "\\`"),
+            ("[", "\\["),
+            ("]", "\\]"),
+        ],
+        ids=[
+            "pipe",
+            "asterisk",
+            "hash",
+            "blockquote",
+            "code-span",
+            "open-bracket",
+            "close-bracket",
+        ],
+    )
+    def test_escapes_each_control_character(self, value: str, expected: str):
+        """Every markdown control character should be escaped individually."""
+        assert escape_md(value) == expected
+
+    def test_escapes_multiple_control_characters_in_one_string(self):
+        """Mixed content should escape every control character without touching safe text."""
+        assert escape_md("a|b*c#d>e`f[g]") == "a\\|b\\*c\\#d\\>e\\`f\\[g\\]"
+
+    def test_leaves_plain_text_unchanged(self):
+        """Ordinary text should pass through unchanged."""
+        assert escape_md("plain text") == "plain text"
+
+    def test_returns_empty_string_for_empty_input(self):
+        """Empty strings should remain empty."""
+        assert escape_md("") == ""
+
+    def test_returns_empty_string_for_none(self):
+        """None input is normalized to an empty string."""
+        assert escape_md(None) == ""

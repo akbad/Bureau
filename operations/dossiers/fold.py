@@ -155,9 +155,9 @@ def fold_dossier(
                         (cutoff_session["id"],),
                     )
 
-        # query actual DB counts so the caller reports what's in the dossier, not what was passed in
-        # note: outside the transaction block since these are read-only
-        task_count = conn.execute("SELECT COUNT(*) FROM tasks WHERE status != 'deleted'").fetchone()[0]
-        decision_count = conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
+            # query actual DB counts from the same transaction so the result reflects
+            # exactly what this fold committed, not a post-commit concurrent write
+            task_count = conn.execute("SELECT COUNT(*) FROM tasks WHERE status != 'deleted'").fetchone()[0]
+            decision_count = conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
 
     return {"slug": slug, "hash": dossier_hash, "task_count": task_count, "decision_count": decision_count}

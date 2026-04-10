@@ -99,6 +99,39 @@ class TestBasicExtraction:
         # task #2 should NOT be in the sibling table
         assert "| 2 |" not in output.split("## Other tasks")[1]
 
+    def test_sibling_table_omits_deleted_tasks(self, tmp_path: Path, make_dossier_with_deleted_tasks):
+        """Deleted siblings should not appear in task context output."""
+        result = make_dossier_with_deleted_tasks(
+            name="Multi",
+            tasks=[
+                {"subject": "Target task", "status": "pending"},
+                {"subject": "Live sibling", "status": "in_progress"},
+                {"subject": "Deleted sibling", "status": "completed"},
+            ],
+            delete_ids=(3,),
+        )
+
+        output = extract_task_context(tmp_path, result["slug"], task_id=1)
+
+        assert "| 2 | Live sibling | in_progress |" in output
+        assert "Deleted sibling" not in output
+
+    def test_deleted_siblings_yield_no_other_tasks_message(self, tmp_path: Path, make_dossier_with_deleted_tasks):
+        """The sibling empty state should trigger once only deleted siblings remain."""
+        result = make_dossier_with_deleted_tasks(
+            name="Multi",
+            tasks=[
+                {"subject": "Target task", "status": "pending"},
+                {"subject": "Deleted sibling", "status": "completed"},
+            ],
+            delete_ids=(2,),
+        )
+
+        output = extract_task_context(tmp_path, result["slug"], task_id=1)
+
+        assert "No other tasks." in output
+        assert "Deleted sibling" not in output
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Dependency chain resolution
@@ -237,6 +270,17 @@ class TestErrorHandling:
         from operations.dossiers.errors import DossierNotFoundError
         with pytest.raises(DossierNotFoundError):
             extract_task_context(tmp_path, "nonexistent-slug", task_id=1)
+
+    def test_deleted_target_task_raises(self, tmp_path: Path, make_dossier_with_deleted_tasks):
+        """Deleted target tasks should not be directly renderable."""
+        result = make_dossier_with_deleted_tasks(
+            name="Err",
+            tasks=[{"subject": "Deleted task", "status": "pending"}],
+            delete_ids=(1,),
+        )
+
+        with pytest.raises(ValueError, match="does not exist"):
+            extract_task_context(tmp_path, result["slug"], task_id=1)
 
 
 # ─────────────────────────────────────────────────────────────────────

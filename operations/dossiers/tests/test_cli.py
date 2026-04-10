@@ -10,15 +10,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
-
-@pytest.fixture
-def dossiers_dir(tmp_path: Path) -> Path:
-    d = tmp_path / "dossiers"
-    d.mkdir()
-    return d
-
 
 def _fold_via_cli(
     dossiers_dir: Path,
@@ -61,6 +52,28 @@ def _fold_via_cli(
         if slug_match:
             slug = slug_match.group(1)
     return result, slug
+
+
+def _run_cli(
+    dossiers_dir: Path,
+    *args: str,
+    input_text: str | None = None,
+) -> subprocess.CompletedProcess:
+    """Run the dossiers CLI with a shared dossiers directory."""
+    if not args:
+        raise ValueError("at least one CLI argument is required")
+
+    return subprocess.run(
+        [
+            sys.executable, "-m", "operations.dossiers",
+            args[0],
+            "--dossiers-dir", str(dossiers_dir),
+            *args[1:],
+        ],
+        capture_output=True,
+        text=True,
+        input=input_text,
+    )
 
 
 class TestCliFold:
@@ -183,6 +196,59 @@ class TestCliFold:
         )
         assert result.returncode == 0
         assert "Dossier saved:" in result.stdout
+
+    def test_fold_json_digest_file_symlink_to_outside_dir_rejected(self, dossiers_dir: Path, tmp_path: Path):
+        """A symlink inside the dossiers dir must not bypass containment checks."""
+        outside_file = tmp_path / "secret.txt"
+        outside_file.write_text("sensitive content")
+        digest_symlink = dossiers_dir / "digest-link.md"
+        digest_symlink.symlink_to(outside_file)
+        payload = json.dumps({
+            "name": "Test",
+            "agent": "claude-code",
+            "digest_file": str(digest_symlink),
+            "tasks": [],
+            "decisions": [],
+            "files": [],
+        })
+
+        result = _run_cli(
+            dossiers_dir,
+            "fold",
+            "--input-file", "-",
+            input_text=payload,
+        )
+
+        assert result.returncode == 1
+        assert "digest_file must be within the dossiers directory" in result.stderr
+
+    def test_fold_inline_digest_takes_precedence_over_digest_file(self, dossiers_dir: Path, tmp_path: Path):
+        """An inline digest should bypass digest_file validation and content loading."""
+        outside_file = tmp_path / "secret.txt"
+        outside_file.write_text("outside content")
+        payload = json.dumps({
+            "name": "Test",
+            "agent": "claude-code",
+            "digest": "Inline digest wins.",
+            "digest_file": str(outside_file),
+            "tasks": [],
+            "decisions": [],
+            "files": [],
+        })
+
+        result = _run_cli(
+            dossiers_dir,
+            "fold",
+            "--input-file", "-",
+            input_text=payload,
+        )
+
+        assert result.returncode == 0
+        slug = _re.search(r"`([^`]+)`", result.stdout).group(1)
+        unfold_result = _run_cli(dossiers_dir, "unfold", slug, "--full")
+        assert unfold_result.returncode == 0
+        assert "Inline digest wins." in unfold_result.stdout
+        assert "outside content" not in unfold_result.stdout
 
 
 class TestCliUnfold:
@@ -442,3 +508,95 @@ class TestCliWorker:
         )
         assert result.returncode == 1
         assert "incompatible" in result.stderr.lower()
+
+    def test_worker_include_digest_renders_session_context(self, dossiers_dir: Path):
+        tasks = [{"subject": "Build API", "status": "pending"}]
+        fold_result, slug = _fold_via_cli(
+            dossiers_dir,
+            tasks=tasks,
+            digest="Critical worker digest.",
+        )
+        assert fold_result.returncode == 0, fold_result.stderr
+
+        result = _run_cli(
+            dossiers_dir,
+            "unfold", slug,
+            "--worker", "--task", "1", "--agent", "worker-1", "--include-digest",
+        )
+
+        assert result.returncode == 0
+        assert "## Session context" in result.stdout
+        assert "Critical worker digest." in result.stdout
+
+    def test_worker_excludes_session_context_by_default(self, dossiers_dir: Path):
+        tasks = [{"subject": "Build API", "status": "pending"}]
+        fold_result, slug = _fold_via_cli(
+            dossiers_dir,
+            tasks=tasks,
+            digest="Critical worker digest.",
+        )
+        assert fold_result.returncode == 0, fold_result.stderr
+
+        result = _run_cli(
+            dossiers_dir,
+            "unfold", slug,
+            "--worker", "--task", "1", "--agent", "worker-1",
+        )
+
+        assert result.returncode == 0
+        assert "## Session context" not in result.stdout
+        assert "Critical worker digest." not in result.stdout
+
+    def test_worker_include_digest_uses_latest_digest_only(self, dossiers_dir: Path):
+        tasks = [{"subject": "Build API", "status": "pending"}]
+        first_result, slug = _fold_via_cli(
+            dossiers_dir,
+            tasks=tasks,
+            digest="Older digest.",
+        )
+        assert first_result.returncode == 0, first_result.stderr
+
+        second_result, _ = _fold_via_cli(
+            dossiers_dir,
+            slug=slug,
+            digest="Latest digest.",
+        )
+        assert second_result.returncode == 0, second_result.stderr
+
+        result = _run_cli(
+            dossiers_dir,
+            "unfold", slug,
+            "--worker", "--task", "1", "--agent", "worker-1", "--include-digest",
+        )
+
+        assert result.returncode == 0
+        assert "Latest digest." in result.stdout
+        assert "Older digest." not in result.stdout
+
+
+class TestCliLock:
+    """CLI coverage for lock release semantics."""
+
+    def test_lock_release_without_agent_or_force_fails(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(dossiers_dir)
+        assert fold_result.returncode == 0, fold_result.stderr
+        claim_result = _run_cli(dossiers_dir, "lock", slug, "claim", "--agent", "agent-a")
+        assert claim_result.returncode == 0, claim_result.stderr
+
+        result = _run_cli(dossiers_dir, "lock", slug, "release")
+
+        assert result.returncode == 1
+        assert "--agent or --force is required" in result.stderr
+
+    def test_lock_force_release_succeeds_for_other_agents_lock(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(dossiers_dir)
+        assert fold_result.returncode == 0, fold_result.stderr
+        claim_result = _run_cli(dossiers_dir, "lock", slug, "claim", "--agent", "agent-a")
+        assert claim_result.returncode == 0, claim_result.stderr
+
+        release_result = _run_cli(dossiers_dir, "lock", slug, "release", "--force")
+        assert release_result.returncode == 0, release_result.stderr
+
+        status_result = _run_cli(dossiers_dir, "lock", slug, "status")
+        assert status_result.returncode == 0
+        assert "Unlocked." in status_result.stdout

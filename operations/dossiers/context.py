@@ -155,7 +155,8 @@ def extract_task_context(
     with open_dossier_db(db_path) as conn:
         meta = conn.execute("SELECT * FROM metadata").fetchone()
         task = conn.execute(
-            "SELECT * FROM tasks WHERE id = ?", (task_id,)
+            "SELECT * FROM tasks WHERE id = ? AND status != 'deleted'",
+            (task_id,),
         ).fetchone()
 
         if not task:
