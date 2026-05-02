@@ -1,12 +1,15 @@
 from importlib import util
 from pathlib import Path
 
+import yaml
+
 module_path = Path(__file__).resolve().parents[1] / "render-mcp-setup.py"
 spec = util.spec_from_file_location("render_mcp_setup", module_path)
 module = util.module_from_spec(spec)
 assert spec and spec.loader
 spec.loader.exec_module(module)
 render_setup_plan = module.render_setup_plan
+DEFAULTS_PATH = Path(__file__).resolve().parents[3] / "defaults.yml"
 
 
 def test_warns_when_server_skipped_for_missing_requires_env(capsys, monkeypatch):
@@ -64,6 +67,114 @@ def test_renders_servers_for_all_clis():
     assert "tavily" in plan["client_configs"]["claude"]
     assert "tavily" in plan["client_configs"]["codex"]
     assert "tavily" in plan["client_configs"]["opencode"]
+
+
+def test_default_qdrant_healthchecks_use_resolved_ports():
+    config = yaml.safe_load(DEFAULTS_PATH.read_text(encoding="utf-8"))
+    config["mcp"]["services"]["qdrant_db"]["host_port"] = 9870
+    config["mcp"]["services"]["qdrant_mcp"]["port"] = 9872
+
+    plan = render_setup_plan(config)
+
+    assert (
+        plan["services"]["qdrant_db"]["healthcheck"]["http"]
+        == "http://127.0.0.1:9870/readyz"
+    )
+    assert (
+        plan["services"]["qdrant_mcp"]["healthcheck"]["mcp_tool"]["url"]
+        == "http://localhost:9872/mcp/"
+    )
+    assert (
+        plan["services"]["qdrant_mcp"]["healthcheck"]["mcp_tool"]["arguments"]
+        == {"query": "bureau healthcheck"}
+    )
+
+
+def test_default_browsing_fallbacks_render_for_all_clis():
+    config = yaml.safe_load(DEFAULTS_PATH.read_text(encoding="utf-8"))
+
+    plan = render_setup_plan(config)
+
+    for cli in ["claude", "gemini", "codex", "opencode"]:
+        assert "open-websearch" in plan["client_configs"][cli]
+        assert "crawl4ai-mcp-server" in plan["client_configs"][cli]
+
+    runtime_servers = plan["npm_runtime"].get("servers", {})
+    assert "open-websearch" not in runtime_servers
+    assert "crawl4ai-mcp-server" not in runtime_servers
+
+    crawl4ai_client = plan["client_configs"]["codex"]["crawl4ai-mcp-server"]
+    assert crawl4ai_client["startup_timeout_sec"] == 300
+    assert crawl4ai_client["tool_timeout_sec"] == 1200
+
+    assert "crawl4ai_mcp_repo" in plan["dependencies"]
+    crawl4ai_post_clone = plan["dependencies"]["crawl4ai_mcp_repo"]["post_clone"]
+    patch_commands = [
+        command for command in crawl4ai_post_clone
+        if "crawl4ai-mcp-server-c3c3b43-bureau1.patch" in command[-1]
+    ]
+    assert len(patch_commands) == 1
+    assert "git apply --reverse --check" in patch_commands[0][2]
+
+    assert plan["auto_approved"]["mcp_servers"]["codex_tools"]["open-websearch"] == [
+        "fetchCsdnArticle",
+        "fetchGithubReadme",
+        "fetchJuejinArticle",
+        "fetchLinuxDoArticle",
+        "fetchWebContent",
+        "search",
+    ]
+    assert plan["auto_approved"]["mcp_servers"]["codex_tools"]["crawl4ai-mcp-server"] == [
+        "crawl",
+        "crawl_site",
+        "crawl_sitemap",
+        "scrape",
+    ]
+
+
+def test_default_managed_searxng_and_bureau_search_render_for_all_clis():
+    config = yaml.safe_load(DEFAULTS_PATH.read_text(encoding="utf-8"))
+    config["path_to"]["bureau_repo"] = "/repo/bureau"
+
+    plan = render_setup_plan(config)
+
+    searxng = plan["services"]["searxng"]
+    assert searxng["kind"] == "docker_container"
+    assert searxng["host_bind"] == "127.0.0.1"
+    assert searxng["host_port"] == 8786
+    assert searxng["container_port"] == 8080
+    assert searxng["recreate_on_setup"] is True
+    assert searxng["healthcheck"]["http"] == "http://127.0.0.1:8786/"
+    assert searxng["healthcheck"]["http_headers"] == {
+        "User-Agent": "BureauHealthcheck/0 (local)",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Real-IP": "127.0.0.1",
+    }
+    assert searxng["mounts"] == [
+        {
+            "host_path": "~/.config/bureau/searxng/settings.yml",
+            "container_path": "/etc/searxng/settings.yml",
+            "type": "file",
+        }
+    ]
+
+    for cli in ["claude", "gemini", "codex", "opencode"]:
+        assert "bureau-search" in plan["client_configs"][cli]
+        client = plan["client_configs"][cli]["bureau-search"]
+        assert client["transport"] == "stdio"
+        assert client["command"] == [
+            "uv", "--directory", "/repo/bureau", "run", "bureau-search-mcp",
+        ]
+        assert client["env"]["BUREAU_SEARCH_ROUTER_CONFIG"] == (
+            "~/.config/bureau/internal/search-router.json"
+        )
+
+    assert plan["auto_approved"]["mcp_servers"]["codex_tools"]["bureau-search"] == [
+        "bureau_search_code",
+        "bureau_search_packages",
+        "bureau_search_research",
+        "bureau_search_web",
+    ]
 
 
 def test_auto_approved_lists_sorted_servers():

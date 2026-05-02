@@ -51,20 +51,21 @@ DEPENDENCY_ALLOWED_KEYS: set[str] = {
 SERVICE_ALLOWED_KEYS: set[str] = {
     "enabled", "kind", "depends_on", "healthcheck", "command",
     "env", "settings", "port", "container_name", "image",
-    "host_port", "container_port", "mounts",
+    "host_bind", "host_port", "container_port", "mounts",
+    "recreate_on_setup",
 }
 
 # Recognized top-level keys for mcp.client_configs.* entries
 CLIENT_CONFIG_ALLOWED_KEYS: set[str] = {
     "enabled", "requires_env", "depends_on", "clients",
-    "settings", "storage_path", "npm_runtime",
+    "settings", "storage_path", "npm_runtime", "tools",
 }
 
 # Recognized keys for individual client entries inside clients.*
 CLIENT_ENTRY_ALLOWED_KEYS: set[str] = {
     "transport", "url", "headers", "command", "env",
     "post_config", "timeout_ms", "startup_timeout_sec",
-    "tool_timeout_sec", "args",
+    "tool_timeout_sec", "args", "bearer_token_env_var",
 }
 
 # Recognized sub-keys inside any depends_on block
@@ -80,7 +81,7 @@ CLIENT_TRANSPORT_KINDS: set[str] = {"http", "sse", "stdio"}
 
 # ── Field type rules ───────────────────────────────────────────────
 # Declarative (field_name, type_tag) tuples consumed by _validate_field_types().
-# Type tags: "int", "dict", "dict[str,str]", "list[str]", "list[dict]", "list[list[str]]"
+# Type tags: "bool", "int", "str", "dict", "dict[str,str]", "list[str]", "list[dict]", "list[list[str]]"
 
 # Type rules for mcp.dependencies.* entries
 DEPENDENCY_TYPE_RULES: list[tuple[str, str]] = [
@@ -94,8 +95,10 @@ SERVICE_TYPE_RULES: list[tuple[str, str]] = [
     ("command", "list[str]"),
     ("enabled", "bool"),
     ("port", "int"),
+    ("host_bind", "str"),
     ("host_port", "int"),
     ("container_port", "int"),
+    ("recreate_on_setup", "bool"),
     ("env", "dict[str,str]"),
     ("mounts", "list[dict]"),
     ("healthcheck", "dict"),
@@ -106,6 +109,7 @@ SERVICE_TYPE_RULES: list[tuple[str, str]] = [
 CLIENT_CONFIG_TYPE_RULES: list[tuple[str, str]] = [
     ("enabled", "bool"),
     ("requires_env", "list[str]"),
+    ("tools", "list[str]"),
     ("settings", "dict"),
     ("npm_runtime", "dict"),
 ]
@@ -122,7 +126,15 @@ CLIENT_ENTRY_TYPE_RULES: list[tuple[str, str]] = [
 # ── Sub-structure key sets ─────────────────────────────────────────
 
 # Recognized sub-keys inside healthcheck blocks
-HEALTHCHECK_ALLOWED_KEYS: set[str] = {"tcp"}
+HEALTHCHECK_ALLOWED_KEYS: set[str] = {"tcp", "http", "http_headers", "mcp_tool"}
 
-# Required keys inside mounts list entries
+# Recognized sub-keys inside healthcheck.mcp_tool blocks
+MCP_TOOL_HEALTHCHECK_ALLOWED_KEYS: set[str] = {
+    "url", "expected_server_name", "tool", "arguments",
+}
+MCP_TOOL_HEALTHCHECK_REQUIRED: set[str] = {"url", "tool", "arguments"}
+
+# Required and optional keys inside mounts list entries
 MOUNT_REQUIRED_KEYS: set[str] = {"host_path", "container_path"}
+MOUNT_ALLOWED_KEYS: set[str] = MOUNT_REQUIRED_KEYS | {"type"}
+MOUNT_TYPES: set[str] = {"directory", "file"}

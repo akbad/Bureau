@@ -251,3 +251,201 @@ class TestCompleteTask:
         )
         with pytest.raises(ValueError, match="not in progress"):
             complete_task(tmp_path, result["slug"], task_id=1)
+
+
+# ── v2 worker-registration + CAS-guard behavior ─────────────────────────
+
+
+class TestClaimRegistersWorker:
+    def test_worker_label_creates_registration(self, tmp_path: Path):
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1,
+                   owner="claude-code:worker-1:42")
+
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            row = conn.execute(
+                "SELECT agent_type, role FROM registrations WHERE agent_id = ?",
+                ("claude-code:worker-1:42",),
+            ).fetchone()
+        assert row is not None
+        assert row["agent_type"] == "claude-code"
+        assert row["role"] == "worker"
+
+    def test_worker_registration_is_idempotent_on_repeat_claims(
+        self, tmp_path: Path
+    ):
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}, {"subject": "B"}],
+        )
+        worker = "claude-code:worker-1:42"
+        claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
+        complete_task(tmp_path, result["slug"], task_id=1)
+        # second claim for the same worker must not raise on UNIQUE
+        claim_task(tmp_path, result["slug"], task_id=2, owner=worker)
+
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            rows = conn.execute(
+                "SELECT COUNT(*) AS n FROM registrations WHERE agent_id = ?",
+                (worker,),
+            ).fetchone()
+        assert rows["n"] == 1
+
+    def test_bare_type_owner_does_not_register(self, tmp_path: Path):
+        """Orchestrator (no ':') bypasses the worker-registration path."""
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1, owner="claude-code")
+
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            n = conn.execute("SELECT COUNT(*) AS n FROM registrations").fetchone()["n"]
+        assert n == 0
+
+
+class TestCompleteDeregistersWorker:
+    def test_complete_with_worker_agent_deregisters(self, tmp_path: Path):
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        worker = "claude-code:worker-1:42"
+        claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
+        complete_task(tmp_path, result["slug"], task_id=1, agent=worker)
+
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            n = conn.execute(
+                "SELECT COUNT(*) AS n FROM registrations WHERE agent_id = ?",
+                (worker,),
+            ).fetchone()["n"]
+        assert n == 0
+
+    def test_complete_without_agent_leaves_registration(self, tmp_path: Path):
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        worker = "claude-code:worker-1:42"
+        claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
+        complete_task(tmp_path, result["slug"], task_id=1)  # no --agent
+
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            n = conn.execute(
+                "SELECT COUNT(*) AS n FROM registrations WHERE agent_id = ?",
+                (worker,),
+            ).fetchone()["n"]
+        assert n == 1
+
+    def test_complete_with_remaining_tasks_keeps_worker(self, tmp_path: Path):
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}, {"subject": "B"}],
+        )
+        worker = "claude-code:worker-1:42"
+        claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
+        claim_task(tmp_path, result["slug"], task_id=2, owner=worker)
+
+        complete_task(tmp_path, result["slug"], task_id=1, agent=worker)
+
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            n = conn.execute(
+                "SELECT COUNT(*) AS n FROM registrations WHERE agent_id = ?",
+                (worker,),
+            ).fetchone()["n"]
+        # registration preserved — worker still owns task 2
+        assert n == 1
+
+
+class TestUpdateTaskCasGuard:
+    def test_reassign_rejects_already_completed_task(self, tmp_path: Path):
+        """CAS guard prevents a blind UPDATE from reverting a completed task."""
+        from operations.dossiers.tasks import update_task
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        worker = "claude-code:worker-1:42"
+        claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
+        complete_task(tmp_path, result["slug"], task_id=1, agent=worker)
+
+        with pytest.raises(ValueError, match="not in progress"):
+            update_task(
+                tmp_path, result["slug"], task_id=1,
+                status="pending", owner="",
+                agent="claude-code:orch-hex",
+            )
+
+    def test_reassign_succeeds_on_in_progress_task(self, tmp_path: Path):
+        from operations.dossiers.tasks import update_task
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        worker = "claude-code:worker-1:42"
+        claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
+
+        update_task(
+            tmp_path, result["slug"], task_id=1,
+            status="pending", owner="",
+            agent="claude-code:orch-hex",
+        )
+
+        tasks = list_tasks(tmp_path, result["slug"])
+        assert tasks[0]["status"] == "pending"
+        assert tasks[0]["owner"] is None
+
+    def test_unguarded_update_without_agent_still_works(self, tmp_path: Path):
+        """Manual CLI repair (no --agent) stays unguarded — escape hatch."""
+        from operations.dossiers.tasks import update_task
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1, owner="claude-code:worker-1:42")
+        complete_task(tmp_path, result["slug"], task_id=1)
+
+        update_task(tmp_path, result["slug"], task_id=1, status="pending")
+        tasks = list_tasks(tmp_path, result["slug"])
+        assert tasks[0]["status"] == "pending"
+
+    def test_blocked_transition_deregisters_worker(self, tmp_path: Path):
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+        from operations.dossiers.tasks import update_task
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        worker = "claude-code:worker-1:42"
+        claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
+
+        update_task(
+            tmp_path, result["slug"], task_id=1,
+            status="blocked", agent=worker,
+        )
+
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            n = conn.execute(
+                "SELECT COUNT(*) AS n FROM registrations WHERE agent_id = ?",
+                (worker,),
+            ).fetchone()["n"]
+        assert n == 0

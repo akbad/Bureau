@@ -269,3 +269,63 @@ class TestMergePrecedence:
         config = get_config()
 
         assert config["protocols"]["mode"] == "sync"
+
+    def test_bureau_workspace_env_overrides_workspace_and_derived_serena_root(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        """BUREAU_WORKSPACE should override the canonical workspace path."""
+        self._write_yaml(tmp_path / "defaults.yml", {
+            "path_to": {
+                "workspace": "~/code",
+                "mcp_clones": "/tmp/mcp-clones",
+            },
+        })
+        monkeypatch.setattr(
+            "operations.config_loader.find_repo_root",
+            lambda *_a, **_kw: tmp_path,
+        )
+        monkeypatch.setattr(
+            "operations.config_loader.find_project_config",
+            lambda: None,
+        )
+        monkeypatch.setenv("BUREAU_WORKSPACE", "/tmp/bureau-workspace")
+        monkeypatch.chdir(tmp_path)
+        clear_config_cache()
+
+        config = get_config()
+
+        assert config["path_to"]["workspace"] == "/tmp/bureau-workspace"
+        assert config["path_to"]["serena_memories_root"] == "/tmp/bureau-workspace"
+
+    def test_relative_bureau_repo_resolves_from_active_repo_root(self, tmp_path, monkeypatch):
+        """path_to.bureau_repo should point at the worktree with pyproject.toml."""
+        self._write_yaml(tmp_path / "defaults.yml", {
+            "path_to": {
+                "workspace": "~/code",
+                "mcp_clones": ".mcp-servers",
+                "bureau_repo": ".",
+            },
+        })
+        main_repo_root = tmp_path.parent / ".bare"
+
+        monkeypatch.setattr(
+            "operations.config_loader.find_repo_root",
+            lambda *_a, **_kw: tmp_path,
+        )
+        monkeypatch.setattr(
+            "operations.config_loader.find_project_config",
+            lambda: None,
+        )
+        monkeypatch.setattr(
+            "operations.config_loader.get_main_repo_root",
+            lambda: main_repo_root,
+        )
+        monkeypatch.chdir(tmp_path)
+        clear_config_cache()
+
+        config = get_config()
+
+        assert config["path_to"]["bureau_repo"] == str(tmp_path)
+        assert config["path_to"]["mcp_clones"] == str(main_repo_root / ".mcp-servers")

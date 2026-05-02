@@ -589,6 +589,35 @@ class TestFieldTypeValidation:
         errors = _errors(config)
         assert any("mounts" in e and "expected list[dict]" in e for e in errors)
 
+    def test_docker_localhost_bind_and_recreate_flags_are_valid(self):
+        config = {"mcp": {"services": {
+            "search": {"kind": "docker_container", "image": "searxng",
+                       "host_bind": "127.0.0.1", "host_port": 8786,
+                       "container_port": 8080, "recreate_on_setup": True},
+        }}}
+        result = validate_mcp_rules(config)
+        assert result.errors == []
+        assert not any("host_bind" in w for w in result.warnings)
+        assert not any("recreate_on_setup" in w for w in result.warnings)
+
+    def test_docker_host_bind_must_be_string(self):
+        config = {"mcp": {"services": {
+            "search": {"kind": "docker_container", "image": "searxng",
+                       "host_bind": 127001, "host_port": 8786,
+                       "container_port": 8080},
+        }}}
+        errors = _errors(config)
+        assert any("host_bind" in e and "expected string" in e for e in errors)
+
+    def test_docker_recreate_on_setup_must_be_bool(self):
+        config = {"mcp": {"services": {
+            "search": {"kind": "docker_container", "image": "searxng",
+                       "host_port": 8786, "container_port": 8080,
+                       "recreate_on_setup": "yes"},
+        }}}
+        errors = _errors(config)
+        assert any("recreate_on_setup" in e and "expected bool" in e for e in errors)
+
     def test_placeholder_string_skips_type_check(self):
         """Fields containing ${...} placeholders should not produce type errors."""
         config = {"mcp": {"services": {
@@ -695,6 +724,25 @@ class TestMountSubStructure:
         assert result.errors == []
         assert any("read_only" in w for w in result.warnings)
 
+    def test_file_mount_type_is_valid(self):
+        config = self._docker_config([
+            {"host_path": "/data/settings.yml",
+             "container_path": "/etc/settings.yml",
+             "type": "file"},
+        ])
+        result = validate_mcp_rules(config)
+        assert result.errors == []
+        assert not any("type" in w for w in result.warnings)
+
+    def test_mount_type_must_be_file_or_directory(self):
+        config = self._docker_config([
+            {"host_path": "/data/settings.yml",
+             "container_path": "/etc/settings.yml",
+             "type": "socket"},
+        ])
+        errors = _errors(config)
+        assert any("mounts[0].type" in e and "file" in e and "directory" in e for e in errors)
+
 
 # ── Healthcheck sub-structure validation ───────────────────────────
 
@@ -710,6 +758,79 @@ class TestHealthcheckSubStructure:
     def test_valid_tcp_healthcheck_produces_no_error(self):
         config = self._svc_config({"tcp": 8080})
         assert _errors(config) == []
+
+    def test_valid_http_healthcheck_produces_no_error(self):
+        config = self._svc_config({"http": "http://127.0.0.1:8080/readyz"})
+        assert _errors(config) == []
+
+    def test_valid_http_healthcheck_headers_produce_no_error(self):
+        config = self._svc_config({
+            "http": "http://127.0.0.1:8080/readyz",
+            "http_headers": {"X-Forwarded-For": "127.0.0.1"},
+        })
+        assert _errors(config) == []
+
+    def test_healthcheck_http_non_string_produces_error(self):
+        config = self._svc_config({"http": 8080})
+        errors = _errors(config)
+        assert any("healthcheck.http" in e and "expected string" in e for e in errors)
+
+    def test_healthcheck_http_headers_must_be_string_map(self):
+        config = self._svc_config({"http_headers": {"X-Forwarded-For": 123}})
+        errors = _errors(config)
+        assert any("healthcheck.http_headers.X-Forwarded-For" in e for e in errors)
+
+    def test_healthcheck_http_placeholder_skips_type_check(self):
+        config = self._svc_config({"http": "${mcp.services.svc.settings.ready_url}"})
+        errors = _errors(config)
+        assert not any("healthcheck.http" in e for e in errors)
+
+    def test_valid_mcp_tool_healthcheck_produces_no_error(self):
+        config = self._svc_config({
+            "mcp_tool": {
+                "url": "http://127.0.0.1:8080/mcp/",
+                "expected_server_name": "mcp-server-qdrant",
+                "tool": "qdrant-find",
+                "arguments": {"query": "bureau healthcheck"},
+            }
+        })
+        assert _errors(config) == []
+
+    @pytest.mark.parametrize("missing_key", ["url", "tool", "arguments"])
+    def test_mcp_tool_healthcheck_missing_required_key_produces_error(self, missing_key):
+        healthcheck = {
+            "url": "http://127.0.0.1:8080/mcp/",
+            "tool": "qdrant-find",
+            "arguments": {"query": "bureau healthcheck"},
+        }
+        healthcheck.pop(missing_key)
+        config = self._svc_config({"mcp_tool": healthcheck})
+
+        errors = _errors(config)
+
+        assert any(f"mcp_tool: missing required key '{missing_key}'" in e for e in errors)
+
+    def test_mcp_tool_healthcheck_url_placeholder_skips_type_check(self):
+        config = self._svc_config({
+            "mcp_tool": {
+                "url": "${mcp.client_configs.qdrant.clients.default.url}",
+                "tool": "qdrant-find",
+                "arguments": {"query": "bureau healthcheck"},
+            }
+        })
+        errors = _errors(config)
+        assert not any("mcp_tool.url" in e for e in errors)
+
+    def test_mcp_tool_healthcheck_arguments_must_be_dict(self):
+        config = self._svc_config({
+            "mcp_tool": {
+                "url": "http://127.0.0.1:8080/mcp/",
+                "tool": "qdrant-find",
+                "arguments": "query=bureau",
+            }
+        })
+        errors = _errors(config)
+        assert any("mcp_tool.arguments" in e and "expected dict" in e for e in errors)
 
     def test_healthcheck_tcp_string_produces_error(self):
         config = self._svc_config({"tcp": "8080"})
@@ -1036,6 +1157,145 @@ class TestSettingsTypeCheck:
             "svc": {"kind": "http_process", "port": 1, "command": ["x"], "settings": {"collection": "test"}},
         }}}
         assert not any("settings" in e for e in _errors(config))
+
+
+class TestClientConfigToolsMetadata:
+    """Tool metadata should be validated and preserved as first-class config."""
+
+    def test_tools_allowed_key_produces_no_warning(self):
+        config = {"mcp": {"client_configs": {
+            "srv": {
+                "tools": ["search", "fetchWebContent"],
+                "clients": {"default": {"transport": "stdio", "command": ["npx", "srv"]}},
+            },
+        }}}
+        warnings = _warnings(config)
+        assert not any("tools" in w and "unknown" in w for w in warnings)
+
+    def test_tools_non_list_produces_error(self):
+        config = {"mcp": {"client_configs": {
+            "srv": {
+                "tools": "search",
+                "clients": {"default": {"transport": "stdio", "command": ["npx", "srv"]}},
+            },
+        }}}
+        errors = _errors(config)
+        assert any("tools" in e and "list[str]" in e for e in errors)
+
+    def test_tools_non_string_element_produces_error(self):
+        config = {"mcp": {"client_configs": {
+            "srv": {
+                "tools": ["search", 42],
+                "clients": {"default": {"transport": "stdio", "command": ["npx", "srv"]}},
+            },
+        }}}
+        errors = _errors(config)
+        assert any("tools" in e and "element [1]" in e for e in errors)
+
+    def test_browsing_candidates_validate_cleanly(self):
+        config = {
+            "agents": ["claude", "gemini", "codex", "opencode"],
+            "mcp": {
+                "dependencies": {
+                    "crawl4ai_mcp_repo": {
+                        "enabled": True,
+                        "kind": "git_repo",
+                        "repo_url": "https://github.com/sadiuysal/crawl4ai-mcp-server.git",
+                        "path": "${path_to.mcp_clones}/crawl4ai-mcp-server",
+                        "post_clone": [
+                            ["git", "checkout", "c3c3b43c2b0c7a9fb5e63f402a25c3a36166f875"],
+                            ["bash", "-lc", "docker image inspect image >/dev/null || docker build -t image ."],
+                        ],
+                    },
+                },
+                "client_configs": {
+                    "open-websearch": {
+                        "enabled": True,
+                        "tools": [
+                            "search",
+                            "fetchWebContent",
+                            "fetchGithubReadme",
+                            "fetchCsdnArticle",
+                            "fetchJuejinArticle",
+                            "fetchLinuxDoArticle",
+                        ],
+                        "clients": {
+                            "default": {
+                                "transport": "stdio",
+                                "command": ["npx", "-y", "open-websearch@2.1.7"],
+                                "env": {
+                                    "MODE": "stdio",
+                                    "SEARCH_MODE": "request",
+                                    "DEFAULT_SEARCH_ENGINE": "duckduckgo",
+                                    "ALLOWED_SEARCH_ENGINES": "duckduckgo,bing",
+                                },
+                            },
+                        },
+                    },
+                    "crawl4ai-mcp-server": {
+                        "enabled": True,
+                        "depends_on": {"dependencies": ["crawl4ai_mcp_repo"]},
+                        "tools": ["scrape", "crawl", "crawl_site", "crawl_sitemap"],
+                        "settings": {
+                            "image": "bureau/crawl4ai-mcp-server:c3c3b43",
+                            "host_output_dir": "${HOME}/.cache/bureau/crawl4ai",
+                            "container_output_dir": "/app/crawls",
+                            "max_pages_default": 10,
+                            "max_pages_limit": 25,
+                            "max_depth_limit": 2,
+                        },
+                        "clients": {
+                            "default": {
+                                "transport": "stdio",
+                                "command": [
+                                    "docker",
+                                    "run",
+                                    "--rm",
+                                    "-i",
+                                    "--network",
+                                    "bridge",
+                                    "--cap-drop",
+                                    "ALL",
+                                    "--security-opt",
+                                    "no-new-privileges",
+                                    "--volume",
+                                    "${mcp.client_configs.crawl4ai-mcp-server.settings.host_output_dir}:${mcp.client_configs.crawl4ai-mcp-server.settings.container_output_dir}",
+                                    "-e",
+                                    "CRAWL4AI_MCP_LOG=INFO",
+                                    "${mcp.client_configs.crawl4ai-mcp-server.settings.image}",
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        }
+
+        result = validate_mcp_rules(config)
+
+        assert result.errors == []
+        assert result.warnings == []
+
+
+class TestCodexHttpFields:
+    """Codex-specific HTTP auth metadata should be recognized by validation."""
+
+    def test_bearer_token_env_var_allowed_key_produces_no_warning(self):
+        config = {"mcp": {"client_configs": {
+            "github": {
+                "clients": {
+                    "codex": {
+                        "transport": "http",
+                        "url": "https://api.githubcopilot.com/mcp/",
+                        "bearer_token_env_var": "GITHUB_PAT",
+                    },
+                },
+            },
+        }}}
+
+        warnings = _warnings(config)
+
+        assert not any("bearer_token_env_var" in w and "unknown" in w for w in warnings)
 
 
 class TestInfoTier:

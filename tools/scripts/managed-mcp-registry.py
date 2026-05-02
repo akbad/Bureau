@@ -142,6 +142,7 @@ def normalize_entry(cli: str, raw_entry: dict[str, Any]) -> dict[str, Any]:
                 {
                     "transport": "stdio",
                     "command": raw_entry.get("command"),
+                    "env": raw_entry.get("environment") or raw_entry.get("env"),
                     "timeout_ms": raw_entry.get("timeout"),
                 }
             )
@@ -184,7 +185,7 @@ def normalize_desired_entry(cli: str, desired_entry: dict[str, Any]) -> dict[str
             "transport": "http",
             "url": desired_entry.get("url"),
         }
-        if cli in {"claude", "gemini"}:
+        if cli in {"claude", "gemini", "opencode"}:
             payload["headers"] = desired_entry.get("headers")
         if cli == "codex":
             payload["bearer_token_env_var"] = desired_entry.get("bearer_token_env_var")
@@ -194,6 +195,15 @@ def normalize_desired_entry(cli: str, desired_entry: dict[str, Any]) -> dict[str
         command = desired_entry.get("command", [])
         if not isinstance(command, list) or not command:
             return {}
+        if cli == "opencode":
+            return _drop_none(
+                {
+                    "transport": "stdio",
+                    "command": command,
+                    "env": desired_entry.get("env") or desired_entry.get("environment"),
+                    "timeout_ms": desired_entry.get("timeout_ms"),
+                }
+            )
         payload = {
             "transport": "stdio",
             "command": command[0],

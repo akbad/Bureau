@@ -52,6 +52,7 @@ class PathToConfig(TypedDict, total=False):
     workspace: str
     serena_memories_root: str
     mcp_clones: str
+    bureau_repo: str
 
 
 class AgentSourceConfig(TypedDict):
@@ -87,13 +88,16 @@ class MCPHealthcheckConfig(TypedDict, total=False):
     """Runtime service healthcheck settings."""
 
     tcp: int | str
+    http: str
+    mcp_tool: dict[str, Any]
 
 
-class MCPMountConfig(TypedDict):
+class MCPMountConfig(TypedDict, total=False):
     """Docker mount entry."""
 
     host_path: str
     container_path: str
+    type: str
 
 
 class MCPServiceConfig(TypedDict, total=False):
@@ -109,9 +113,11 @@ class MCPServiceConfig(TypedDict, total=False):
     # docker_container fields
     container_name: str
     image: str
+    host_bind: str
     host_port: int | str
     container_port: int | str
     mounts: list[MCPMountConfig]
+    recreate_on_setup: bool
     # http_process fields
     port: int | str
 
@@ -153,6 +159,7 @@ class MCPClientConfig(TypedDict, total=False):
 
     enabled: bool
     requires_env: list[str]
+    tools: list[str]
     depends_on: MCPDependsOnConfig
     clients: dict[str, MCPClientEntry]
     settings: dict[str, Any]
@@ -198,6 +205,8 @@ class ConversationsConfig(TypedDict, total=False):
     storage_dir: str                            # default "~/.config/bureau/dossiers"
     stale_dossier_days: int                     # cleanup threshold, default 30
     max_retained_sessions: int                  # prune file_interactions beyond this, default 5
+    registration_ttl: str                       # duration string, default "24h"
+    cleanup_check_interval: str                 # duration string, default "5min"
     concierge: ConversationsConciergeConfig
     keywords: dict[str, list[str]]
 
@@ -403,7 +412,7 @@ def get_config() -> Config:
     # Apply environment variable overrides for path_to
     path_to = config.get("path_to", {})
     path_env_overrides = {
-        "serena_memories_root": "BUREAU_WORKSPACE",
+        "workspace": "BUREAU_WORKSPACE",
     }
 
     for path_key, env_var in path_env_overrides.items():
@@ -416,10 +425,16 @@ def get_config() -> Config:
         if "serena_memories_root" not in path_to:
             path_to["serena_memories_root"] = workspace
 
-    # Resolve mcp_clones: relative paths are resolved from main repo root (shared across worktrees)
+    # Resolve MCP clones from the main repo root so clone caches can be shared
+    # across Bureau worktrees, but resolve Bureau's runnable package path from
+    # the active worktree root because `uv --directory` needs pyproject.toml.
     if mcp_clones := path_to.get("mcp_clones"):
         if not mcp_clones.startswith("/") and not mcp_clones.startswith("~"):
             path_to["mcp_clones"] = str(get_main_repo_root() / mcp_clones)
+
+    if bureau_repo := path_to.get("bureau_repo"):
+        if not bureau_repo.startswith("/") and not bureau_repo.startswith("~"):
+            path_to["bureau_repo"] = str(repo_root / bureau_repo)
 
     config["path_to"] = path_to
 
@@ -610,6 +625,26 @@ def get_conversations_config() -> ConversationsConfig:
     return config.get("conversations", {})
 
 
+def get_registration_ttl_seconds() -> int:
+    """Return how old a registration must be (in seconds) to count as stale.
+
+    Reads ``conversations.registration_ttl`` via `parse_duration`; default
+    ``24h``. Consumed by inline cleanup in ``operations/dossiers/db.py``.
+    """
+    cfg = get_conversations_config()
+    return int(parse_duration(cfg.get("registration_ttl", "24h")).total_seconds())
+
+
+def get_cleanup_check_interval_seconds() -> int:
+    """Return the minimum gap (in seconds) between inline cleanup runs.
+
+    Reads ``conversations.cleanup_check_interval`` via `parse_duration`;
+    default ``5min``. Consumed by inline cleanup's throttle check.
+    """
+    cfg = get_conversations_config()
+    return int(parse_duration(cfg.get("cleanup_check_interval", "5min")).total_seconds())
+
+
 # Duration parsing (moved from cleanup/config.py)
 def parse_duration(duration_str: str) -> timedelta:
     """Parse duration string like '30d', '2w', '3m', '1y', '24h' to timedelta.
@@ -626,25 +661,31 @@ def parse_duration(duration_str: str) -> timedelta:
     if duration_str.lower() == "always":
         return timedelta.max
 
-    match = re.match(r"^(\d+)([hdwmy])$", duration_str.lower())
+    # note: `min` must appear before `m` in the alternation so the longer
+    # token wins; otherwise `5min` would match `5m` and leave `in` trailing.
+    match = re.match(r"^(\d+)(s|min|h|d|w|m|y)$", duration_str.lower())
     if not match:
         raise ValueError(
             f"Invalid duration format: {duration_str}. "
-            "Use format like '24h', '30d', '2w', '3m', '1y'"
+            "Use format like '30s', '5min', '24h', '30d', '2w', '3m', '1y'"
         )
 
     value = int(match.group(1))
     unit = match.group(2)
 
-    if unit == "h":
+    if unit == "s":
+        return timedelta(seconds=value)
+    elif unit == "min":
+        return timedelta(minutes=value)
+    elif unit == "h":
         return timedelta(hours=value)
     elif unit == "d":
         return timedelta(days=value)
     elif unit == "w":
         return timedelta(weeks=value)
     elif unit == "m":
-        return timedelta(days=value * 30)  # Approximate month
+        return timedelta(days=value * 30)  # approximate month
     elif unit == "y":
-        return timedelta(days=value * 365)  # Approximate year
+        return timedelta(days=value * 365)  # approximate year
 
     raise ValueError(f"Unknown duration unit: {unit}")

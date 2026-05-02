@@ -21,7 +21,7 @@
 
 ### General directives
 
-- Code **maintainability**, tasteful DRY, and **optimal reuse of suitable external libraries** are paramount (see [DRY and abstraction](#dry-and-abstraction) for the nuanced standard).
+- Code **maintainability**, tasteful DRY, and **optimal reuse of suitable external libraries** are paramount (see the `code-standards` skill for the nuanced standard).
 - When fixing bugs, fix the **root cause**, not the symptom.
 - If planned implementations require **error handling or validation** to work reliably, include it *without asking* for the implementation at hand.
 - **Match rigor to stakes.** Apply the full weight of these directives to code where failures are costly (data integrity, distributed state, security, concurrency); apply lighter judgment to code where failures are cheap and reversible (formatting, dev tooling, scripts). See [Pragmatism](#pragmatism) for the detailed tradeoff.

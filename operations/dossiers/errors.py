@@ -16,3 +16,8 @@ class LockConflictError(ValueError):
 
 class AmbiguousQueryError(ValueError):
     """Raised when a query matches multiple dossiers."""
+
+
+class ConcurrentInstanceError(LockConflictError):
+    """Raised when another live CLI process of the same agent type holds
+    the session for this dossier (detected via PID liveness check)."""

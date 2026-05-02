@@ -120,6 +120,7 @@ def render_setup_plan(config: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "dependencies": catalog.get("dependencies", {}),
         "services": catalog["services"],
+        "catalog_client_configs": catalog["client_configs"],
         "client_configs": client_configs_by_cli,
         "npm_runtime": npm_runtime,
         "auto_approved": auto_approved,

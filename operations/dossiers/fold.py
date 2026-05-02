@@ -1,12 +1,24 @@
 """Fold operation: create or update a dossier."""
 import json
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Any
 
 from .db import create_dossier_db, open_dossier_db, safe_db_path, _now_iso, MAX_DIGEST_LENGTH, MAX_TASKS_PER_DOSSIER
+from .errors import ConcurrentInstanceError
+from .identity import (
+    DEFAULT_SESSIONS_ROOT,
+    _delete_session_file,
+    resolve_identity,
+    safe_session_file_path,
+)
+from .lock import release_lock
+from .registration import deregister_agent
 from .tasks import _validate_task_fields
+
+_log = logging.getLogger(__name__)
 
 
 def _generate_hash() -> str:
@@ -159,5 +171,39 @@ def fold_dossier(
             # exactly what this fold committed, not a post-commit concurrent write
             task_count = conn.execute("SELECT COUNT(*) FROM tasks WHERE status != 'deleted'").fetchone()[0]
             decision_count = conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
+
+        # ── Exit path 1: refold deregistration + lock release ─────────────
+        # Fold semantically means "I'm done with this dossier." Clear the
+        # agent's session file + registrations row so the slot can be reused;
+        # release the lock so other agents aren't blocked.
+        # Only applies to refolds by an orchestrator (bare type). Fresh folds
+        # have no prior session to clean up. Worker labels never reach fold.
+        lock_release_agent_id = None
+        if is_refold and agent and ":" not in agent:
+            session_path = safe_session_file_path(DEFAULT_SESSIONS_ROOT, slug, agent)
+            if session_path.exists():
+                try:
+                    agent_id = resolve_identity(conn, DEFAULT_SESSIONS_ROOT, slug, agent)
+                    deregister_agent(conn, agent_id)
+                    _delete_session_file(session_path)
+                    lock_release_agent_id = agent_id
+                except ConcurrentInstanceError as e:
+                    # another live process owns the session — don't clean up
+                    # their state. The fold itself already committed.
+                    _log.warning("Skipping fold deregistration: %s", e)
+
+    # release the lock outside the db context so release_lock's own connection
+    # sees the committed deregistration. Catch ValueError to tolerate
+    # old-protocol locks (bare type) that won't match the resolved agent_id.
+    if lock_release_agent_id is not None:
+        try:
+            release_lock(dossiers_dir, slug, agent=lock_release_agent_id)
+        except ValueError as e:
+            _log.warning(
+                "Lock on %s not released on fold (held by another agent or "
+                "pre-v2 protocol): %s",
+                slug,
+                e,
+            )
 
     return {"slug": slug, "hash": dossier_hash, "task_count": task_count, "decision_count": decision_count}

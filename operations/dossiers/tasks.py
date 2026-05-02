@@ -7,6 +7,7 @@ from .db import (
     MAX_SUBJECT_LENGTH, MAX_DESCRIPTION_LENGTH, MAX_CONTEXT_NOTES_LENGTH,
     VALID_STATUSES,
 )
+from .registration import _maybe_deregister_worker, register_agent
 
 # nullable fields where passing "" means "clear to NULL";
 # non-nullable fields (subject, status) ignore empty strings to avoid
@@ -84,14 +85,36 @@ def update_task(
     owner: str | None = None,
     blocked_by: str | None = None,
     context_notes: str | None = None,
+    agent: str | None = None,
 ) -> None:
-    """Update fields on an existing task. Raises ValueError if not found."""
+    """Update fields on an existing task.
+
+    Raises `ValueError` if the task is not found.
+
+    ## Worker-reassignment CAS guard
+
+    When `agent` is provided **and** `status` is being set to ``pending`` or
+    ``blocked``, the UPDATE adds a ``WHERE status = 'in_progress'`` guard.
+    Without this, an orchestrator reassigning a worker's task could clobber
+    a concurrent ``complete_task`` and revert a ``completed`` row back to
+    ``pending``. The CAS returns `rowcount = 0` on contention and the caller
+    sees a clear error.
+
+    When `agent` is not provided, the update is unguarded (current escape-hatch
+    semantics for manual repair via CLI with no `--agent`).
+
+    After a successful CAS out of `in_progress`, the former owner is passed
+    through `_maybe_deregister_worker`, which is a no-op unless the owner
+    was a worker with zero remaining in-progress tasks.
+    """
     _validate_task_fields(
         subject=subject, description=description,
         status=status, context_notes=context_notes,
     )
     with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
-        existing = conn.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        existing = conn.execute(
+            "SELECT id, owner, status FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
         if not existing:
             raise ValueError(f"Task {task_id} not found in dossier {slug}")
 
@@ -113,12 +136,39 @@ def update_task(
                     updates.append(f"{field} = ?")
                     values.append(value)
 
-        if updates:
-            with conn:  # transaction boundary
-                updates.append("updated_at = ?")
-                values.append(_now_iso())
-                values.append(task_id)
-                conn.execute(f"UPDATE tasks SET {', '.join(updates)} WHERE id = ?", values)
+        if not updates:
+            return
+
+        # decide whether to add the worker-reassignment CAS guard
+        cas_guarded = agent is not None and status in ("pending", "blocked")
+
+        with conn:
+            updates.append("updated_at = ?")
+            values.append(_now_iso())
+            values.append(task_id)
+
+            sql = f"UPDATE tasks SET {', '.join(updates)} WHERE id = ?"
+            if cas_guarded:
+                sql += " AND status = 'in_progress'"
+
+            cursor = conn.execute(sql, values)
+
+            if cas_guarded and cursor.rowcount == 0:
+                raise ValueError(
+                    f"Task {task_id} cannot be transitioned to {status}: "
+                    f"it is not in progress (may have been completed or reassigned concurrently)"
+                )
+
+            # former owner deregistration (only meaningful when owner was a worker
+            # and we cleared their ownership via an in_progress → ... transition)
+            former_owner = existing["owner"]
+            if (
+                cas_guarded
+                and former_owner
+                and ":" in former_owner
+                and cursor.rowcount > 0
+            ):
+                _maybe_deregister_worker(conn, former_owner)
 
 
 def remove_task(dossiers_dir: Path, slug: str, task_id: int) -> None:
@@ -129,10 +179,28 @@ def remove_task(dossiers_dir: Path, slug: str, task_id: int) -> None:
 def claim_task(dossiers_dir: Path, slug: str, task_id: int, owner: str) -> None:
     """Atomically claim a pending task (CAS: pending -> in_progress).
 
-    Raises ValueError if the task is not pending (already claimed, completed, deleted, or nonexistent).
+    If `owner` is a worker label (contains ``:``), ensures a worker
+    registration row exists for it (idempotent — skipped if already present).
+    Workers don't have session files; their registration is managed by the
+    orchestrator via explicit labels.
+
+    Raises `ValueError` if the task is not pending (already claimed, completed,
+    deleted, or nonexistent).
     """
     with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
         with conn:  # transaction boundary
+            # worker labels carry ':' — orchestrators pass bare types, which
+            # get resolved in the CLI layer and arrive here as 'type:hex'.
+            # the registration ensures cleanup/who/deregister paths see them.
+            if ":" in owner:
+                already = conn.execute(
+                    "SELECT 1 FROM registrations WHERE agent_id = ?", (owner,)
+                ).fetchone()
+                if not already:
+                    register_agent(
+                        conn, owner, owner.split(":", 1)[0], None, role="worker"
+                    )
+
             now = _now_iso()
             cursor = conn.execute(
                 "UPDATE tasks SET status = 'in_progress', owner = ?, updated_at = ? "
@@ -147,10 +215,19 @@ def claim_task(dossiers_dir: Path, slug: str, task_id: int, owner: str) -> None:
         )
 
 
-def complete_task(dossiers_dir: Path, slug: str, task_id: int) -> None:
+def complete_task(
+    dossiers_dir: Path,
+    slug: str,
+    task_id: int,
+    agent: str | None = None,
+) -> None:
     """Atomically complete an in-progress task (CAS: in_progress -> completed).
 
-    Raises ValueError if the task is not in progress.
+    If `agent` is provided and was a worker with zero remaining in-progress
+    tasks after this completion, the worker's registration row is deleted
+    (see `_maybe_deregister_worker` — no-op for orchestrators).
+
+    Raises `ValueError` if the task is not in progress.
     """
     with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
         with conn:  # transaction boundary
@@ -161,6 +238,11 @@ def complete_task(dossiers_dir: Path, slug: str, task_id: int) -> None:
                 (now, task_id),
             )
             affected = cursor.rowcount
+
+            # deregister inside the same transaction so ownership-count query
+            # observes the just-completed task's new state
+            if affected > 0 and agent:
+                _maybe_deregister_worker(conn, agent)
     if affected == 0:
         raise ValueError(
             f"Task {task_id} cannot be completed: it is not in progress "

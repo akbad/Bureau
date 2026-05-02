@@ -258,6 +258,86 @@ def test_filters_servers_with_missing_dependency_dependencies():
     assert "srv" not in resolved["client_configs"]
 
 
+def test_crawl4ai_dependency_placeholders_expand():
+    config = {
+        "path_to": {"mcp_clones": "/tmp/mcp-clones"},
+        "mcp": {
+            "dependencies": {
+                "crawl4ai_mcp_repo": {
+                    "enabled": True,
+                    "kind": "git_repo",
+                    "repo_url": "https://github.com/sadiuysal/crawl4ai-mcp-server.git",
+                    "path": "${path_to.mcp_clones}/crawl4ai-mcp-server",
+                }
+            },
+            "client_configs": {
+                "crawl4ai-mcp-server": {
+                    "enabled": True,
+                    "depends_on": {"dependencies": ["crawl4ai_mcp_repo"]},
+                    "settings": {
+                        "image": "bureau/crawl4ai-mcp-server:c3c3b43",
+                        "host_output_dir": "/tmp/crawl4ai",
+                        "container_output_dir": "/app/crawls",
+                    },
+                    "clients": {
+                        "default": {
+                            "transport": "stdio",
+                            "command": [
+                                "docker",
+                                "run",
+                                "--volume",
+                                "${mcp.client_configs.crawl4ai-mcp-server.settings.host_output_dir}:${mcp.client_configs.crawl4ai-mcp-server.settings.container_output_dir}",
+                                "${mcp.client_configs.crawl4ai-mcp-server.settings.image}",
+                            ],
+                        }
+                    },
+                }
+            },
+        },
+    }
+
+    resolved = resolve_mcp_catalog(config, env={})
+
+    assert (
+        resolved["dependencies"]["crawl4ai_mcp_repo"]["path"]
+        == "/tmp/mcp-clones/crawl4ai-mcp-server"
+    )
+    command = resolved["client_configs"]["crawl4ai-mcp-server"]["clients"]["default"]["command"]
+    assert "/tmp/crawl4ai:/app/crawls" in command
+    assert command[-1] == "bureau/crawl4ai-mcp-server:c3c3b43"
+
+
+def test_crawl4ai_client_filtered_when_dependency_disabled():
+    config = {
+        "mcp": {
+            "dependencies": {
+                "crawl4ai_mcp_repo": {
+                    "enabled": False,
+                    "kind": "git_repo",
+                    "repo_url": "https://github.com/sadiuysal/crawl4ai-mcp-server.git",
+                    "path": "/tmp/crawl4ai-mcp-server",
+                }
+            },
+            "client_configs": {
+                "crawl4ai-mcp-server": {
+                    "enabled": True,
+                    "depends_on": {"dependencies": ["crawl4ai_mcp_repo"]},
+                    "clients": {
+                        "default": {
+                            "transport": "stdio",
+                            "command": ["docker", "run", "image"],
+                        }
+                    },
+                }
+            },
+        },
+    }
+
+    resolved = resolve_mcp_catalog(config, env={})
+
+    assert "crawl4ai-mcp-server" not in resolved["client_configs"]
+
+
 def test_filters_services_with_disabled_service_dependency():
     """Service depending on a disabled peer service is skipped."""
     config = {

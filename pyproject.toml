@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 bureau-dossiers = "operations.dossiers.cli:main"
+bureau-search-mcp = "operations.search_mcp.server:main"
 get-config = "operations.config_cli:main"
 sweep = "operations.cleanup.core:main"
 validate-config = "operations.validate_config:main"

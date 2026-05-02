@@ -92,7 +92,7 @@ Handling essential tasks like:
 - **Code search** 
     - *Sourcegraph* ➔ remote, public repos
     - *Serena* ➔ local projects
-- **Web research** (*Brave*, *Tavily*, *Fetch*)
+- **Web search, fetch, and crawl/extraction** (*Bureau Search/SearXNG*, *Tavily*, *Brave*, *open-webSearch*, *Fetch*, *Crawl4AI*)
 - **Retrieving API docs** (*Context7*)
 - **Memory persistence**
     - *Qdrant* ➔ semantic memories

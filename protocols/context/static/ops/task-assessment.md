@@ -11,7 +11,7 @@
 ### Headless invocation
 
 - For delegating to a **different** CLI than the one you are running in.
-- **Never** invoke your own CLI headlessly; use your native subagent tools instead.
+- **Never** invoke *your own* CLI headlessly; use your native subagent tools instead.
 
 | CLI | Invoke | Resume | Output | Auto-approve |
 | :--- | :--- | :--- | :--- | :--- |

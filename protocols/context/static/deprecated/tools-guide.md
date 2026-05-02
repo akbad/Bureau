@@ -1,6 +1,11 @@
 <!-- DEPRECATED: Content migrated to ops/ spoke files. See docs/plans/2026-03-29-context-hub-spoke-design.md -->
 # Tools: quick decision guide
 
+> [!CAUTION]
+>
+> This file is a deprecated snapshot. Treat [`ops/task-execution.md`](../ops/task-execution.md)
+> as authoritative for current MCP routing, quotas, and fallback order.
+
 > [!NOTE]
 >
 > This guide:
@@ -23,13 +28,11 @@
 
 ## Web research
 
-- For **general web info**: use Tavily (cited results; 1k/mo)
-
-    - Fallback if *Tavily is exhausted*: use Brave (2k/mo)
-
-    - Fallback if *Tavily and Brave are exhausted*: use Playwright to use the browser to search the web (unlimited)
-
-- For **simple URL fetches**: use Fetch (unlimited)
+- For **general web search/current research**: use [`ops/task-execution.md`](../ops/task-execution.md).
+  The current stack is Tavily / Brave when available → Bureau Search / SearXNG → open-webSearch → native/built-in web search.
+- For **simple known URL fetches**: use Fetch.
+- For **JS-rendered extraction, bounded multi-page crawls, or sitemap crawls**: use Crawl4AI.
+- Use Playwright for browser interaction, auth, screenshots, and visual/browser behavior, not as the normal search fallback.
 
 
 ## GitHub access
@@ -187,4 +190,7 @@ All non-listed MCPs are local and/or have no usage limits.
 |-------------|--------------------------|------------------------------------------------|
 | Tavily      | 1,000 credits/month      | Resets on 1st of month                        |
 | Brave       | 2,000 queries/month      | Free tier; basic web search                    |
+| Bureau Search / SearXNG | No Bureau API key or quota | Localhost-only by default; local Docker/runtime cost |
+| open-webSearch | No Bureau API key or quota | Scraped engine availability/rate limits still apply |
+| Crawl4AI | No API key; local Docker/runtime cost | Keep crawls bounded |
 | Sourcegraph | Interactive limits       | use count:all to make the search exhaustive, bump timeout if needed; switch to src-cli for very large result sets beyond the UI display limit. |

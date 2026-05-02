@@ -9,9 +9,16 @@ from pathlib import Path
 from typing import Any
 
 from .context import extract_task_context
-from .db import _check_path_containment
-from .errors import AmbiguousQueryError, DossierNotFoundError, LockConflictError
+from .db import _check_path_containment, open_dossier_db, safe_db_path
+from .errors import (
+    AmbiguousQueryError,
+    ConcurrentInstanceError,
+    DossierNotFoundError,
+    LockConflictError,
+)
 from .fold import fold_dossier
+from .identity import DEFAULT_SESSIONS_ROOT, resolve_identity
+from .registration import list_agents
 from .unfold import unfold_dossier, list_dossiers, find_dossier
 from .tasks import list_tasks, add_task, update_task, remove_task, claim_task, complete_task
 from .lock import claim_lock, release_lock, get_lock_status
@@ -19,10 +26,30 @@ from .fork import fork_dossier
 
 
 DEFAULT_DOSSIERS_DIR = Path(os.path.expanduser("~/.config/bureau/dossiers"))
+SESSIONS_ROOT = DEFAULT_SESSIONS_ROOT
 
 
 def _get_dossiers_dir(args: argparse.Namespace) -> Path:
     return Path(args.dossiers_dir) if args.dossiers_dir else DEFAULT_DOSSIERS_DIR
+
+
+def _resolve_agent(args_agent: str, slug: str, dossiers_dir: Path) -> tuple[str, str]:
+    """Resolve a bare agent type to a unique agent_id; worker labels pass through.
+
+    The ``:`` discriminator distinguishes the two modes (see v2 design doc):
+
+      - Bare type (``claude-code``): open the dossier DB, run the session-file
+        + PID-liveness algorithm via `resolve_identity`, return the unique id.
+      - Worker label (``claude-code:worker-1:1743926400``): return as-is; the
+        prefix before the first ``:`` is the agent_type.
+
+    Returns ``(agent_id, agent_type)``.
+    """
+    if ":" in args_agent:
+        return args_agent, args_agent.split(":", 1)[0]
+    with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
+        agent_id = resolve_identity(conn, SESSIONS_ROOT, slug, args_agent)
+    return agent_id, args_agent
 
 
 def _relative_time(iso_str: str) -> str:
@@ -175,9 +202,10 @@ def cmd_unfold(args: argparse.Namespace) -> int:
         # ── Worker mode: claim task + extract focused context ──
         if is_worker:
             slug = find_dossier(dossiers_dir, args.query).stem
-            # atomically claim the task
-            claim_task(dossiers_dir, slug, args.task, args.agent)
-            # extract and render focused context
+            # resolve identity so worker labels register in `registrations`;
+            # bare types (unusual in worker mode) also map to a unique id
+            resolved_owner, _ = _resolve_agent(args.agent, slug, dossiers_dir)
+            claim_task(dossiers_dir, slug, args.task, resolved_owner)
             output = extract_task_context(
                 dossiers_dir, slug, args.task,
                 include_digest=getattr(args, "include_digest", False),
@@ -194,7 +222,9 @@ def cmd_unfold(args: argparse.Namespace) -> int:
         # Handle --claim: acquire lock during unfold
         if getattr(args, "claim", False):
             from .lock import claim_lock
-            claim_lock(dossiers_dir, find_dossier(dossiers_dir, args.query).stem, agent=args.agent)
+            slug = find_dossier(dossiers_dir, args.query).stem
+            resolved_agent, _ = _resolve_agent(args.agent, slug, dossiers_dir)
+            claim_lock(dossiers_dir, slug, agent=resolved_agent)
 
         max_sessions = getattr(args, "max_sessions", 5) or 5
         output = unfold_dossier(dossiers_dir, args.query, max_sessions=max_sessions, full=getattr(args, "full", False))
@@ -203,6 +233,10 @@ def cmd_unfold(args: argparse.Namespace) -> int:
     except DossierNotFoundError:
         print(f'Error [not-found]: No dossier found matching "{args.query}". '
               f'Run `bureau-dossiers list` to see all dossiers.', file=sys.stderr)
+        return 1
+    except ConcurrentInstanceError as e:
+        # subclass of LockConflictError — must be caught FIRST
+        print(f"Error [concurrent-instance]: {e}", file=sys.stderr)
         return 1
     except LockConflictError as e:
         print(f"Error [lock-conflict]: {e}. Use --fork to create an independent copy.",
@@ -273,12 +307,18 @@ def cmd_tasks(args: argparse.Namespace) -> int:
         print(f"Task #{task_id} created.")
 
     elif subcmd == "update":
+        # resolve --agent only if provided; enables the worker-reassignment
+        # CAS guard inside update_task (see tasks.py docstring)
+        resolved_agent = None
+        if getattr(args, "agent", None):
+            resolved_agent, _ = _resolve_agent(args.agent, slug, dossiers_dir)
         update_task(
             dossiers_dir, slug, task_id=args.id,
             subject=args.subject, status=args.status,
             owner=args.owner, blocked_by=args.blocked_by,
             context_notes=getattr(args, "context_notes", None),
             description=args.description,
+            agent=resolved_agent,
         )
         print(f"Task #{args.id} updated.")
 
@@ -288,16 +328,26 @@ def cmd_tasks(args: argparse.Namespace) -> int:
 
     elif subcmd == "claim":
         try:
-            claim_task(dossiers_dir, slug, task_id=args.id, owner=args.agent)
+            resolved_owner, _ = _resolve_agent(args.agent, slug, dossiers_dir)
+            claim_task(dossiers_dir, slug, task_id=args.id, owner=resolved_owner)
             print(f"Task #{args.id} claimed by {args.agent}.")
+        except ConcurrentInstanceError as e:
+            print(f"Error [concurrent-instance]: {e}", file=sys.stderr)
+            return 1
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
 
     elif subcmd == "complete":
         try:
-            complete_task(dossiers_dir, slug, task_id=args.id)
+            resolved_agent = None
+            if getattr(args, "agent", None):
+                resolved_agent, _ = _resolve_agent(args.agent, slug, dossiers_dir)
+            complete_task(dossiers_dir, slug, task_id=args.id, agent=resolved_agent)
             print(f"Task #{args.id} completed.")
+        except ConcurrentInstanceError as e:
+            print(f"Error [concurrent-instance]: {e}", file=sys.stderr)
+            return 1
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
@@ -316,16 +366,28 @@ def cmd_lock(args: argparse.Namespace) -> int:
 
     if subcmd == "claim":
         try:
-            claim_lock(dossiers_dir, slug, agent=args.agent)
+            resolved_agent, _ = _resolve_agent(args.agent, slug, dossiers_dir)
+            claim_lock(dossiers_dir, slug, agent=resolved_agent)
             print(f"Lock claimed by {args.agent}.")
+        except ConcurrentInstanceError as e:
+            print(f"Error [concurrent-instance]: {e}", file=sys.stderr)
+            return 1
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
 
     elif subcmd == "release":
         try:
-            release_lock(dossiers_dir, slug, agent=args.agent, force=args.force)
+            # resolve --agent so a bare type released by the owning process
+            # matches the resolved id stored in locked_by; --force bypasses
+            resolved_agent = args.agent
+            if args.agent and not args.force:
+                resolved_agent, _ = _resolve_agent(args.agent, slug, dossiers_dir)
+            release_lock(dossiers_dir, slug, agent=resolved_agent, force=args.force)
             print("Lock released.")
+        except ConcurrentInstanceError as e:
+            print(f"Error [concurrent-instance]: {e}", file=sys.stderr)
+            return 1
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
@@ -337,6 +399,39 @@ def cmd_lock(args: argparse.Namespace) -> int:
         else:
             print("Unlocked.")
 
+    return 0
+
+
+def cmd_who(args: argparse.Namespace) -> int:
+    """List all agents currently registered on a dossier.
+
+    Workers are indented under orchestrators of the same ``agent_type`` for
+    readability; timestamps are rendered relative (e.g. ``2h ago``).
+    """
+    dossiers_dir = _get_dossiers_dir(args)
+    try:
+        slug = find_dossier(dossiers_dir, args.slug).stem
+    except (DossierNotFoundError, AmbiguousQueryError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
+        agents = list_agents(conn)
+
+    if not agents:
+        print("No registered agents.")
+        return 0
+
+    print(f"{'Agent ID':<38} {'Type':<14} {'Role':<14} Registered")
+    # group workers under orchestrators of the same agent_type
+    for ag in agents:
+        prefix = "  " if ag["role"] == "worker" else ""
+        line = (
+            f"{prefix}{ag['agent_id']:<{38 - len(prefix)}} "
+            f"{ag['agent_type']:<14} {ag['role']:<14} "
+            f"{_relative_time(ag['registered_at'])}"
+        )
+        print(line)
     return 0
 
 
@@ -442,6 +537,11 @@ def main() -> int:
     p_task_update.add_argument("--context-notes", dest="context_notes",
                                help="Context hints for worker agents (pass \"\" to clear)")
     p_task_update.add_argument("--description", help="Update task description (pass empty string to clear)")
+    p_task_update.add_argument(
+        "--agent",
+        help="Acting agent (bare type or worker label). Enables CAS guard "
+        "for worker-reassignment transitions.",
+    )
 
     p_task_remove = tasks_sub.add_parser("remove", help="Remove a task")
     p_task_remove.add_argument("--id", type=int, required=True)
@@ -452,6 +552,11 @@ def main() -> int:
 
     p_task_complete = tasks_sub.add_parser("complete", help="Complete an in-progress task (atomic)")
     p_task_complete.add_argument("--id", type=int, required=True)
+    p_task_complete.add_argument(
+        "--agent",
+        help="Completing agent (bare type or worker label). If provided, a "
+        "worker with zero remaining in-progress tasks is deregistered.",
+    )
 
     # lock
     p_lock = subparsers.add_parser("lock", help="Advisory lock operations",
@@ -466,6 +571,11 @@ def main() -> int:
     p_lock_release.add_argument("--agent", help="Verify caller identity before releasing")
     p_lock_release.add_argument("--force", action="store_true", help="Force release regardless of holder")
     lock_sub.add_parser("status", help="Check lock status")
+
+    # who — list registered agents on a dossier
+    p_who = subparsers.add_parser("who", help="List registered agents on a dossier",
+                                  parents=[parent_parser])
+    p_who.add_argument("slug", help="Dossier slug or hash")
 
     # fork
     p_fork = subparsers.add_parser("fork", help="Fork a dossier",
@@ -491,6 +601,7 @@ def main() -> int:
         "list": cmd_list,
         "tasks": cmd_tasks,
         "lock": cmd_lock,
+        "who": cmd_who,
         "fork": cmd_fork,
         "context": cmd_context,
     }

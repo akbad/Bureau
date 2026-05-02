@@ -32,6 +32,18 @@ mcp:
       post_clone:
         - ["uv", "sync"]
 
+    crawl4ai_mcp_repo:
+      enabled: true
+      kind: git_repo
+      repo_url: https://github.com/sadiuysal/crawl4ai-mcp-server.git
+      path: ${path_to.mcp_clones}/crawl4ai-mcp-server
+      post_clone:
+        - ["git", "fetch", "--depth", "1", "origin", "c3c3b43c2b0c7a9fb5e63f402a25c3a36166f875"]
+        - ["git", "checkout", "--detach", "c3c3b43c2b0c7a9fb5e63f402a25c3a36166f875"]
+        - ["bash", "-lc", "patch=\"$1\"; if git apply --check \"$patch\" 2>/dev/null; then git apply \"$patch\"; elif git apply --reverse --check \"$patch\" >/dev/null 2>&1; then echo \"Patch already applied: $patch\"; else echo \"Patch cannot be applied or recognized as already applied: $patch\" >&2; git apply --check \"$patch\"; exit 1; fi", "--", "${path_to.bureau_repo}/tools/patches/crawl4ai-mcp-server-c3c3b43-bureau1.patch"]
+        - ["bash", "-lc", "mkdir -p \"$HOME/.cache/bureau/crawl4ai\""]
+        - ["bash", "-lc", "docker image inspect bureau/crawl4ai-mcp-server:c3c3b43-bureau1 >/dev/null 2>&1 || DOCKER_BUILDKIT=0 docker build -f Dockerfile -t bureau/crawl4ai-mcp-server:c3c3b43-bureau1 ."]
+
     claude_mem_storage:
       enabled: true
       kind: file
@@ -50,6 +62,7 @@ mcp:
           container_path: /qdrant/storage
       healthcheck:
         tcp: ${mcp.services.qdrant_db.host_port}
+        http: "http://127.0.0.1:${mcp.services.qdrant_db.host_port}/readyz"
 
     qdrant_mcp:
       enabled: true
@@ -80,6 +93,12 @@ mcp:
         FASTMCP_SERVER_STATELESS_HTTP: "true"
       healthcheck:
         tcp: ${mcp.services.qdrant_mcp.port}
+        mcp_tool:
+          url: "http://localhost:${mcp.services.qdrant_mcp.port}/mcp/"
+          expected_server_name: mcp-server-qdrant
+          tool: qdrant-find
+          arguments:
+            query: bureau healthcheck
 
     sourcegraph_mcp:
       enabled: true
@@ -129,6 +148,42 @@ mcp:
         - ${mcp.services.serena_mcp.port}
       healthcheck:
         tcp: ${mcp.services.serena_mcp.port}
+
+    searxng:
+      enabled: true
+      kind: docker_container
+      container_name: bureau-searxng
+      image: docker.io/searxng/searxng:latest
+      host_bind: 127.0.0.1
+      host_port: 8786
+      container_port: 8080
+      # SearXNG reads settings.yml only at startup; recreate keeps the managed
+      # local container aligned with Bureau's generated config.
+      recreate_on_setup: true
+      mounts:
+        - host_path: ~/.config/bureau/searxng/settings.yml
+          container_path: /etc/searxng/settings.yml
+          type: file
+      settings:
+        settings_file: ~/.config/bureau/searxng/settings.yml
+        secret_file: ~/.config/bureau/searxng/secret
+        disabled_engines:
+          - ahmia
+          - bing
+          - brave
+          - google
+          - google images
+          - google news
+          - google videos
+          - google scholar
+          - torch
+          - wikidata
+      healthcheck:
+        http: "http://127.0.0.1:${mcp.services.searxng.host_port}/"
+        http_headers:
+          X-Forwarded-For: 127.0.0.1
+          X-Real-IP: 127.0.0.1
+          User-Agent: BureauHealthcheck/0 (local)
 
   client_configs:
     qdrant:
@@ -208,6 +263,58 @@ mcp:
           env:
             BRAVE_API_KEY: "${BRAVE_API_KEY}"
 
+    bureau-search:
+      enabled: true
+      depends_on:
+        services: [searxng]
+      tools: [bureau_search_web, bureau_search_code, bureau_search_packages, bureau_search_research]
+      settings:
+        config_path: ~/.config/bureau/internal/search-router.json
+        searxng_url: "http://127.0.0.1:${mcp.services.searxng.host_port}"
+        default_max_results: 8
+        max_results_limit: 20
+        timeout_seconds: 20
+        profiles:
+          web:
+            description: General web search through Bureau's managed local SearXNG.
+            engines: [duckduckgo, wikipedia]
+          code:
+            description: Developer Q&A and repository discovery.
+            engines: [stackoverflow, github, gitlab, superuser, askubuntu]
+          packages:
+            description: Package, registry, container, and model discovery.
+            engines: [pypi, npm, crates.io, docker hub, pkg.go.dev, huggingface]
+          research:
+            description: Papers, biomedical literature, and scholarly metadata.
+            engines: [arxiv, pubmed, semantic scholar, openalex, crossref]
+      clients:
+        default:
+          transport: stdio
+          command:
+            - uv
+            - --directory
+            - ${path_to.bureau_repo}
+            - run
+            - bureau-search-mcp
+          env:
+            BUREAU_SEARCH_ROUTER_CONFIG: "${mcp.client_configs.bureau-search.settings.config_path}"
+
+    open-websearch:
+      enabled: true
+      tools: [search, fetchWebContent, fetchGithubReadme, fetchCsdnArticle, fetchJuejinArticle, fetchLinuxDoArticle]
+      clients:
+        default:
+          transport: stdio
+          command:
+            - npx
+            - -y
+            - open-websearch@2.1.7
+          env:
+            MODE: stdio
+            SEARCH_MODE: request
+            DEFAULT_SEARCH_ENGINE: duckduckgo
+            ALLOWED_SEARCH_ENGINES: duckduckgo,bing
+
     filesystem:
       enabled: true
       tools: [read_multiple_files]
@@ -242,6 +349,40 @@ mcp:
           command:
             - uvx
             - mcp-server-fetch
+
+    crawl4ai-mcp-server:
+      enabled: true
+      depends_on:
+        dependencies: [crawl4ai_mcp_repo]
+      tools: [scrape, crawl, crawl_site, crawl_sitemap]
+      settings:
+        image: bureau/crawl4ai-mcp-server:c3c3b43-bureau1
+        host_output_dir: "${HOME}/.cache/bureau/crawl4ai"
+        container_output_dir: /app/crawls
+        max_pages_default: 10
+        max_pages_limit: 25
+        max_depth_limit: 2
+      clients:
+        default:
+          transport: stdio
+          startup_timeout_sec: 300
+          tool_timeout_sec: 1200
+          command:
+            - docker
+            - run
+            - --rm
+            - -i
+            - --network
+            - bridge
+            - --cap-drop
+            - ALL
+            - --security-opt
+            - no-new-privileges
+            - --volume
+            - "${mcp.client_configs.crawl4ai-mcp-server.settings.host_output_dir}:${mcp.client_configs.crawl4ai-mcp-server.settings.container_output_dir}"
+            - -e
+            - CRAWL4AI_MCP_LOG=INFO
+            - "${mcp.client_configs.crawl4ai-mcp-server.settings.image}"
 
     github:
       enabled: true
@@ -348,6 +489,9 @@ path_to:
   # shared across Bureau worktrees)
   mcp_clones: .mcp-servers
 
+  # Bureau's own repo path for local stdio MCPs implemented by this package.
+  bureau_repo: .
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Auto-approval rules
@@ -439,6 +583,11 @@ conversations:
   storage_dir: ~/.config/bureau/dossiers
   stale_dossier_days: 30
   max_retained_sessions: 5
+  # Agent identity registration TTL and cleanup cadence (see docs/dossier-registrations-v2.md).
+  # TTL: how old `registered_at` must be for a registration to count as stale.
+  # Interval: minimum gap between inline cleanup runs.
+  registration_ttl: 24h
+  cleanup_check_interval: 5min
   concierge:
     preferred_agent: claude
     auto_offer_resume: true

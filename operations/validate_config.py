@@ -467,6 +467,7 @@ def _as_list(value: Any) -> list:
 _OUTER_TYPES: dict[str, type] = {
     "bool": bool,
     "int": int,
+    "str": str,
     "dict": dict,
     "dict[str,str]": dict,
     "list[str]": list,
@@ -478,7 +479,8 @@ _OUTER_TYPES: dict[str, type] = {
 def _check_type(value: Any, type_tag: str) -> str | None:
     """Check a value against a type tag string. Returns error message or None.
 
-    Type tags: "int", "dict", "dict[str,str]", "list[str]", "list[dict]", "list[list[str]]"
+    Type tags: "bool", "int", "str", "dict", "dict[str,str]",
+    "list[str]", "list[dict]", "list[list[str]]".
     """
     expected = _OUTER_TYPES.get(type_tag)
     if expected is None:
@@ -488,7 +490,8 @@ def _check_type(value: Any, type_tag: str) -> str | None:
     if expected is int and isinstance(value, bool):
         return "expected int, got bool"
     if not isinstance(value, expected):
-        return f"expected {type_tag}, got {type(value).__name__}"
+        type_label = "string" if type_tag == "str" else type_tag
+        return f"expected {type_label}, got {type(value).__name__}"
 
     # Inner element validation for compound types
     if type_tag == "dict[str,str]":
@@ -544,7 +547,7 @@ def _validate_mounts(
     entry: dict[str, Any], path: str, result: ValidationResult,
 ) -> None:
     """Validate mounts sub-structure if present and already type-checked as list[dict]."""
-    from .mcp_validation_rules import MOUNT_REQUIRED_KEYS
+    from .mcp_validation_rules import MOUNT_ALLOWED_KEYS, MOUNT_REQUIRED_KEYS, MOUNT_TYPES
 
     mounts = entry.get("mounts")
     if not isinstance(mounts, list):
@@ -556,7 +559,7 @@ def _validate_mounts(
         for req in sorted(MOUNT_REQUIRED_KEYS):
             if req not in mount:
                 result.errors.append(f"{mount_path}: missing required key '{req}'")
-        for key in sorted(set(mount.keys()) - MOUNT_REQUIRED_KEYS):
+        for key in sorted(set(mount.keys()) - MOUNT_ALLOWED_KEYS):
             result.warnings.append(f"{mount_path}: unknown key '{key}'")
         # W10: validate path values are strings (skip placeholders)
         for key in ("host_path", "container_path"):
@@ -569,13 +572,24 @@ def _validate_mounts(
                 result.errors.append(
                     f"{mount_path}.{key}: expected string, got {type(val).__name__}"
                 )
+        if "type" in mount:
+            mount_type = mount["type"]
+            if isinstance(mount_type, str) and mount_type in MOUNT_TYPES:
+                continue
+            result.errors.append(
+                f"{mount_path}.type: expected one of {sorted(MOUNT_TYPES)}, "
+                f"got {mount_type!r}"
+            )
 
 
 def _validate_healthcheck(
     entry: dict[str, Any], path: str, result: ValidationResult,
 ) -> None:
     """Validate healthcheck sub-structure if present and already type-checked as dict."""
-    from .mcp_validation_rules import HEALTHCHECK_ALLOWED_KEYS
+    from .mcp_validation_rules import (
+        HEALTHCHECK_ALLOWED_KEYS, MCP_TOOL_HEALTHCHECK_ALLOWED_KEYS,
+        MCP_TOOL_HEALTHCHECK_REQUIRED,
+    )
 
     hc = entry.get("healthcheck")
     if not isinstance(hc, dict):
@@ -592,6 +606,66 @@ def _validate_healthcheck(
             result.errors.append(
                 f"{hc_path}.tcp: expected int, got {type(tcp).__name__}"
             )
+    http = hc.get("http")
+    if http is not None:
+        if isinstance(http, str) and _PLACEHOLDER_REGEX.search(http):
+            pass  # placeholder; type resolves after expansion
+        elif not isinstance(http, str):
+            result.errors.append(
+                f"{hc_path}.http: expected string, got {type(http).__name__}"
+            )
+
+    http_headers = hc.get("http_headers")
+    if http_headers is not None:
+        if not isinstance(http_headers, dict):
+            result.errors.append(
+                f"{hc_path}.http_headers: expected dict, got {type(http_headers).__name__}"
+            )
+        else:
+            for key, value in http_headers.items():
+                if not isinstance(key, str):
+                    result.errors.append(
+                        f"{hc_path}.http_headers: expected string keys"
+                    )
+                if not isinstance(value, str):
+                    result.errors.append(
+                        f"{hc_path}.http_headers.{key}: expected string, got {type(value).__name__}"
+                    )
+
+    mcp_tool = hc.get("mcp_tool")
+    if mcp_tool is None:
+        return
+    if isinstance(mcp_tool, str) and _PLACEHOLDER_REGEX.search(mcp_tool):
+        return
+    if not isinstance(mcp_tool, dict):
+        result.errors.append(
+            f"{hc_path}.mcp_tool: expected dict, got {type(mcp_tool).__name__}"
+        )
+        return
+
+    mcp_tool_path = f"{hc_path}.mcp_tool"
+    for key in sorted(set(mcp_tool.keys()) - MCP_TOOL_HEALTHCHECK_ALLOWED_KEYS):
+        result.warnings.append(f"{mcp_tool_path}: unknown key '{key}'")
+    for req in sorted(MCP_TOOL_HEALTHCHECK_REQUIRED):
+        if req not in mcp_tool:
+            result.errors.append(f"{mcp_tool_path}: missing required key '{req}'")
+
+    for key in ("url", "expected_server_name", "tool"):
+        value = mcp_tool.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str) and _PLACEHOLDER_REGEX.search(value):
+            continue
+        if not isinstance(value, str):
+            result.errors.append(
+                f"{mcp_tool_path}.{key}: expected string, got {type(value).__name__}"
+            )
+
+    arguments = mcp_tool.get("arguments")
+    if arguments is not None and not isinstance(arguments, dict):
+        result.errors.append(
+            f"{mcp_tool_path}.arguments: expected dict, got {type(arguments).__name__}"
+        )
 
 
 def _validate_npm_runtime(

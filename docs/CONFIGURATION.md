@@ -171,6 +171,7 @@ MCP catalog configuration.
 
   - **Adding an entry to any MCP bucket is sufficient to activate it on the next `open-bureau` run.**
   - You *must* set `enabled: false` explicitly to define an entry without activating it.
+- **No-key MCPs:** local stdio MCPs can omit `requires_env`; they remain available even when cloud/search API keys are missing.
 
 #### Runtime invariants (not fully type-enforced)
 
@@ -180,12 +181,14 @@ Bureau uses permissive `TypedDict` schemas in code for config loading, which mea
 |:--|:--|:--|:--|
 | `mcp.dependencies.<id>` | `kind: git_repo` | `repo_url`, `path` (optional: `branch`, `post_clone`) | Type checker cannot enforce `kind` → required-field mapping |
 | `mcp.dependencies.<id>` | `kind: file` | `path` | Same discriminator limitation |
-| `mcp.services.<id>` | `kind: docker_container` | `image`, `host_port`, `container_port` (optional: `container_name`, `mounts`) | Docker-only fields are flat in schema |
+| `mcp.services.<id>` | `kind: docker_container` | `image`, `host_port`, `container_port` (optional: `container_name`, `host_bind`, `mounts`, `recreate_on_setup`) | Docker-only fields are flat in schema |
 | `mcp.services.<id>` | `kind: http_process` | `port`, `command` (optional: `env`) | Process-only fields share same flat schema |
+| `mcp.services.<id>.healthcheck.mcp_tool` | Present | `url`, `tool`, `arguments` (optional: `expected_server_name`) | Runs an end-to-end MCP tool probe after TCP/HTTP readiness |
 | `mcp.client_configs.<id>.clients.<client>` | `transport` value | `http/sse` expect `url`; `stdio` expects `command` (optional transport-specific extras) | Transport-specific requirements are runtime-validated |
+| `mcp.client_configs.<id>.tools` | Present | `list<string>` | Used for Codex per-tool auto-approval metadata |
 | `roles` | `enabled` as string | Only documented sentinel values (for example `all`) are meaningful | Typed as `list[str] \| str` for flexibility |
 | `path_to` | `workspace` present | `serena_memories_root` may be derived if unset | Derived behavior, not schema-required |
-| `path_to` | `mcp_clones` is relative | Resolved against main repo root | Normalization rule, not schema-required |
+| `path_to` | `mcp_clones` or `bureau_repo` is relative | `mcp_clones` resolves against the shared main repo root; `bureau_repo` resolves against the active Bureau worktree root | Normalization rule, not schema-required |
 | Named lookups in helpers | Service/config IDs must exist (`qdrant_mcp`, `memory`, `claude_mem_storage`) | Expected nested keys depend on helper | Name-based contracts are conventional and documented here |
 
 When adding new discriminator-based config sections, document the `value -> required fields` mapping in this section and enforce it in runtime validators.
@@ -207,12 +210,13 @@ When adding new discriminator-based config sections, document the `value -> requ
 
 #### <ins>`mcp.dependencies`</ins>
 
-Defines non-daemon prerequisites (git repos, file storage) that are prepared before services. Dependencies cannot depend on other dependencies — they are prepared in sorted order first, then services (which may depend on them) are started.
+Defines non-daemon prerequisites (git repos, file storage) that are prepared before services. Dependencies may use `requires` to order themselves, then services (which may depend on them) are started.
 
 **Config schema** for each entry in `mcp.dependencies.<dependency_id>`:
 
 - `enabled` (bool, default: `true`): Skip dependency if `false`.
 - `kind` (string, required): One of `git_repo`, `file`.
+- `requires` (`list<string>`, optional): Dependency IDs that must be prepared first.
 - All kind-specific fields (see below).
 
 **Dependency kinds:**
@@ -221,7 +225,7 @@ Defines non-daemon prerequisites (git repos, file storage) that are prepared bef
   - `repo_url` (string, required)
   - `branch` (string, optional)
   - `path` (string, required): Clone destination.
-  - `post_clone` (`list<list<string>>`, optional): Commands run in `path` after clone/update.
+  - `post_clone` (`list<list<string>>`, optional): Commands run in `path` after clone/update. Use this for pinned checkouts, local builds, or other reproducible setup steps.
 - `file`:
   - `path` (string, required): File path used by cleanup and other tools.
 
@@ -255,20 +259,31 @@ Defines managed runtime services that Bureau starts (containers, local HTTP proc
   - `dependencies` (list\<string\>): Dependency IDs that must be prepared first.
 - `healthcheck` (object, optional):
   - `tcp` (int): Port to probe for readiness.
+  - `http` (string): URL that must return a successful HTTP response.
+  - `mcp_tool` (object): End-to-end MCP probe for streamable HTTP services.
+    - `url` (string, required): MCP endpoint to call.
+    - `expected_server_name` (string, optional): Expected `initialize.result.serverInfo.name`.
+    - `tool` (string, required): Tool that must be listed and callable.
+    - `arguments` (object, required): JSON object passed to the tool call.
 - `env` (map\<string,string\>, optional): Environment vars for process services.
 - `command` (list\<string\>, optional): Command array (executable + args) for process services.
 - `settings` (map\<string, any\>, optional): Service-specific data used for templating.
+
+Bureau records resolved `http_process` service fingerprints in `~/.config/bureau/internal/managed-services.json`. A matching managed listener is reused only after healthchecks pass; stale managed listeners are restarted; healthy unregistered listeners are adopted for the current run and marked for restart on the next run; unhealthy unregistered listeners are left untouched and setup fails closed.
 
 **Kind-specific fields:**
 
 - `docker_container`:
   - `container_name` (string, optional): Docker container name.
   - `image` (string, required): Docker image ref.
+  - `host_bind` (string, optional): Host interface for published ports. Use `127.0.0.1` for localhost-only services.
   - `host_port` (int, required): Host port bound to container.
   - `container_port` (int, required): Container port to expose.
+  - `recreate_on_setup` (bool, optional): Remove and recreate an existing container on setup. Use this when a mounted config file is generated by Bureau and only read at container startup.
   - `mounts` (`list<object>`, optional):
     - `host_path` (string, required)
     - `container_path` (string, required)
+    - `type` (`directory` or `file`, optional, default: `directory`)
 - `http_process`:
   - `port` (int, required): Port the process should listen on.
   - `command` (`list<string>`, required): Command array to launch server.
@@ -299,6 +314,7 @@ Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Serve
 
 - `enabled` (bool, default: `true`): Skip server if `false`.
 - `requires_env` (`list<string>`, optional): If any env var is missing/empty, the server is skipped.
+- `tools` (`list<string>`, optional): Tool names exposed by this MCP server. Bureau uses this metadata for Codex per-tool auto-approval.
 - `depends_on` (object, optional):
   - `services` (list\<string\>): Service IDs that must be enabled/resolved for the server to be included.
   - `dependencies` (list\<string\>): Dependency IDs that must be enabled/resolved for the server to be included.
@@ -330,6 +346,35 @@ Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Serve
 
 > [!NOTE]
 > `npm_runtime` is setup metadata only. CLIs still receive the resolved `clients.*.command` array, which should point at the shared local binaries under `${path_to.mcp_clones}/npm-tools/node_modules/.bin/...` rather than `npx`.
+
+> [!TIP]
+> Source-built Docker stdio MCPs should usually be modeled as a `git_repo` dependency with `post_clone` commands that pin and build the image, plus a `mcp.client_configs.<id>` entry whose stdio command runs `docker run --rm -i ...`. This keeps one-shot MCP processes out of the long-running `mcp.services` bucket.
+
+#### Managed SearXNG and Bureau Search
+
+By default, Bureau starts a localhost-only SearXNG container and exposes it through the `bureau-search` stdio MCP. Agents get semantic tools rather than one raw search endpoint:
+
+- `bureau_search_web`
+- `bureau_search_code`
+- `bureau_search_packages`
+- `bureau_search_research`
+
+Bureau generates `~/.config/bureau/searxng/settings.yml` with JSON output enabled and Google / Google Scholar engines disabled by default.
+
+To use your own SearXNG instance instead of Bureau's managed container:
+
+```yaml
+mcp:
+  services:
+    searxng:
+      enabled: false
+  client_configs:
+    bureau-search:
+      depends_on:
+        services: []
+      settings:
+        searxng_url: http://127.0.0.1:8080
+```
 
 ### `skills`
 
@@ -627,7 +672,7 @@ Some configuration values can be overridden via environment variables:
 
 | Environment Variable | Overrides | Description |
 |:---------------------|:----------|:------------|
-| `BUREAU_WORKSPACE` | `path_to.serena_memories_root` | Root for scanning Serena memory files |
+| `BUREAU_WORKSPACE` | `path_to.workspace` | Base workspace directory |
 | `BUREAU_TELEGRAM_TOKEN` | — | Telegram bot token (required to start the Concierge bot; never stored in config files) |
 | `BUREAU_TELEGRAM_USER_ID` | — | Telegram user ID (fallback when no wizard config exists) |
 
@@ -648,9 +693,9 @@ mcp:
             TAVILY_API_KEY: "${TAVILY_API_KEY}"  # Reads from your shell environment
 ```
 
-**Required environment variables for remote MCPs:**
+**Required environment variables for remote/cloud MCPs:**
 
-Some remote MCPs require API keys (even for their free versions). Set these in your shell environment:
+Some remote/cloud MCPs require API keys (even for their free versions). Set these in your shell environment for the best search/docs path. Local/no-key MCPs such as Bureau Search, Fetch, open-webSearch, and Crawl4AI do not need API keys.
 
 | Env var name | Stores API key for... |
 | --- | --- |

@@ -185,17 +185,26 @@ Simply explicitly mention the subagent you want to use and it will automatically
       security scans with a vast library of rules.
 
 - **Web research & documentation**:
+    - **Bureau Search**: A local SearXNG-backed search
+      router with semantic tools for general web, code,
+      package, and research queries.
     - **Tavily**: A comprehensive search API built for AI
       agents, capable of searching, crawling, and
       extracting web content.
     - **Brave**: A privacy-focused web search engine for
-      general queries.
+      general, news, image, and video queries.
+    - **open-webSearch**: A no-key local fallback for
+      DuckDuckGo/Bing web search and direct web-content
+      fetching.
     - **Context7**: For fetching up-to-date, versioned
       documentation for a wide range of libraries and
       APIs.
     - **Fetch**: A simple, reliable tool for fetching the
       content of a single URL and converting it to
       Markdown.
+    - **Crawl4AI**: A local Docker-backed extraction/crawl
+      tool for JS-rendered pages, bounded multi-page crawls,
+      sitemap crawls, and persisted crawl output.
 
 - **Memory & knowledge**:
     - **Qdrant**: A vector database that provides agents with
@@ -211,6 +220,8 @@ Simply explicitly mention the subagent you want to use and it will automatically
 - **Local dev tools**:
     - **Filesystem**: For efficient batch file
       operations (read_multiple_files only).
+    - **Playwright**: For browser interaction, auth flows,
+      screenshots, and visual/browser behavior checks.
 
 > [!TIP]
 > To learn more about the available MCPs and the specific guidance agents receive on how to use them, read [`ops/task-execution.md`](../protocols/context/static/ops/task-execution.md) *(tool selection, memory storage, and limits)*.

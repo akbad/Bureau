@@ -91,11 +91,13 @@ def test_normalize_entries_across_clis():
         {
             "type": "local",
             "command": ["uvx", "mcp"],
+            "environment": {"A": "b"},
             "timeout": 2500,
         },
     ) == {
         "transport": "stdio",
         "command": ["uvx", "mcp"],
+        "env": {"A": "b"},
         "timeout_ms": 2500,
     }
 
@@ -171,6 +173,58 @@ def test_normalize_desired_entry_for_codex_http():
         "url": "https://api.githubcopilot.com/mcp/",
         "bearer_token_env_var": "GITHUB_PAT",
     }
+
+
+def test_normalize_desired_entry_for_opencode_stdio():
+    desired = normalize_desired_entry(
+        "opencode",
+        {
+            "transport": "stdio",
+            "command": ["npx", "-y", "open-websearch@2.1.7"],
+            "env": {"MODE": "stdio"},
+            "timeout_ms": 45000,
+        },
+    )
+
+    assert desired == {
+        "transport": "stdio",
+        "command": ["npx", "-y", "open-websearch@2.1.7"],
+        "env": {"MODE": "stdio"},
+        "timeout_ms": 45000,
+    }
+
+
+def test_opencode_local_fingerprint_tracks_environment_and_timeout():
+    base = normalize_entry(
+        "opencode",
+        {
+            "type": "local",
+            "command": ["npx", "-y", "open-websearch@2.1.7"],
+            "environment": {"MODE": "stdio"},
+            "timeout": 45000,
+        },
+    )
+    changed_env = normalize_entry(
+        "opencode",
+        {
+            "type": "local",
+            "command": ["npx", "-y", "open-websearch@2.1.7"],
+            "environment": {"MODE": "http"},
+            "timeout": 45000,
+        },
+    )
+    changed_timeout = normalize_entry(
+        "opencode",
+        {
+            "type": "local",
+            "command": ["npx", "-y", "open-websearch@2.1.7"],
+            "environment": {"MODE": "stdio"},
+            "timeout": 90000,
+        },
+    )
+
+    assert fingerprint_entry(base) != fingerprint_entry(changed_env)
+    assert fingerprint_entry(base) != fingerprint_entry(changed_timeout)
 
 
 def test_compute_update_marks_managed_entry_when_desired_changes():

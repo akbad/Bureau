@@ -15,6 +15,9 @@ def render_opencode_mcp(config: Mapping[str, Any]) -> dict[str, Any]:
 
     for name, entry in client_configs.items():
         clients = entry.get("clients", {})
+        disabled_for = clients.get("disabled_for", [])
+        if isinstance(disabled_for, list) and "opencode" in disabled_for:
+            continue
         client = clients.get("opencode") or clients.get("default")
         if not client:
             continue
@@ -26,13 +29,20 @@ def render_opencode_mcp(config: Mapping[str, Any]) -> dict[str, Any]:
             }
             if "headers" in client:
                 entry_cfg["headers"] = client["headers"]
+            if "timeout_ms" in client:
+                entry_cfg["timeout"] = client["timeout_ms"]
             opencode_cfg[name] = entry_cfg
         else:
-            opencode_cfg[name] = {
+            entry_cfg = {
                 "type": "local",
                 "command": client["command"],
                 "enabled": True,
             }
+            if "env" in client:
+                entry_cfg["environment"] = client["env"]
+            if "timeout_ms" in client:
+                entry_cfg["timeout"] = client["timeout_ms"]
+            opencode_cfg[name] = entry_cfg
     return opencode_cfg
 
 

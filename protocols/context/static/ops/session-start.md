@@ -4,8 +4,8 @@
 
 > Factual accuracy >> response speed. Verify before answering.
 
-- Technical info → search official docs (Context7, WebFetch, WebSearch)
-- Current events → search recent news (Tavily, Brave with freshness filters)
+- Technical info → search official docs (Context7; Fetch for known URLs; web search only when discovery is needed)
+- Current events → Tavily/Brave when available → Bureau Search (`bureau_search_web`) → open-webSearch/native web search, using freshness filters where supported
 - Code behavior → read actual code, run tests, check logs
 - API details → fetch current documentation, not training data
 - "I don't know" > wrong answer; "let me verify" > speculation.

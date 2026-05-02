@@ -1,0 +1,144 @@
+diff --git a/crawler_agent/mcp_server.py b/crawler_agent/mcp_server.py
+index 6e8463f..32a6845 100644
+--- a/crawler_agent/mcp_server.py
++++ b/crawler_agent/mcp_server.py
+@@ -21,7 +21,7 @@ import mcp.server.stdio
+ 
+ from urllib.parse import urlparse, urljoin
+ 
+-from crawl4ai import AsyncWebCrawler
++from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+ from crawl4ai.async_configs import BrowserConfig
+ from crawl4ai.async_logger import AsyncLoggerBase
+ 
+@@ -83,6 +83,28 @@ _crawl4ai_logger = _StderrLogger()
+ server = Server("crawl4ai-mcp")
+ 
+ 
++def _browser_config(overrides: Dict[str, Any] | None = None) -> BrowserConfig:
++    payload: Dict[str, Any] = {"verbose": False}
++    payload.update(overrides or {})
++    return BrowserConfig(**payload)
++
++
++def _crawler_run_config(
++    timeout_sec: int | None,
++    overrides: Dict[str, Any] | None = None,
++    script: str | None = None,
++) -> CrawlerRunConfig:
++    payload: Dict[str, Any] = {
++        "wait_until": "domcontentloaded",
++        "page_timeout": int((timeout_sec or 45) * 1000),
++        "delay_before_return_html": 0,
++    }
++    if script:
++        payload["c4a_script"] = script
++    payload.update(overrides or {})
++    return CrawlerRunConfig(**payload)
++
++
+ class ScrapeArgs(BaseModel):
+     url: HttpUrl
+     crawler: Dict[str, Any] = Field(default_factory=dict, description="Crawl4AI crawler config overrides")
+@@ -216,10 +238,11 @@ async def list_tools() -> List[types.Tool]:
+ 
+ async def _run_scrape(args: ScrapeArgs) -> ScrapeResult:
+     require_public_http_url(str(args.url))
+-    async with AsyncWebCrawler(config=BrowserConfig(verbose=False), logger=_crawl4ai_logger) as crawler:
++    run_config = _crawler_run_config(args.timeout_sec, args.crawler, args.script)
++    async with AsyncWebCrawler(config=_browser_config(args.browser), logger=_crawl4ai_logger) as crawler:
+         result = await crawler.arun(
+             url=str(args.url),
+-            script=args.script,
++            config=run_config,
+         )
+     links = []
+     raw_links = getattr(result, "links", []) or []
+@@ -252,10 +275,11 @@ async def _persist_scrape(args: ScrapeArgs) -> ScrapePersistResult:
+     write_manifest(run_dir, manifest)
+     
+     # Scrape the content
+-    async with AsyncWebCrawler(config=BrowserConfig(verbose=False), logger=_crawl4ai_logger) as crawler:
++    run_config = _crawler_run_config(args.timeout_sec, args.crawler, args.script)
++    async with AsyncWebCrawler(config=_browser_config(args.browser), logger=_crawl4ai_logger) as crawler:
+         result = await crawler.arun(
+             url=str(args.url),
+-            script=args.script,
++            config=run_config,
+         )
+     
+     # Process links
+@@ -368,14 +392,15 @@ async def _run_crawl(args: CrawlArgs) -> CrawlResult:
+     frontier: List[tuple[str, int]] = [(str(args.seed_url), 0)]
+     pages: List[CrawlPage] = []
+ 
+-    async with AsyncWebCrawler(config=BrowserConfig(verbose=False), logger=_crawl4ai_logger) as crawler:
++    run_config = _crawler_run_config(args.timeout_sec, args.crawler, args.script)
++    async with AsyncWebCrawler(config=_browser_config(args.browser), logger=_crawl4ai_logger) as crawler:
+         while frontier and len(pages) < args.max_pages:
+             url, depth = frontier.pop(0)
+             if url in visited:
+                 continue
+             visited.add(url)
+ 
+-            result = await crawler.arun(url=url, script=args.script)
++            result = await crawler.arun(url=url, config=run_config)
+             page_links: List[str] = _extract_links_from_result(url, result)
+ 
+             pages.append(CrawlPage(url=url, markdown=result.markdown or "", links=page_links))
+@@ -425,7 +450,8 @@ async def _persist_crawl(args: CrawlArgs) -> CrawlPersistResult:
+     pages_failed = 0
+     total_bytes = 0
+     
+-    async with AsyncWebCrawler(config=BrowserConfig(verbose=False), logger=_crawl4ai_logger) as crawler:
++    run_config = _crawler_run_config(args.timeout_sec, args.crawler, args.script)
++    async with AsyncWebCrawler(config=_browser_config(args.browser), logger=_crawl4ai_logger) as crawler:
+         while frontier and len(visited) < args.max_pages:
+             url, depth = frontier.pop(0)
+             if url in visited or depth > args.max_depth:
+@@ -434,7 +460,7 @@ async def _persist_crawl(args: CrawlArgs) -> CrawlPersistResult:
+             
+             try:
+                 logger.debug("crawling url=%s depth=%d", url, depth)
+-                result = await crawler.arun(url=url, script=args.script)
++                result = await crawler.arun(url=url, config=run_config)
+                 markdown = result.markdown or ""
+                 
+                 # Persist page
+@@ -523,7 +549,8 @@ async def _persist_crawl_site(args: CrawlSiteArgs) -> CrawlPersistResult:
+     visited: Set[str] = set()
+     frontier: List[tuple[str, int]] = [(str(args.entry_url), 0)]
+ 
+-    async with AsyncWebCrawler(config=BrowserConfig(verbose=False), logger=_crawl4ai_logger) as crawler:
++    run_config = _crawler_run_config(args.timeout_sec)
++    async with AsyncWebCrawler(config=_browser_config(), logger=_crawl4ai_logger) as crawler:
+         while frontier and manifest.totals.get("pages_ok", 0) < args.max_pages:
+             url, depth = frontier.pop(0)
+             if url in visited:
+@@ -533,7 +560,7 @@ async def _persist_crawl_site(args: CrawlSiteArgs) -> CrawlPersistResult:
+             t0 = time.perf_counter()
+             try:
+                 append_log_jsonl(run_dir, {"event": "fetch_start", "url": url, "depth": depth, "ts": time.time()})
+-                result = await crawler.arun(url=url)
++                result = await crawler.arun(url=url, config=run_config)
+                 links: List[str] = _extract_links_from_result(url, result)
+ 
+                 path, nbytes = persist_page_markdown(run_dir, url, result.markdown or "")
+@@ -622,14 +649,15 @@ async def _persist_crawl_sitemap(args: CrawlSitemapArgs) -> CrawlPersistResult:
+     seeds = seeds[: args.max_entries]
+     seeds = filter_urls(seeds, args.include_patterns, args.exclude_patterns)
+ 
+-    async with AsyncWebCrawler(config=BrowserConfig(verbose=False), logger=_crawl4ai_logger) as crawler:
++    run_config = _crawler_run_config(args.timeout_sec)
++    async with AsyncWebCrawler(config=_browser_config(), logger=_crawl4ai_logger) as crawler:
+         for url in seeds:
+             if manifest.totals.get("pages_ok", 0) >= args.max_entries:
+                 break
+             t0 = time.perf_counter()
+             try:
+                 append_log_jsonl(run_dir, {"event": "fetch_start", "url": url, "ts": time.time()})
+-                result = await crawler.arun(url=url)
++                result = await crawler.arun(url=url, config=run_config)
+                 links: List[str] = _extract_links_from_result(url, result)
+ 
+                 path, nbytes = persist_page_markdown(run_dir, url, result.markdown or "")

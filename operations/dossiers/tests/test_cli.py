@@ -600,3 +600,94 @@ class TestCliLock:
         status_result = _run_cli(dossiers_dir, "lock", slug, "status")
         assert status_result.returncode == 0
         assert "Unlocked." in status_result.stdout
+
+
+# ── v2 registrations: `who` + --agent flags on tasks ────────────────────
+
+
+class TestCliWho:
+    def test_who_empty_dossier(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(dossiers_dir)
+        assert fold_result.returncode == 0, fold_result.stderr
+
+        result = _run_cli(dossiers_dir, "who", slug)
+        assert result.returncode == 0, result.stderr
+        assert "No registered agents." in result.stdout
+
+    def test_who_lists_worker_registered_via_claim(self, dossiers_dir: Path):
+        """Claiming a task with a worker label registers the worker."""
+        fold_result, slug = _fold_via_cli(
+            dossiers_dir, tasks=[{"subject": "A"}]
+        )
+        assert fold_result.returncode == 0, fold_result.stderr
+
+        worker = "claude-code:worker-1:42"
+        claim_result = _run_cli(
+            dossiers_dir, "tasks", slug, "claim", "--id", "1", "--agent", worker
+        )
+        assert claim_result.returncode == 0, claim_result.stderr
+
+        result = _run_cli(dossiers_dir, "who", slug)
+        assert result.returncode == 0, result.stderr
+        assert worker in result.stdout
+        assert "worker" in result.stdout
+        assert "claude-code" in result.stdout
+
+
+class TestCliTaskAgentFlag:
+    def test_complete_with_agent_flag_deregisters_worker(self, dossiers_dir: Path):
+        fold_result, slug = _fold_via_cli(
+            dossiers_dir, tasks=[{"subject": "A"}]
+        )
+        assert fold_result.returncode == 0, fold_result.stderr
+        worker = "claude-code:worker-1:42"
+
+        _run_cli(dossiers_dir, "tasks", slug, "claim", "--id", "1", "--agent", worker)
+        _run_cli(
+            dossiers_dir, "tasks", slug, "complete",
+            "--id", "1", "--agent", worker,
+        )
+
+        # `who` no longer lists the worker — it was deregistered on complete
+        result = _run_cli(dossiers_dir, "who", slug)
+        assert result.returncode == 0, result.stderr
+        assert worker not in result.stdout
+
+    def test_update_status_pending_with_agent_enforces_cas(
+        self, dossiers_dir: Path
+    ):
+        """Reassigning a completed task via --agent must fail with CAS guard."""
+        fold_result, slug = _fold_via_cli(
+            dossiers_dir, tasks=[{"subject": "A"}]
+        )
+        assert fold_result.returncode == 0, fold_result.stderr
+        worker = "claude-code:worker-1:42"
+
+        _run_cli(dossiers_dir, "tasks", slug, "claim", "--id", "1", "--agent", worker)
+        _run_cli(dossiers_dir, "tasks", slug, "complete", "--id", "1", "--agent", worker)
+
+        # orchestrator attempts to revert the already-completed task
+        result = _run_cli(
+            dossiers_dir, "tasks", slug, "update",
+            "--id", "1", "--status", "pending",
+            "--agent", "claude-code:orch-hex",
+        )
+        assert result.returncode != 0
+        assert "not in progress" in result.stderr
+
+    def test_update_without_agent_is_unguarded(self, dossiers_dir: Path):
+        """Legacy/manual path (no --agent) still allows status edits freely."""
+        fold_result, slug = _fold_via_cli(
+            dossiers_dir, tasks=[{"subject": "A"}]
+        )
+        assert fold_result.returncode == 0, fold_result.stderr
+
+        _run_cli(dossiers_dir, "tasks", slug, "claim", "--id", "1", "--agent", "claude-code:w:1")
+        _run_cli(dossiers_dir, "tasks", slug, "complete", "--id", "1")
+
+        # unguarded update (no --agent) may revert status — escape hatch
+        result = _run_cli(
+            dossiers_dir, "tasks", slug, "update",
+            "--id", "1", "--status", "pending",
+        )
+        assert result.returncode == 0, result.stderr

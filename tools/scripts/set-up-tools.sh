@@ -145,6 +145,7 @@ parse_stdio_mcp_args() {
 }
 
 MANAGED_MCP_REGISTRY_DIR="$HOME/.config/bureau/internal"
+SERVICE_REGISTRY_PATH="$MANAGED_MCP_REGISTRY_DIR/managed-services.json"
 
 managed_registry_path() {
     local cli=$1
@@ -276,17 +277,253 @@ wait_for_tcp() {
     return 1
 }
 
+wait_for_http() {
+    local service_id=$1
+    local service_name=$2
+    local url=$3
+    local timeout=$4
+    local elapsed=0
+    local -a curl_headers=()
+    local header
+
+    while IFS= read -r header; do
+        if [[ -n "$header" ]]; then
+            curl_headers+=(-H "$header")
+        fi
+    done < <(
+        plan_jq ".services[\"$service_id\"].healthcheck.http_headers // {} | to_entries[] | \"\\(.key): \\(.value)\""
+    )
+
+    while [ $elapsed -lt $timeout ]; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+        if curl -fsS --max-time 2 "${curl_headers[@]}" "$url" >/dev/null 2>&1; then
+            log_success "$service_name HTTP healthcheck passed: $url"
+            return 0
+        fi
+    done
+
+    log_error "$service_name HTTP healthcheck failed within ${timeout}s: $url"
+    return 1
+}
+
+has_mcp_tool_healthcheck() {
+    local service_id=$1
+    jq -e --arg service "$service_id" \
+        '.services[$service].healthcheck.mcp_tool? != null' \
+        "$SETUP_PLAN_FILE" >/dev/null
+}
+
+run_mcp_tool_healthcheck() {
+    local service_id=$1
+    local service_name=$2
+    local timeout=$3
+    local elapsed=0
+    local url
+    local tool
+    local arguments_json
+    local expected_server_name
+    local probe_output=""
+
+    url=$(jq -r --arg service "$service_id" \
+        '.services[$service].healthcheck.mcp_tool.url' "$SETUP_PLAN_FILE")
+    tool=$(jq -r --arg service "$service_id" \
+        '.services[$service].healthcheck.mcp_tool.tool' "$SETUP_PLAN_FILE")
+    arguments_json=$(jq -c --arg service "$service_id" \
+        '.services[$service].healthcheck.mcp_tool.arguments' "$SETUP_PLAN_FILE")
+    expected_server_name=$(jq -r --arg service "$service_id" \
+        '.services[$service].healthcheck.mcp_tool.expected_server_name // empty' \
+        "$SETUP_PLAN_FILE")
+
+    local probe_args=(
+        --url "$url"
+        --tool "$tool"
+        --arguments-json "$arguments_json"
+        --timeout-seconds 5
+    )
+    if [[ -n "$expected_server_name" ]]; then
+        probe_args+=(--expected-server-name "$expected_server_name")
+    fi
+
+    while [ $elapsed -lt $timeout ]; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+        if probe_output="$(uv run python "$SCRIPT_DIR/probe-mcp-tool.py" "${probe_args[@]}" 2>&1)"; then
+            log_success "$service_name MCP tool healthcheck passed: $tool"
+            return 0
+        fi
+    done
+
+    log_error "$service_name MCP tool healthcheck failed within ${timeout}s: $tool"
+    if [[ -n "$probe_output" ]]; then
+        log_error "Last MCP probe error: $probe_output"
+    fi
+    return 1
+}
+
+run_service_healthchecks() {
+    local service_id=$1
+    local service_name=$2
+    local tcp_port
+    local http_url
+
+    tcp_port=$(plan_jq ".services[\"$service_id\"].healthcheck.tcp // empty")
+    if [[ -n "$tcp_port" && "$tcp_port" != "null" ]]; then
+        if ! wait_for_tcp "$service_name" "$tcp_port" "$SERVER_START_TIMEOUT"; then
+            return 1
+        fi
+    fi
+
+    http_url=$(plan_jq ".services[\"$service_id\"].healthcheck.http // empty")
+    if [[ -n "$http_url" && "$http_url" != "null" ]]; then
+        if ! wait_for_http "$service_id" "$service_name" "$http_url" "$SERVER_START_TIMEOUT"; then
+            return 1
+        fi
+    fi
+
+    if has_mcp_tool_healthcheck "$service_id"; then
+        if ! run_mcp_tool_healthcheck "$service_id" "$service_name" "$SERVER_START_TIMEOUT"; then
+            return 1
+        fi
+    fi
+}
+
+port_listener_pid() {
+    local port=$1
+    lsof -ti:"$port" -sTCP:LISTEN 2>/dev/null | head -1
+}
+
+assess_managed_service() {
+    local service_id=$1
+    local port_listening=$2
+
+    uv run python "$REPO_ROOT/tools/scripts/managed-service-registry.py" \
+        --mode assess \
+        --plan "$SETUP_PLAN_FILE" \
+        --registry "$SERVICE_REGISTRY_PATH" \
+        --service "$service_id" \
+        --port-listening "$port_listening"
+}
+
+record_managed_service() {
+    local service_id=$1
+    local pid=$2
+    local log_file=$3
+    local last_action=$4
+    local args=(
+        --mode record-managed
+        --plan "$SETUP_PLAN_FILE"
+        --registry "$SERVICE_REGISTRY_PATH"
+        --service "$service_id"
+        --last-action "$last_action"
+    )
+
+    if [[ -n "$pid" ]]; then
+        args+=(--pid "$pid")
+    fi
+    if [[ -n "$log_file" ]]; then
+        args+=(--log-file "$log_file")
+    fi
+
+    uv run python "$REPO_ROOT/tools/scripts/managed-service-registry.py" "${args[@]}" >/dev/null
+}
+
+record_adopted_service() {
+    local service_id=$1
+    local pid=$2
+    local log_file=$3
+    local args=(
+        --mode record-adopted
+        --plan "$SETUP_PLAN_FILE"
+        --registry "$SERVICE_REGISTRY_PATH"
+        --service "$service_id"
+    )
+
+    if [[ -n "$pid" ]]; then
+        args+=(--pid "$pid")
+    fi
+    if [[ -n "$log_file" ]]; then
+        args+=(--log-file "$log_file")
+    fi
+
+    uv run python "$REPO_ROOT/tools/scripts/managed-service-registry.py" "${args[@]}" >/dev/null
+}
+
+stop_port_process() {
+    local service_name=$1
+    local port=$2
+    local kill_parent=${3:-false}
+    local pid
+    local ppid
+    local elapsed=0
+
+    pid=$(port_listener_pid "$port")
+    if [[ -z "$pid" ]]; then
+        return 0
+    fi
+
+    log_info "Stopping $service_name listener on port $port (PID: $pid)..."
+    ppid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)
+    kill "$pid" 2>/dev/null || true
+    if [[ "$kill_parent" == "true" && "$ppid" =~ ^[0-9]+$ && "$ppid" -gt 1 ]]; then
+        kill "$ppid" 2>/dev/null || true
+    fi
+
+    while [ $elapsed -lt 10 ]; do
+        if ! check_port "$port"; then
+            return 0
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    log_error "$service_name listener on port $port did not stop"
+    return 1
+}
+
+prepare_docker_service_files() {
+    local service_id=$1
+
+    case "$service_id" in
+        searxng)
+            log_info "Rendering managed SearXNG settings..."
+            uv run python "$SCRIPT_DIR/render-searxng-settings.py" \
+                --plan "$SETUP_PLAN_FILE" \
+                --service "$service_id" >/dev/null
+            ;;
+    esac
+}
+
 start_docker_container() {
     local service_id=$1
     local container_name
     local image
+    local host_bind
     local host_port
     local container_port
+    local recreate_on_setup
+    local publish_arg
 
     container_name=$(plan_jq ".services[\"$service_id\"].container_name // \"$service_id\"")
     image=$(plan_jq ".services[\"$service_id\"].image")
+    host_bind=$(plan_jq ".services[\"$service_id\"].host_bind // empty")
     host_port=$(plan_jq ".services[\"$service_id\"].host_port")
     container_port=$(plan_jq ".services[\"$service_id\"].container_port")
+    recreate_on_setup=$(plan_jq ".services[\"$service_id\"].recreate_on_setup // false")
+
+    prepare_docker_service_files "$service_id"
+
+    if [[ -n "$host_bind" ]]; then
+        publish_arg="${host_bind}:${host_port}:${container_port}"
+    else
+        publish_arg="${host_port}:${container_port}"
+    fi
+
+    if [[ "$recreate_on_setup" == "true" ]] && \
+       docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        log_info "Recreating $service_id container to apply managed configuration..."
+        docker rm -f "$container_name" >/dev/null
+    fi
 
     # Check if container exists and is running
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
@@ -298,20 +535,33 @@ start_docker_container() {
         log_success "$service_id container started"
     else
         log_info "Creating and starting $service_id container..."
+        local env_args=()
+        while IFS= read -r env_pair; do
+            env_args+=(-e "$env_pair")
+        done < <(plan_jq ".services[\"$service_id\"].env // {} | to_entries[] | \"\(.key)=\(.value)\"")
+
         local mount_args=()
         while IFS= read -r mount; do
             local host_path
             local container_path
+            local mount_type
             host_path=$(echo "$mount" | jq -r '.host_path')
             container_path=$(echo "$mount" | jq -r '.container_path')
+            mount_type=$(echo "$mount" | jq -r '.type // "directory"')
             host_path=$(expand_tilde "$host_path")
-            mkdir -p "$host_path"
+            if [[ "$mount_type" == "file" ]]; then
+                mkdir -p "$(dirname "$host_path")"
+                [[ -f "$host_path" ]] || touch "$host_path"
+            else
+                mkdir -p "$host_path"
+            fi
             mount_args+=(-v "$host_path:$container_path")
         done < <(plan_jq ".services[\"$service_id\"].mounts // [] | .[] | @json")
 
         docker run -d \
             --name "$container_name" \
-            -p "${host_port}:${container_port}" \
+            -p "$publish_arg" \
+            "${env_args[@]}" \
             "${mount_args[@]}" \
             "$image" >/dev/null
 
@@ -320,12 +570,7 @@ start_docker_container() {
     fi
 
     DOCKER_CONTAINERS+=("$container_name")
-
-    local health_port
-    health_port=$(plan_jq ".services[\"$service_id\"].healthcheck.tcp // .services[\"$service_id\"].host_port")
-    if [[ "$health_port" != "null" ]]; then
-        wait_for_tcp "$service_id" "$health_port" "$SERVER_START_TIMEOUT"
-    fi
+    run_service_healthchecks "$service_id" "$service_id"
 }
 
 # Wait for a server process to open its port or exit (success/failure)
@@ -380,42 +625,38 @@ start_http_server() {
     local pid
 
     if check_port "$port"; then
-        log_success "$server_name already running on port $port"
-        pid=$(lsof -ti:"$port" -sTCP:LISTEN | head -1)
-        log_info "Using existing server (PID: $pid)"
-        
-        # Expands to `eval "SERVER_PID=1234"`, then executes that (global) assignment
+        log_error "$server_name cannot start; port $port is already in use"
+        return 1
+    fi
+
+    log_info "Starting $server_name on port $port with ${SERVER_START_TIMEOUT}sec timeout..."
+    log_info "  → launch command: ${start_cmd[*]}"
+
+    # Start tail first (waits for file creation)
+    tail -f "$log_file" 2>/dev/null &
+    local tail_pid=$!
+
+    # Start server with output to log file (nohup ensures survival after terminal closes)
+    nohup "${start_cmd[@]}" > "$log_file" 2>&1 &
+    pid=$!
+
+    local startup_ok=true
+    if wait_for_server_startup "$server_name" "$pid" "$port" "$SERVER_START_TIMEOUT" "$log_file"; then
         eval "$pid_var=$pid"
     else
-        log_info "Starting $server_name on port $port with ${SERVER_START_TIMEOUT}sec timeout..."
-        log_info "  → launch command: ${start_cmd[*]}"
+        startup_ok=false
+    fi
 
-        # Start tail first (waits for file creation)
-        tail -f "$log_file" 2>/dev/null &
-        local tail_pid=$!
+    # Stop showing output
+    kill "$tail_pid" 2>/dev/null
 
-        # Start server with output to log file (nohup ensures survival after terminal closes)
-        nohup "${start_cmd[@]}" > "$log_file" 2>&1 &
-        pid=$!
+    # Wait for the process to be fully killed, while ignoring exit code (returns 143 after being killed)
+    wait "$tail_pid" 2>/dev/null || true
 
-        local startup_ok=true
-        if wait_for_server_startup "$server_name" "$pid" "$port" "$SERVER_START_TIMEOUT" "$log_file"; then
-            eval "$pid_var=$pid"
-        else
-            startup_ok=false
-        fi
-
-        # Stop showing output
-        kill "$tail_pid" 2>/dev/null
-
-        # Wait for the process to be fully killed, while ignoring exit code (returns 143 after being killed)
-        wait "$tail_pid" 2>/dev/null || true 
-
-        if [[ "$startup_ok" == true ]]; then
-            return 0
-        else
-            exit 1
-        fi
+    if [[ "$startup_ok" == true ]]; then
+        return 0
+    else
+        exit 1
     fi
 }
 
@@ -442,12 +683,62 @@ clean_fastembed_cache_if_corrupt() {
     fi
 }
 
+register_http_service_runtime() {
+    local service_id=$1
+    local service_name=$2
+    local health_port=$3
+    local pid_var=$4
+    local pid
+
+    # Always resolve to the actual port-binding PID (the process holding the
+    # LISTEN socket), not the PID from $! which may be a parent wrapper (e.g.
+    # uv/uvx forks a child Python process rather than exec'ing into it).
+    # This keeps PID reporting consistent across first-run and reuse paths.
+    pid=$(port_listener_pid "$health_port")
+    if [[ -z "$pid" ]]; then
+        # Fallback to the PID from start_http_server (should not happen if
+        # the server started or was found successfully).
+        pid=$(eval "echo \${$pid_var:-}")
+    fi
+    HTTP_SERVICE_PIDS["$service_id"]="$pid"
+    HTTP_SERVICE_PORTS["$service_id"]="$health_port"
+    HTTP_SERVICE_LOGS["$service_id"]="/tmp/mcp-${service_name}-server.log"
+}
+
+start_and_record_http_service() {
+    local service_id=$1
+    local service_name=$2
+    local health_port=$3
+    local pid_var=$4
+    local last_action=$5
+    shift 5
+    local start_cmd=("$@")
+    local log_file="/tmp/mcp-${service_name}-server.log"
+    local pid
+
+    start_http_server "$service_name" "$health_port" "$pid_var" "${start_cmd[@]}"
+    register_http_service_runtime "$service_id" "$service_name" "$health_port" "$pid_var"
+
+    if ! run_service_healthchecks "$service_id" "$service_name"; then
+        log_error "$service_name failed healthchecks after launch; stopping it"
+        stop_port_process "$service_name" "$health_port" true || true
+        exit 1
+    fi
+
+    pid="${HTTP_SERVICE_PIDS[$service_id]}"
+    record_managed_service "$service_id" "$pid" "$log_file" "$last_action"
+}
+
 start_http_process() {
     local service_id=$1
     local service_name=$2
 
     local port
     local health_port
+    local port_listening=false
+    local assessment_json
+    local action
+    local status
     port=$(plan_jq ".services[\"$service_id\"].port")
     health_port=$(plan_jq ".services[\"$service_id\"].healthcheck.tcp // .services[\"$service_id\"].port")
 
@@ -462,23 +753,65 @@ start_http_process() {
     fi
 
     local pid_var="HTTP_PID_${service_id}"
-    start_http_server "$service_name" "$health_port" "$pid_var" "${start_cmd[@]}"
-
-    # Always resolve to the actual port-binding PID (the process holding the
-    # LISTEN socket), not the PID from $! which may be a parent wrapper (e.g.
-    # uv/uvx forks a child Python process rather than exec'ing into it).
-    # This ensures consistent PID reporting across first-run and reuse paths,
-    # and that the kill command targets the correct process.
+    local log_file="/tmp/mcp-${service_name}-server.log"
     local pid
-    pid=$(lsof -ti:"$health_port" -sTCP:LISTEN | head -1)
-    if [[ -z "$pid" ]]; then
-        # Fallback to the PID from start_http_server (should not happen if
-        # the server started or was found successfully)
-        pid=$(eval "echo \${$pid_var}")
+
+    if check_port "$health_port"; then
+        port_listening=true
     fi
-    HTTP_SERVICE_PIDS["$service_id"]="$pid"
-    HTTP_SERVICE_PORTS["$service_id"]="$health_port"
-    HTTP_SERVICE_LOGS["$service_id"]="/tmp/mcp-${service_name}-server.log"
+
+    assessment_json=$(assess_managed_service "$service_id" "$port_listening")
+    action=$(echo "$assessment_json" | jq -r '.action')
+    status=$(echo "$assessment_json" | jq -r '.status')
+
+    case "$action" in
+        start)
+            start_and_record_http_service "$service_id" "$service_name" "$health_port" \
+                "$pid_var" "started" "${start_cmd[@]}"
+            ;;
+        reuse)
+            pid=$(port_listener_pid "$health_port")
+            eval "$pid_var=$pid"
+            register_http_service_runtime "$service_id" "$service_name" "$health_port" "$pid_var"
+            log_success "$service_name managed listener already running on port $health_port (PID: $pid)"
+            if run_service_healthchecks "$service_id" "$service_name"; then
+                record_managed_service "$service_id" "$pid" "$log_file" "reused"
+            else
+                log_warning "$service_name managed listener failed healthchecks; restarting it"
+                stop_port_process "$service_name" "$health_port" true
+                start_and_record_http_service "$service_id" "$service_name" "$health_port" \
+                    "$pid_var" "restarted" "${start_cmd[@]}"
+            fi
+            ;;
+        restart)
+            log_info "Restarting $service_name because registry status is $status"
+            local kill_parent=true
+            if [[ "$status" == "adopted_unverified" ]]; then
+                kill_parent=false
+            fi
+            stop_port_process "$service_name" "$health_port" "$kill_parent"
+            start_and_record_http_service "$service_id" "$service_name" "$health_port" \
+                "$pid_var" "restarted" "${start_cmd[@]}"
+            ;;
+        adopt)
+            pid=$(port_listener_pid "$health_port")
+            eval "$pid_var=$pid"
+            register_http_service_runtime "$service_id" "$service_name" "$health_port" "$pid_var"
+            log_warning "$service_name has an unregistered listener on port $health_port; verifying before reuse"
+            if run_service_healthchecks "$service_id" "$service_name"; then
+                log_warning "$service_name listener is healthy but unverified; Bureau will restart it on the next run"
+                record_adopted_service "$service_id" "$pid" "$log_file"
+            else
+                log_error "$service_name has an unregistered listener on port $health_port that failed Bureau healthchecks"
+                log_error "Leaving the process untouched. Stop it manually or run bin/close-bureau if it was launched by Bureau."
+                exit 1
+            fi
+            ;;
+        *)
+            log_error "Unknown managed-service action '$action' for $service_name"
+            exit 1
+            ;;
+    esac
 }
 
 ensure_file_dependency() {
@@ -746,6 +1079,14 @@ ensure_rancher_running() {
     fi
 }
 
+setup_requires_docker() {
+    jq -e '
+        ([.services[]? | select(.kind == "docker_container")] | length > 0)
+        or
+        ([.dependencies[]?.post_clone[]?[]? | select(type == "string" and contains("docker"))] | length > 0)
+    ' "$SETUP_PLAN_FILE" >/dev/null
+}
+
 # Install or update a Python package from git using uv tool
 install_or_update_pip_pkg_from_git() {
     local git_url=$1
@@ -801,6 +1142,19 @@ sync_npm_runtime() {
             fi
             ;;
     esac
+}
+
+render_search_router_configs() {
+    local bureau_search_included
+    bureau_search_included=$(plan_jq '[.client_configs[]? | has("bureau-search")] | any')
+    if [[ "$bureau_search_included" != "true" ]]; then
+        return 0
+    fi
+
+    log_info "Rendering bureau-search router config..."
+    uv run python "$SCRIPT_DIR/render-search-router-config.py" \
+        --plan "$SETUP_PLAN_FILE" \
+        --client bureau-search >/dev/null
 }
 
 # Ensure a git repository is cloned to a target path
@@ -979,9 +1333,15 @@ install_or_update_pip_pkg_from_git "https://github.com/github/spec-kit.git" "spe
 
 sync_npm_runtime
 
+if setup_requires_docker; then
+    log_info "Ensuring Rancher Desktop is running..."
+    ensure_rancher_running
+fi
+
 log_info "Preparing MCP dependencies..."
 
-# Prepare dependencies first (no docker needed for dependencies)
+# Prepare dependencies before services. Some dependency post-clone commands
+# build Docker images, so Docker readiness is checked above when required.
 while IFS= read -r dep_id; do
     dep_kind=$(plan_jq ".dependencies[\"$dep_id\"].kind")
     case "$dep_kind" in
@@ -1020,12 +1380,6 @@ done < <(dependency_order)
 
 log_info "Starting MCP services from catalog..."
 
-docker_services_count=$(plan_jq '.services | to_entries | map(select(.value.kind == "docker_container")) | length')
-if [[ "$docker_services_count" -gt 0 ]]; then
-    log_info "Ensuring Rancher Desktop is running..."
-    ensure_rancher_running
-fi
-
 while IFS= read -r service_id; do
     service_kind=$(plan_jq ".services[\"$service_id\"].kind")
     case "$service_kind" in
@@ -1042,6 +1396,8 @@ while IFS= read -r service_id; do
             ;;
     esac
 done < <(service_order)
+
+render_search_router_configs
 
 log_separator
 log_info "Configuring agents to use MCP servers..."

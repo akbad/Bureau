@@ -187,6 +187,35 @@ enabled = true
         assert tools["qdrant-find"]["approval_mode"] == "approve"
         assert tools["qdrant-store"]["approval_mode"] == "approve"
 
+    def test_writes_open_websearch_tool_approvals_from_plan(self, tmp_path):
+        config_path = tmp_path / "config.toml"
+        config_path.write_text("""
+[mcp_servers.open-websearch]
+command = "npx"
+args = ["-y", "open-websearch@2.1.7"]
+transport = "stdio"
+enabled = true
+""".lstrip(), encoding="utf-8")
+
+        plan_path = self._make_plan(tmp_path, {
+            "open-websearch": [
+                "search",
+                "fetchWebContent",
+                "fetchGithubReadme",
+                "fetchCsdnArticle",
+                "fetchJuejinArticle",
+                "fetchLinuxDoArticle",
+            ],
+        })
+
+        update_codex_config(str(config_path), ["open-websearch"], plan_path)
+
+        doc = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+        tools = doc["mcp_servers"]["open-websearch"]["tools"]
+        assert tools["search"]["approval_mode"] == "approve"
+        assert tools["fetchWebContent"]["approval_mode"] == "approve"
+        assert tools["fetchGithubReadme"]["approval_mode"] == "approve"
+
     def test_preserves_existing_tool_approvals(self, tmp_path):
         """Existing per-tool entries should not be clobbered."""
         config_path = tmp_path / "config.toml"

@@ -81,13 +81,16 @@ To use Bureau, you need at least one of the following:
 ### API keys *(for remote/cloud-based MCP servers)*
 
 > [!NOTE]
-> All the servers requiring API keys have **free versions with generous monthly usage limits: you don't have to pay anything to use them** if you don't want to.
+> These keys are recommended for the strongest cloud-backed search/docs path, but they are not required for all browsing. Bureau Search/SearXNG, Fetch, open-webSearch, and Crawl4AI run without API keys.
 
 Make sure the following environment variables are set (e.g. in your `.zshrc/.bashrc`):
 
 - `TAVILY_API_KEY` [(get one here)](https://www.tavily.com/)
 - `BRAVE_API_KEY` [(get one here)](https://brave.com/search/api/)
 - `CONTEXT7_API_KEY` [(get one here)](https://console.upstash.com/)
+
+> [!NOTE]
+> Docker is used by default for Bureau's managed SearXNG search service and Crawl4AI. Keep Docker Desktop or Rancher Desktop available before `open-bureau` if you want local search and crawl/extraction MCPs available immediately.
 
 ## Setup
 
@@ -138,7 +141,7 @@ $ open-bureau  # in this repo's bin/
 1. Checks prerequisites and installs Python dependencies
 2. Installs Bureau's non-MCP CLI tools (e.g. GitHub SpecKit)
 3. Clones MCP servers that must be run from source
-4. Starts MCP servers (and backing containers where needed) and sets up all enabled CLI agents to use them
+4. Builds source-pinned local Docker MCP images when configured, then starts MCP servers (and backing containers where needed) and sets up all enabled CLI agents to use them
 5. Sets up agent role prompts and custom slash commands/launch wrappers for them *(to allow interactive use as main agents)*
 6. Configures context injection hooks for each enabled CLI:
     
@@ -326,7 +329,7 @@ auto_approved:
 |:------|:---------|
 | MCP server not starting | Check logs in `/tmp/mcp-*-server.log` |
 | Docker not running | Start Docker Desktop / Rancher Desktop first |
-| Missing API key warnings | Set the environment variables listed in prerequisites |
+| Missing API key warnings | Set the environment variables listed in prerequisites for cloud-backed MCPs; no-key fallbacks still work |
 | Port conflicts | Override MCP ports in `local.yml` (see [CONFIGURATION.md](CONFIGURATION.md#change-mcp-ports-to-avoid-conflicts)) |
 
 > [!NOTE]
