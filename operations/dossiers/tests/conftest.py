@@ -66,17 +66,9 @@ def make_dossier_with_deleted_tasks(
 
 
 # ── Identity / registration / cleanup fixtures ──────────────────────────
-# These support tests for v2 agent-registration logic. They isolate session
-# marker files into tmp_path, let tests stub out process-alive and PID
-# lookups, and allow overrides of the config-driven TTL/interval values.
-
-
-@pytest.fixture
-def sessions_root(tmp_path: Path) -> Path:
-    """Temp directory root for session marker files, isolated per test."""
-    path = tmp_path / "sessions"
-    path.mkdir()
-    return path
+# These support tests for v3 single-store agent-registration logic: they let
+# tests stub out the self-pid resolution and the liveness oracle, and override
+# the config-driven TTL/interval values.
 
 
 @pytest.fixture
@@ -99,15 +91,18 @@ def mock_cli_pid(monkeypatch: pytest.MonkeyPatch) -> Callable[[int], None]:
 
 @pytest.fixture
 def mock_process_alive(monkeypatch: pytest.MonkeyPatch) -> Callable[[dict[int, bool]], None]:
-    """Factory: pin `identity._process_alive` to return from a PID → alive map.
+    """Factory: pin the liveness oracle to return from a PID → alive map.
 
-    Unlisted PIDs default to False (dead).
+    `_process_alive` lives in `db` and is imported by `identity`; both
+    resolve_identity (identity's namespace) and cleanup (db's namespace) call
+    it, so both bindings are patched. Unlisted PIDs default to False (dead),
+    and None (a worker without a cli_pid) is always dead.
     """
     def _set(pid_alive_map: dict[int, bool]) -> None:
-        monkeypatch.setattr(
-            "operations.dossiers.identity._process_alive",
-            lambda pid: pid_alive_map.get(pid, False),
-        )
+        def _alive(pid: int | None) -> bool:
+            return False if pid is None else pid_alive_map.get(pid, False)
+        monkeypatch.setattr("operations.dossiers.db._process_alive", _alive)
+        monkeypatch.setattr("operations.dossiers.identity._process_alive", _alive)
     return _set
 
 

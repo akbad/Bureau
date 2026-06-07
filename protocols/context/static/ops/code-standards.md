@@ -35,6 +35,33 @@
 - After making changes, **verify they work**. Run relevant tests, check that the build passes, confirm the change does what was intended. Do not claim completion without evidence.
 - Code standards in this document apply to code you are *writing or meaningfully modifying*, not to pre-existing code in the same file.
 
+### Agent coding discipline
+
+- **Surface assumptions before editing.**
+
+    - State the task interpretation when ambiguity could change the implementation.
+    - Ask only when ambiguity is material; do not stall on facts discoverable from the repository.
+    - Push back when a request conflicts with correctness, repository instructions, or a simpler viable path.
+
+- **Prefer the simplest correct solution.**
+
+    - Implement the minimum behavior that satisfies the request and preserves existing contracts.
+    - Do not add speculative features, one-off abstractions, unrequested configurability, or handling for impossible scenarios.
+    - If the implementation grows beyond the task's real shape, simplify before editing more.
+
+- **Make surgical changes.**
+
+    - Every changed line should trace directly to the user's request or to verification of that request.
+    - Match local style even when a different style would be preferable elsewhere.
+    - Clean up imports, variables, functions, docs, or tests only when this change made them orphaned.
+
+- **Define success criteria and verify them.**
+
+    - Convert each task into explicit checks before or while implementing.
+    - For bug fixes, reproduce the failure or identify the narrowest check that would have caught it.
+    - For refactors, verify behavior before and after the change whenever practical.
+    - Report completion only after the relevant check has actually run.
+
 ### Reason about invariants before code
 
 - Before writing a function, name the invariants it must preserve.

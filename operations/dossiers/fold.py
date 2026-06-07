@@ -8,12 +8,7 @@ from typing import Any
 
 from .db import create_dossier_db, open_dossier_db, safe_db_path, _now_iso, MAX_DIGEST_LENGTH, MAX_TASKS_PER_DOSSIER
 from .errors import ConcurrentInstanceError
-from .identity import (
-    DEFAULT_SESSIONS_ROOT,
-    _delete_session_file,
-    resolve_identity,
-    safe_session_file_path,
-)
+from .identity import resolve_identity
 from .lock import release_lock
 from .registration import deregister_agent
 from .tasks import _validate_task_fields
@@ -173,24 +168,24 @@ def fold_dossier(
             decision_count = conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
 
         # ── Exit path 1: refold deregistration + lock release ─────────────
-        # Fold semantically means "I'm done with this dossier." Clear the
-        # agent's session file + registrations row so the slot can be reused;
-        # release the lock so other agents aren't blocked.
+        # Fold semantically means "I'm done with this dossier." Delete the
+        # agent's registrations row so the slot can be reused, and release the
+        # lock so other agents aren't blocked. Single store: the row is the
+        # only identity artifact (no session file).
         # Only applies to refolds by an orchestrator (bare type). Fresh folds
-        # have no prior session to clean up. Worker labels never reach fold.
+        # have no prior registration to clean up. Worker labels never reach fold.
         lock_release_agent_id = None
         if is_refold and agent and ":" not in agent:
-            session_path = safe_session_file_path(DEFAULT_SESSIONS_ROOT, slug, agent)
-            if session_path.exists():
-                try:
-                    agent_id = resolve_identity(conn, DEFAULT_SESSIONS_ROOT, slug, agent)
-                    deregister_agent(conn, agent_id)
-                    _delete_session_file(session_path)
-                    lock_release_agent_id = agent_id
-                except ConcurrentInstanceError as e:
-                    # another live process owns the session — don't clean up
-                    # their state. The fold itself already committed.
-                    _log.warning("Skipping fold deregistration: %s", e)
+            try:
+                # resolve_identity adopts/refreshes my slot (or raises if a
+                # live other instance owns it — then leave their state alone).
+                agent_id = resolve_identity(conn, slug, agent)
+                deregister_agent(conn, agent_id)
+                lock_release_agent_id = agent_id
+            except ConcurrentInstanceError as e:
+                # another live process owns the slot — don't clean up their
+                # state. The fold itself already committed.
+                _log.warning("Skipping fold deregistration: %s", e)
 
     # release the lock outside the db context so release_lock's own connection
     # sees the committed deregistration. Catch ValueError to tolerate

@@ -32,7 +32,8 @@ CODE_STANDARDS_SKILL_GENERATOR="$REPO_ROOT/protocols/scripts/generate-code-stand
 # Skill directory locations for each CLI
 CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
 OPENCODE_SKILLS_DIR="$HOME/.config/opencode/skill"
-CODEX_GEMINI_SKILLS_DIR="$HOME/.agents/skills"
+CODEX_SKILLS_DIR="$HOME/.agents/skills"
+ANTIGRAVITY_SKILLS_DIR="$HOME/.gemini/config/plugins/bureau/skills"
 LEGACY_CODEX_SKILLS_DIR="$HOME/.codex/skills"
 LEGACY_BUREAU_SKILL_PREFIX="bureau-"
 GENERATED_BUREAU_SKILLS_DIR="$HOME/.config/bureau/generated/skills"
@@ -278,7 +279,8 @@ log_empty_line
 
 remove_bureau_skill_dirs "$CLAUDE_SKILLS_DIR"
 remove_bureau_skill_dirs "$OPENCODE_SKILLS_DIR"
-remove_bureau_skill_dirs "$CODEX_GEMINI_SKILLS_DIR"
+remove_bureau_skill_dirs "$CODEX_SKILLS_DIR"
+remove_bureau_skill_dirs "$ANTIGRAVITY_SKILLS_DIR"
 remove_bureau_skill_dirs "$LEGACY_CODEX_SKILLS_DIR"
 
 log_empty_line
@@ -300,8 +302,12 @@ log_header "OpenCode" "$OPENCODE_SKILLS_DIR"
 set_up_bureau_skill_dirs "$OPENCODE_SKILLS_DIR"
 echo ""
 
-log_header "Codex / Gemini CLI" "$CODEX_GEMINI_SKILLS_DIR"
-set_up_bureau_skill_dirs "$CODEX_GEMINI_SKILLS_DIR"
+log_header "Codex" "$CODEX_SKILLS_DIR"
+set_up_bureau_skill_dirs "$CODEX_SKILLS_DIR"
+echo ""
+
+log_header "Antigravity (Gemini CLI)" "$ANTIGRAVITY_SKILLS_DIR"
+set_up_bureau_skill_dirs "$ANTIGRAVITY_SKILLS_DIR"
 echo ""
 
 log_divider

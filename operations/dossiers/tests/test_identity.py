@@ -1,47 +1,63 @@
-"""Tests for identity resolution, session marker files, and liveness checks."""
-import json
+"""Tests for v3 single-store identity resolution and liveness checks."""
 import os
-import sqlite3
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from operations.dossiers.db import open_dossier_db, safe_db_path
+from operations.dossiers.db import _process_alive, open_dossier_db, safe_db_path
 from operations.dossiers.errors import ConcurrentInstanceError
 from operations.dossiers.identity import (
-    _delete_session_file,
-    _generate_agent_id,
+    MAX_RESOLVE_ATTEMPTS,
     _get_cli_process_pid,
-    _process_alive,
-    _read_session_file,
-    _write_session_file,
+    _orchestrator_agent_id,
+    _ppid_via_proc,
+    _ppid_via_ps,
     resolve_identity,
-    safe_session_file_path,
 )
 
 
-# ── _get_cli_process_pid ────────────────────────────────────────────────
+# ── _get_cli_process_pid: the layered chain ─────────────────────────────
 
 
 class TestGetCliProcessPid:
-    def test_returns_integer(self):
+    def test_returns_positive_integer(self):
         pid = _get_cli_process_pid()
         assert isinstance(pid, int)
         assert pid > 0
 
-    def test_falls_back_to_shell_pid_on_ps_failure(self, monkeypatch):
-        import subprocess
+    def test_env_override_wins(self, monkeypatch):
+        monkeypatch.setenv("BUREAU_CLI_PID", "424242")
+        assert _get_cli_process_pid() == 424242
 
-        def _boom(*args, **kwargs):
-            raise subprocess.CalledProcessError(1, args[0] if args else [])
+    def test_non_integer_env_is_ignored(self, monkeypatch):
+        monkeypatch.setenv("BUREAU_CLI_PID", "not-a-pid")
+        # falls through to the ancestor chain / degrade; just needs to be valid
+        assert _get_cli_process_pid() > 0
 
-        monkeypatch.setattr("operations.dossiers.identity.subprocess.run", _boom)
-        pid = _get_cli_process_pid()
-        assert pid == os.getppid()
+    def test_degrades_to_shell_pid_when_proc_and_ps_fail(self, monkeypatch):
+        monkeypatch.delenv("BUREAU_CLI_PID", raising=False)
+        monkeypatch.setattr("operations.dossiers.identity._ppid_via_proc", lambda pid: None)
+        monkeypatch.setattr("operations.dossiers.identity._ppid_via_ps", lambda pid: None)
+        assert _get_cli_process_pid() == os.getppid()
+
+    def test_prefers_proc_over_ps(self, monkeypatch):
+        monkeypatch.delenv("BUREAU_CLI_PID", raising=False)
+        monkeypatch.setattr("operations.dossiers.identity._ppid_via_proc", lambda pid: 31337)
+        monkeypatch.setattr("operations.dossiers.identity._ppid_via_ps", lambda pid: 9999)
+        assert _get_cli_process_pid() == 31337
 
 
-# ── _process_alive ──────────────────────────────────────────────────────
+class TestPpidParsers:
+    def test_ps_returns_int_or_none(self):
+        # the shell's parent should resolve to a positive pid on this host
+        result = _ppid_via_ps(os.getppid())
+        assert result is None or result > 0
+
+    def test_proc_handles_missing_path(self):
+        # macOS has no /proc; on Linux a bogus pid has no stat file
+        assert _ppid_via_proc(999_999_999) is None
+
+
+# ── _process_alive (oracle lives in db, re-exported via identity) ────────
 
 
 class TestProcessAlive:
@@ -49,255 +65,224 @@ class TestProcessAlive:
         assert _process_alive(os.getpid()) is True
 
     def test_nonexistent_pid_is_dead(self):
-        # PIDs in the 99000s are almost never allocated on macOS (max PID 99999)
-        # we pick a high value and verify it reads as not-alive
         assert _process_alive(999_999_999) is False
 
-    def test_zero_pid_is_dead(self):
-        # guard against os.kill(0, 0) which targets the process group
-        assert _process_alive(0) is False
+    def test_none_pid_is_dead(self):
+        # worker with no recorded cli_pid => timestamp-only handling
+        assert _process_alive(None) is False
 
-    def test_negative_pid_is_dead(self):
+    def test_zero_and_negative_pid_are_dead(self):
+        assert _process_alive(0) is False
         assert _process_alive(-1) is False
 
     def test_permission_error_treated_as_alive(self, monkeypatch):
         def _raise_permission(pid, sig):
             raise PermissionError("not allowed")
-        monkeypatch.setattr("operations.dossiers.identity.os.kill", _raise_permission)
+        monkeypatch.setattr("operations.dossiers.db.os.kill", _raise_permission)
         assert _process_alive(12345) is True
 
 
-# ── safe_session_file_path ──────────────────────────────────────────────
+# ── _orchestrator_agent_id: deterministic, slot-keyed ───────────────────
 
 
-class TestSafeSessionFilePath:
-    def test_returns_path_under_sessions_root(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "some-slug", "claude-code")
-        assert str(path).startswith(str(sessions_root.resolve()))
-        assert path.name == "claude-code"
+class TestOrchestratorAgentId:
+    def test_format(self):
+        agent_id = _orchestrator_agent_id("my-slug", "claude-code")
+        assert agent_id.startswith("orch-claude-code-")
+        suffix = agent_id.rsplit("-", 1)[1]
+        assert len(suffix) == 16
+        int(suffix, 16)  # parses as hex
 
-    def test_rejects_slug_escape(self, sessions_root: Path):
-        with pytest.raises(ValueError, match="escapes allowed"):
-            safe_session_file_path(sessions_root, "../escape", "claude-code")
+    def test_deterministic(self):
+        assert _orchestrator_agent_id("s", "claude-code") == _orchestrator_agent_id("s", "claude-code")
 
-    def test_rejects_agent_escape(self, sessions_root: Path):
-        with pytest.raises(ValueError, match="escapes allowed"):
-            safe_session_file_path(sessions_root, "slug", "../../etc/passwd")
-
-
-# ── session file I/O ────────────────────────────────────────────────────
-
-
-class TestSessionFileIO:
-    def test_write_then_read_roundtrips(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "slug", "claude-code")
-        payload = {"agent_id": "claude-code:a7f3c2", "pid": 12345, "created_at": "2026-04-14T00:00:00Z"}
-        _write_session_file(path, payload)
-        assert _read_session_file(path) == payload
-
-    def test_read_missing_returns_none(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "slug", "claude-code")
-        assert _read_session_file(path) is None
-
-    def test_read_invalid_json_returns_none(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "slug", "claude-code")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("{not valid json")
-        assert _read_session_file(path) is None
-
-    def test_read_non_dict_returns_none(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "slug", "claude-code")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text('["list", "not", "dict"]')
-        assert _read_session_file(path) is None
-
-    def test_read_missing_keys_returns_none(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "slug", "claude-code")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text('{"agent_id": "x"}')  # missing pid and created_at
-        assert _read_session_file(path) is None
-
-    def test_write_creates_parent_dir_with_0o700(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "slug", "claude-code")
-        _write_session_file(path, {"agent_id": "x", "pid": 1, "created_at": "t"})
-        mode = path.parent.stat().st_mode & 0o777
-        assert mode == 0o700
-
-    def test_write_creates_file_with_0o600(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "slug", "claude-code")
-        _write_session_file(path, {"agent_id": "x", "pid": 1, "created_at": "t"})
-        mode = path.stat().st_mode & 0o777
-        assert mode == 0o600
-
-    def test_write_is_atomic_no_tempfile_left_on_success(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "slug", "claude-code")
-        _write_session_file(path, {"agent_id": "x", "pid": 1, "created_at": "t"})
-        tempfiles = [p for p in path.parent.iterdir() if p.name.startswith(".session-")]
-        assert tempfiles == []
-
-    def test_delete_is_idempotent(self, sessions_root: Path):
-        path = safe_session_file_path(sessions_root, "slug", "claude-code")
-        _delete_session_file(path)  # missing path — should not raise
-        _write_session_file(path, {"agent_id": "x", "pid": 1, "created_at": "t"})
-        _delete_session_file(path)
-        assert not path.exists()
+    def test_distinct_per_slug_and_type(self):
+        ids = {
+            _orchestrator_agent_id("s1", "claude-code"),
+            _orchestrator_agent_id("s2", "claude-code"),
+            _orchestrator_agent_id("s1", "codex"),
+        }
+        assert len(ids) == 3
 
 
-# ── _generate_agent_id ──────────────────────────────────────────────────
-
-
-class TestGenerateAgentId:
-    def test_format_is_type_colon_hex(self):
-        agent_id = _generate_agent_id("claude-code")
-        assert agent_id.startswith("claude-code:")
-        suffix = agent_id.split(":", 1)[1]
-        assert len(suffix) == 6
-        int(suffix, 16)  # must parse as hex
-
-    def test_ids_are_distinct(self):
-        ids = {_generate_agent_id("claude-code") for _ in range(200)}
-        assert len(ids) == 200
-
-
-# ── resolve_identity: the four branches ─────────────────────────────────
+# ── resolve_identity: the collapsed state machine ───────────────────────
 
 
 class TestResolveIdentityFresh:
-    def test_creates_session_file_and_registration(
-        self, tmp_path, make_dossier, sessions_root, mock_cli_pid
+    def test_inserts_orchestrator_row_with_split_timestamps(
+        self, tmp_path, make_dossier, mock_cli_pid
     ):
         mock_cli_pid(11111)
-        result = make_dossier()
-        slug = result["slug"]
+        slug = make_dossier()["slug"]
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            agent_id = resolve_identity(conn, sessions_root, slug, "claude-code")
+            agent_id = resolve_identity(conn, slug, "claude-code")
 
-            assert agent_id.startswith("claude-code:")
+            assert agent_id == _orchestrator_agent_id(slug, "claude-code")
             row = conn.execute(
-                "SELECT agent_type, ppid, role FROM registrations WHERE agent_id = ?",
+                "SELECT agent_type, cli_pid, role, registered_at, last_heartbeat "
+                "FROM registrations WHERE agent_id = ?",
                 (agent_id,),
             ).fetchone()
             assert row["agent_type"] == "claude-code"
-            assert row["ppid"] == 11111
+            assert row["cli_pid"] == 11111
             assert row["role"] == "orchestrator"
-
-        # session file reflects the same identity + pid
-        session = _read_session_file(
-            safe_session_file_path(sessions_root, slug, "claude-code")
-        )
-        assert session["agent_id"] == agent_id
-        assert session["pid"] == 11111
+            # set-once registered_at == first last_heartbeat on a fresh insert
+            assert row["registered_at"] == row["last_heartbeat"]
 
 
 class TestResolveIdentitySameSession:
-    def test_returns_existing_id_and_refreshes_heartbeat(
-        self, tmp_path, make_dossier, sessions_root, mock_cli_pid
+    def test_same_id_refreshes_heartbeat_not_registered_at(
+        self, tmp_path, make_dossier, mock_cli_pid
     ):
         mock_cli_pid(22222)
         slug = make_dossier()["slug"]
-
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            first = resolve_identity(conn, sessions_root, slug, "claude-code")
-            first_ts = conn.execute(
-                "SELECT registered_at FROM registrations WHERE agent_id = ?",
+            first = resolve_identity(conn, slug, "claude-code")
+            born = conn.execute(
+                "SELECT registered_at FROM registrations WHERE agent_id = ?", (first,)
+            ).fetchone()["registered_at"]
+            # force a later heartbeat so the timestamps would differ if touched
+            conn.execute(
+                "UPDATE registrations SET last_heartbeat = '2000-01-01T00:00:00Z' "
+                "WHERE agent_id = ?",
                 (first,),
-            ).fetchone()["registered_at"]
-
-        # advance state: same PID, next call should be same-session (no new id)
-        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            second = resolve_identity(conn, sessions_root, slug, "claude-code")
-            second_ts = conn.execute(
-                "SELECT registered_at FROM registrations WHERE agent_id = ?",
+            )
+            conn.commit()
+            second = resolve_identity(conn, slug, "claude-code")
+            row = conn.execute(
+                "SELECT registered_at, last_heartbeat FROM registrations WHERE agent_id = ?",
                 (second,),
-            ).fetchone()["registered_at"]
+            ).fetchone()
 
         assert first == second
-        assert second_ts >= first_ts
+        assert row["registered_at"] == born          # set-once preserved
+        assert row["last_heartbeat"] > "2000-01-01T00:00:00Z"  # heartbeat refreshed
 
 
 class TestResolveIdentityConcurrent:
-    def test_raises_when_stored_pid_is_alive_and_different(
-        self, tmp_path, make_dossier, sessions_root, mock_cli_pid, mock_process_alive
+    def test_raises_when_other_pid_alive(
+        self, tmp_path, make_dossier, mock_cli_pid, mock_process_alive
     ):
         mock_cli_pid(33333)
         slug = make_dossier()["slug"]
-
-        # first call creates session file with pid 33333
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            resolve_identity(conn, sessions_root, slug, "claude-code")
+            resolve_identity(conn, slug, "claude-code")
 
-        # second call: different CLI pid, and the stored pid is still "alive"
         mock_cli_pid(44444)
         mock_process_alive({33333: True})
-
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            with pytest.raises(ConcurrentInstanceError, match="PID 33333"):
-                resolve_identity(conn, sessions_root, slug, "claude-code")
+            with pytest.raises(ConcurrentInstanceError, match="cli_pid=33333"):
+                resolve_identity(conn, slug, "claude-code")
 
 
 class TestResolveIdentityAdopt:
-    def test_adopts_when_stored_pid_is_dead(
-        self, tmp_path, make_dossier, sessions_root, mock_cli_pid, mock_process_alive
+    def test_adopts_dead_pid_preserving_id_and_registered_at(
+        self, tmp_path, make_dossier, mock_cli_pid, mock_process_alive
     ):
         mock_cli_pid(55555)
         slug = make_dossier()["slug"]
-
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            original_id = resolve_identity(conn, sessions_root, slug, "claude-code")
+            original = resolve_identity(conn, slug, "claude-code")
+            born = conn.execute(
+                "SELECT registered_at FROM registrations WHERE agent_id = ?", (original,)
+            ).fetchone()["registered_at"]
 
-        # CLI relaunches with a new pid; the old pid is no longer alive
+        # CLI relaunches with a new pid; the old pid is dead
         mock_cli_pid(66666)
         mock_process_alive({55555: False})
-
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            adopted_id = resolve_identity(conn, sessions_root, slug, "claude-code")
-            assert adopted_id == original_id
-
-            # registration.ppid was updated to the new pid
+            adopted = resolve_identity(conn, slug, "claude-code")
             row = conn.execute(
-                "SELECT ppid FROM registrations WHERE agent_id = ?",
-                (adopted_id,),
+                "SELECT cli_pid, registered_at FROM registrations WHERE agent_id = ?",
+                (adopted,),
             ).fetchone()
-            assert row["ppid"] == 66666
 
-        # session file pid was updated
-        session = _read_session_file(
-            safe_session_file_path(sessions_root, slug, "claude-code")
-        )
-        assert session["pid"] == 66666
-        assert session["agent_id"] == original_id
-
-
-class TestResolveIdentityCorruption:
-    def test_corrupt_session_file_falls_through_to_fresh(
-        self, tmp_path, make_dossier, sessions_root, mock_cli_pid
-    ):
-        mock_cli_pid(77777)
-        slug = make_dossier()["slug"]
-
-        # seed a corrupt session file
-        path = safe_session_file_path(sessions_root, slug, "claude-code")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("{not valid")
-
-        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            agent_id = resolve_identity(conn, sessions_root, slug, "claude-code")
-
-        # fresh branch: new identity minted, registration inserted
-        assert agent_id.startswith("claude-code:")
+        assert adopted == original           # deterministic id is continuous
+        assert row["cli_pid"] == 66666       # cli_pid taken over
+        assert row["registered_at"] == born  # identity birth time preserved
 
 
 class TestResolveIdentityIndependentTypes:
-    def test_different_agent_types_get_independent_identities(
-        self, tmp_path, make_dossier, sessions_root, mock_cli_pid
-    ):
+    def test_distinct_types_coexist(self, tmp_path, make_dossier, mock_cli_pid):
         mock_cli_pid(88888)
         slug = make_dossier()["slug"]
-
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            claude_id = resolve_identity(conn, sessions_root, slug, "claude-code")
-            codex_id = resolve_identity(conn, sessions_root, slug, "codex")
+            claude = resolve_identity(conn, slug, "claude-code")
+            codex = resolve_identity(conn, slug, "codex")
 
-        assert claude_id.startswith("claude-code:")
-        assert codex_id.startswith("codex:")
-        assert claude_id != codex_id
+        assert claude.startswith("orch-claude-code-")
+        assert codex.startswith("orch-codex-")
+        assert claude != codex
+
+
+class TestResolveIdentityMechanism1:
+    def test_identity_reset_warning_on_insert_after_recent_reap(
+        self, tmp_path, make_dossier, mock_cli_pid, caplog
+    ):
+        mock_cli_pid(99999)
+        slug = make_dossier()["slug"]
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            # simulate a reap of this agent_type moments ago
+            conn.execute(
+                "INSERT INTO reap_log (reaped_at, agent_id, agent_type, role, "
+                "last_heartbeat, stale_by_sec, tasks_reverted, lock_released, reap_reason) "
+                "VALUES (datetime('now'), 'orch-claude-code-deadbeefdeadbeef', "
+                "'claude-code', 'orchestrator', '2020-01-01T00:00:00Z', 9000, "
+                "'[7, 8]', 1, 'pid_dead')",
+            )
+            conn.commit()
+            with caplog.at_level("WARNING"):
+                resolve_identity(conn, slug, "claude-code")
+
+        assert "IDENTITY RESET" in caplog.text
+        assert "[7, 8]" in caplog.text
+
+    def test_no_warning_on_clean_fresh_insert(
+        self, tmp_path, make_dossier, mock_cli_pid, caplog
+    ):
+        mock_cli_pid(99999)
+        slug = make_dossier()["slug"]
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            with caplog.at_level("WARNING"):
+                resolve_identity(conn, slug, "claude-code")
+        assert "IDENTITY RESET" not in caplog.text
+
+
+class TestResolveIdentityConvergence:
+    def test_raises_runtime_error_when_adopt_loop_never_converges(
+        self, tmp_path, make_dossier, mock_cli_pid, mock_process_alive
+    ):
+        # Seed a dead-pid slot so every attempt enters the adopt branch, then
+        # make every adopt CAS miss (proxy skips the UPDATE and reports
+        # rowcount 0) — simulating perpetual adopt-race contention. The slot's
+        # cli_pid stays dead across iterations, so the bounded loop must give up.
+        mock_cli_pid(70000)
+        slug = make_dossier()["slug"]
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            resolve_identity(conn, slug, "claude-code")
+            conn.execute("UPDATE registrations SET cli_pid = 12345")  # a dead pid
+            conn.commit()
+            mock_cli_pid(70001)
+            mock_process_alive({12345: False})
+
+            class _AdoptNeverWins:
+                """Proxy that never lets the adopt CAS succeed (rowcount 0)."""
+
+                def __init__(self, real):
+                    self._real = real
+
+                def execute(self, sql, *args, **kwargs):
+                    if sql.lstrip().upper().startswith("UPDATE REGISTRATIONS SET CLI_PID"):
+                        class _Zero:
+                            rowcount = 0
+                        return _Zero()  # skip the write entirely; slot stays dead
+                    return self._real.execute(sql, *args, **kwargs)
+
+                def commit(self):
+                    return self._real.commit()
+
+                def __getattr__(self, name):
+                    return getattr(self._real, name)
+
+            with pytest.raises(RuntimeError, match="did not converge"):
+                resolve_identity(_AdoptNeverWins(conn), slug, "claude-code")

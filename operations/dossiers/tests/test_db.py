@@ -1,4 +1,4 @@
-"""Tests for dossier database creation and schema."""
+"""Tests for dossier database creation, schema, and v3->v4 migration."""
 import sqlite3
 from pathlib import Path
 
@@ -6,11 +6,67 @@ import pytest
 
 from operations.dossiers.db import (
     SCHEMA_VERSION,
+    _BASE_SCHEMA_SQL,
+    _V4_REBUILD_STATEMENTS,
+    _now_iso,
+    _user_version,
     connect_dossier_db,
     create_dossier_db,
     escape_md,
+    migrate_v3_to_v4,
     safe_db_path,
 )
+
+# The pre-migration (v3) registrations shape: ppid (not cli_pid), no
+# last_heartbeat, no role CHECK, a plain agent_type index instead of the
+# partial orchestrator-slot unique.
+_OLD_REGISTRATIONS = """CREATE TABLE registrations (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id      TEXT NOT NULL UNIQUE,
+    agent_type    TEXT NOT NULL,
+    ppid          INTEGER,
+    role          TEXT NOT NULL DEFAULT 'orchestrator',
+    registered_at TEXT NOT NULL
+)"""
+_OLD_REG_INDEX = "CREATE INDEX idx_registrations_type ON registrations(agent_type)"
+
+
+def _make_v3_db(path: Path, *, with_orphans: bool = False) -> None:
+    """Build a v3-shaped dossier DB (base tables identical to v4 + old regs)."""
+    conn = sqlite3.connect(path)
+    conn.executescript(_BASE_SCHEMA_SQL)  # identical base tables to fresh-v4
+    conn.execute(_OLD_REGISTRATIONS)
+    conn.execute(_OLD_REG_INDEX)
+    now = _now_iso()
+    conn.execute(
+        "INSERT INTO metadata (id, hash, name, slug, created_at, updated_at, locked_by) "
+        "VALUES (1, 'h', 'n', ?, ?, ?, ?)",
+        (path.stem, now, now, "claude-code:old1" if with_orphans else None),
+    )
+    # a stale v3 registration that drop-and-recreate must discard
+    conn.execute(
+        "INSERT INTO registrations (agent_id, agent_type, ppid, role, registered_at) "
+        "VALUES ('claude-code:old1', 'claude-code', 999, 'orchestrator', ?)",
+        (now,),
+    )
+    if with_orphans:
+        conn.execute(
+            "INSERT INTO tasks (subject, status, owner) "
+            "VALUES ('t1', 'in_progress', 'claude-code:old1')"
+        )
+    conn.execute("PRAGMA user_version = 3")
+    conn.commit()
+    conn.close()
+
+
+def _schema_objects(path: Path) -> list[tuple]:
+    conn = sqlite3.connect(path)
+    rows = conn.execute(
+        "SELECT type, name, sql FROM sqlite_master "
+        "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
+    ).fetchall()
+    conn.close()
+    return rows
 
 
 class TestCreateDossierDb:
@@ -159,3 +215,98 @@ class TestEscapeMd:
     def test_returns_empty_string_for_none(self):
         """None input is normalized to an empty string."""
         assert escape_md(None) == ""
+
+
+class TestMigrateV3ToV4:
+    """v3 -> v4: drop-and-recreate registrations, add reap_log, version-gated."""
+
+    def test_connect_migrates_v3_to_v4_shape(self, tmp_path: Path):
+        db = tmp_path / "d.db"
+        _make_v3_db(db)
+        conn = connect_dossier_db(db)
+        try:
+            assert _user_version(conn) == SCHEMA_VERSION
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(registrations)")}
+            assert "cli_pid" in cols and "last_heartbeat" in cols
+            assert "ppid" not in cols
+            objs = {r[1] for r in conn.execute(
+                "SELECT type, name FROM sqlite_master"
+            )}
+            assert "reap_log" in objs
+            assert "idx_registrations_orchestrator_slot" in objs
+            assert "idx_registrations_type" not in objs  # Q7: dropped for free
+        finally:
+            conn.close()
+
+    def test_drops_stale_v3_registration_rows(self, tmp_path: Path):
+        # registrations are a cache; the migration invalidates, never backfills
+        db = tmp_path / "d.db"
+        _make_v3_db(db)
+        conn = connect_dossier_db(db)
+        try:
+            assert conn.execute("SELECT COUNT(*) FROM registrations").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+    def test_writes_backup_before_rebuild(self, tmp_path: Path):
+        db = tmp_path / "d.db"
+        _make_v3_db(db)
+        connect_dossier_db(db).close()
+        assert (tmp_path / "d.db.pre-v4.bak").exists()
+
+    def test_fresh_and_migrated_schema_converge(self, tmp_path: Path):
+        # the classic silent-migration bug: the two paths must agree byte-for-byte
+        fresh = tmp_path / "fresh.db"
+        create_dossier_db(fresh)
+
+        migrated = tmp_path / "migrated.db"
+        _make_v3_db(migrated)
+        connect_dossier_db(migrated).close()
+
+        assert _schema_objects(fresh) == _schema_objects(migrated)
+
+    def test_second_connect_is_noop(self, tmp_path: Path):
+        db = tmp_path / "d.db"
+        _make_v3_db(db)
+        connect_dossier_db(db).close()
+        # already at v4: a second connect must not re-run / re-drop anything
+        conn = connect_dossier_db(db)
+        try:
+            assert _user_version(conn) == SCHEMA_VERSION
+        finally:
+            conn.close()
+
+    def test_crash_mid_migration_rolls_back_to_v3(self, tmp_path: Path, monkeypatch):
+        # transactional crash safety: a failure after DROP must restore v3,
+        # leaving user_version at 3 so the migration re-runs cleanly next time.
+        db = tmp_path / "d.db"
+        _make_v3_db(db)
+        monkeypatch.setattr(
+            "operations.dossiers.db._V4_REBUILD_STATEMENTS",
+            (_V4_REBUILD_STATEMENTS[0], "THIS IS NOT VALID SQL"),
+        )
+        with pytest.raises(sqlite3.OperationalError):
+            connect_dossier_db(db)
+
+        raw = sqlite3.connect(db)
+        try:
+            assert raw.execute("PRAGMA user_version").fetchone()[0] == 3
+            cols = {r[1] for r in raw.execute("PRAGMA table_info(registrations)")}
+            assert "ppid" in cols  # the v3 table is intact (DROP rolled back)
+        finally:
+            raw.close()
+
+    def test_orphan_report_printed_to_stderr(self, tmp_path: Path, capsys):
+        db = tmp_path / "d.db"
+        _make_v3_db(db, with_orphans=True)
+        connect_dossier_db(db).close()
+        err = capsys.readouterr().err
+        assert "orphaned owners" in err
+        assert "#1" in err
+        assert "lock held by a pre-v4 identity" in err
+
+    def test_clean_migration_is_quiet(self, tmp_path: Path, capsys):
+        db = tmp_path / "d.db"
+        _make_v3_db(db, with_orphans=False)
+        connect_dossier_db(db).close()
+        assert capsys.readouterr().err == ""

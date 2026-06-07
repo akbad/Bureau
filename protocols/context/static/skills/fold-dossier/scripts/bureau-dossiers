@@ -31,4 +31,8 @@ if [ ! -f "$REPO_ROOT/pyproject.toml" ]; then
   exit 1
 fi
 
+# cd into REPO_ROOT before exec: `uv run --project` does not chdir, and the
+# CLI's find_repo_root() walks up from cwd looking for defaults.yml. Without
+# this cd, invoking from any directory outside the bureau repo tree fails.
+cd "$REPO_ROOT"
 exec uv run --project "$REPO_ROOT" bureau-dossiers "$@"

@@ -441,3 +441,51 @@ class TestFoldResultCounts:
         count = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
         conn.close()
         assert count == 2
+
+
+class TestRefoldDeregistration:
+    """Fold exit-path-1: a refold by an orchestrator deregisters its v3
+    single-store slot and releases its lock (or leaves a live other instance
+    alone)."""
+
+    def test_refold_deregisters_orchestrator_and_releases_lock(
+        self, tmp_path, make_dossier, mock_cli_pid
+    ):
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+        from operations.dossiers.identity import resolve_identity
+        from operations.dossiers.lock import claim_lock, get_lock_status
+
+        mock_cli_pid(54321)
+        slug = make_dossier(tasks=[{"subject": "t"}])["slug"]
+        # simulate an active orchestrator session: registered + holding the lock
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            agent_id = resolve_identity(conn, slug, "claude-code")
+        claim_lock(tmp_path, slug, agent=agent_id)
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM registrations").fetchone()[0] == 1
+
+        fold_dossier(dossiers_dir=tmp_path, slug=slug, agent="claude-code", digest="s2")
+
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM registrations").fetchone()[0] == 0
+        assert get_lock_status(tmp_path, slug)["locked_by"] is None
+
+    def test_refold_skips_deregister_when_live_concurrent_instance(
+        self, tmp_path, make_dossier, mock_cli_pid, mock_process_alive
+    ):
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+        from operations.dossiers.identity import resolve_identity
+
+        mock_cli_pid(11111)
+        slug = make_dossier()["slug"]
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            resolve_identity(conn, slug, "claude-code")  # cli_pid 11111 owns the slot
+
+        # a different live instance now holds the slot; the folding process must
+        # not clobber its registration
+        mock_cli_pid(22222)
+        mock_process_alive({11111: True})
+        fold_dossier(dossiers_dir=tmp_path, slug=slug, agent="claude-code", digest="s2")
+
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM registrations").fetchone()[0] == 1

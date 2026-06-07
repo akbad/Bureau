@@ -2,30 +2,35 @@
 
 # Design rationale
 
-The ``registrations`` table is the DB-side mirror of on-disk session marker
-files. Every agent that holds a lock or owns tasks has a row here; orchestrators
-are keyed by ``<type>:<6-hex>`` and workers by ``<type>:worker-<n>:<ts>``.
+Under v3's single-store model the ``registrations`` row *is* the agent's
+identity — there is no on-disk session marker file. Every agent that holds a
+lock or owns tasks has a row here: orchestrators carry a deterministic id
+(``orch-<type>-<hash>``) keyed to their slot, workers carry a discriminator
+(``work-<type>-<pid>`` or an explicit ``<type>:worker-<n>:<ts>`` label).
 
-This module is pure CRUD. The non-trivial logic (identity resolution,
-liveness checks, session files) lives in ``identity.py``. Deregistration is
-triggered explicitly by fold / complete / update command handlers, or
-implicitly by inline cleanup after the TTL.
+This module is pure CRUD. The non-trivial logic — the target-less UPSERT,
+liveness dispatch, and identity-reset detection — lives in ``identity.py``,
+which inlines its own orchestrator INSERT rather than going through
+``register_agent`` (it needs ``ON CONFLICT DO NOTHING`` semantics). The CRUD
+here serves the worker path and display.
 
-## Heartbeat semantics
+## Two timestamps, one meaning each
 
-``refresh_heartbeat`` is called on every identity resolution. An active
-agent's ``registered_at`` is therefore always fresh, and inline cleanup
-cannot reap a working session. This structurally eliminates the
-reap-vs-completion race that haunted v1's explicit-heartbeat scheme.
+v2 overloaded a single ``registered_at`` as both "first seen" and the
+liveness heartbeat. v3 splits them:
+
+  - ``registered_at`` is set once at first insert and never refreshed; it is
+    the identity's birth time, for audit and ``who`` ("since").
+  - ``last_heartbeat`` is refreshed on every connect/resolution; it is the
+    staleness oracle the TTL cleanup compares against ("last seen").
 
 ## Worker deregistration
 
 Workers are short-lived and single-task. They deregister when their last
-``in_progress`` task transitions out (completed, blocked, or orchestrator
-reassignment). ``_maybe_deregister_worker`` encodes that check in one place:
-role must be ``worker`` and the owner must have zero remaining in-progress
-tasks. Orchestrators never match this predicate (their role is
-``orchestrator``) and are only deregistered on explicit fold.
+``in_progress`` task transitions out (completed, blocked, or reassignment).
+``_maybe_deregister_worker`` encodes that check in one place: role must be
+``worker`` and the owner must have zero remaining in-progress tasks.
+Orchestrators never match this predicate and are only deregistered on fold.
 """
 import sqlite3
 
@@ -36,19 +41,22 @@ def register_agent(
     conn: sqlite3.Connection,
     agent_id: str,
     agent_type: str,
-    ppid: int | None,
+    cli_pid: int | None,
     role: str = "orchestrator",
 ) -> None:
-    """Insert a registrations row.
+    """Insert a registrations row with `registered_at` and `last_heartbeat` both now.
 
-    Raises `sqlite3.IntegrityError` on UNIQUE violation; the caller is
-    responsible for retry (identity.resolve_identity mints a fresh suffix
-    and retries once — collisions here are astronomically rare).
+    Raises `sqlite3.IntegrityError` on a UNIQUE/partial-index violation. The
+    orchestrator path does not use this (it inlines a target-less UPSERT in
+    `identity.resolve_identity`); this serves the worker path, whose ids carry
+    a discriminator and so do not collide.
     """
+    now = _now_iso()
     conn.execute(
-        "INSERT INTO registrations (agent_id, agent_type, ppid, role, registered_at) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (agent_id, agent_type, ppid, role, _now_iso()),
+        "INSERT INTO registrations "
+        "(agent_id, agent_type, role, cli_pid, registered_at, last_heartbeat) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (agent_id, agent_type, role, cli_pid, now, now),
     )
     conn.commit()
 
@@ -60,13 +68,13 @@ def deregister_agent(conn: sqlite3.Connection, agent_id: str) -> None:
 
 
 def refresh_heartbeat(conn: sqlite3.Connection, agent_id: str) -> None:
-    """Update `registered_at` for `agent_id` to now.
+    """Update `last_heartbeat` for `agent_id` to now.
 
-    No-op if the row is missing (UPDATE matches zero rows). Called on every
-    identity resolution as the implicit heartbeat.
+    No-op if the row is missing (UPDATE matches zero rows). `registered_at` is
+    deliberately left untouched — it is the set-once birth time.
     """
     conn.execute(
-        "UPDATE registrations SET registered_at = ? WHERE agent_id = ?",
+        "UPDATE registrations SET last_heartbeat = ? WHERE agent_id = ?",
         (_now_iso(), agent_id),
     )
     conn.commit()
@@ -81,7 +89,7 @@ def list_agents(conn: sqlite3.Connection) -> list[dict]:
     """
     # orchestrator sorts before worker lexicographically (o < w) — no CASE needed
     rows = conn.execute(
-        "SELECT agent_id, agent_type, ppid, role, registered_at "
+        "SELECT agent_id, agent_type, role, cli_pid, registered_at, last_heartbeat "
         "FROM registrations "
         "ORDER BY agent_type ASC, role ASC, registered_at ASC"
     ).fetchall()

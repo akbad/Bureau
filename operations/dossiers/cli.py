@@ -17,7 +17,7 @@ from .errors import (
     LockConflictError,
 )
 from .fold import fold_dossier
-from .identity import DEFAULT_SESSIONS_ROOT, resolve_identity
+from .identity import _orchestrator_agent_id
 from .registration import list_agents
 from .unfold import unfold_dossier, list_dossiers, find_dossier
 from .tasks import list_tasks, add_task, update_task, remove_task, claim_task, complete_task
@@ -26,7 +26,6 @@ from .fork import fork_dossier
 
 
 DEFAULT_DOSSIERS_DIR = Path(os.path.expanduser("~/.config/bureau/dossiers"))
-SESSIONS_ROOT = DEFAULT_SESSIONS_ROOT
 
 
 def _get_dossiers_dir(args: argparse.Namespace) -> Path:
@@ -34,22 +33,31 @@ def _get_dossiers_dir(args: argparse.Namespace) -> Path:
 
 
 def _resolve_agent(args_agent: str, slug: str, dossiers_dir: Path) -> tuple[str, str]:
-    """Resolve a bare agent type to a unique agent_id; worker labels pass through.
+    """Resolve a bare agent type to its deterministic agent_id; labels pass through.
 
-    The ``:`` discriminator distinguishes the two modes (see v2 design doc):
+    The ``:`` discriminator distinguishes the two modes:
 
-      - Bare type (``claude-code``): open the dossier DB, run the session-file
-        + PID-liveness algorithm via `resolve_identity`, return the unique id.
+      - Bare type (``claude-code``): open the dossier with identity, which runs
+        `resolve_identity` *before* cleanup on the same connection (the C1
+        ordering fix) and protects the agent's own row from reaping. The
+        orchestrator id is deterministic, so it is recomputed here rather than
+        threaded out of the context manager.
       - Worker label (``claude-code:worker-1:1743926400``): return as-is; the
         prefix before the first ``:`` is the agent_type.
 
     Returns ``(agent_id, agent_type)``.
+
+    Raises:
+        ConcurrentInstanceError: a live other instance of this type owns the
+            slot (propagated from `resolve_identity` inside the connect).
     """
     if ":" in args_agent:
         return args_agent, args_agent.split(":", 1)[0]
-    with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
-        agent_id = resolve_identity(conn, SESSIONS_ROOT, slug, args_agent)
-    return agent_id, args_agent
+    with open_dossier_db(
+        safe_db_path(dossiers_dir, slug), agent_type=args_agent, slug=slug
+    ):
+        pass  # resolve + reap happen inside connect, in the correct order
+    return _orchestrator_agent_id(slug, args_agent), args_agent
 
 
 def _relative_time(iso_str: str) -> str:
@@ -422,13 +430,14 @@ def cmd_who(args: argparse.Namespace) -> int:
         print("No registered agents.")
         return 0
 
-    print(f"{'Agent ID':<38} {'Type':<14} {'Role':<14} Registered")
+    print(f"{'Agent ID':<38} {'Type':<14} {'Role':<14} {'Last seen':<12} Since")
     # group workers under orchestrators of the same agent_type
     for ag in agents:
         prefix = "  " if ag["role"] == "worker" else ""
         line = (
             f"{prefix}{ag['agent_id']:<{38 - len(prefix)}} "
             f"{ag['agent_type']:<14} {ag['role']:<14} "
+            f"{_relative_time(ag['last_heartbeat']):<12} "
             f"{_relative_time(ag['registered_at'])}"
         )
         print(line)

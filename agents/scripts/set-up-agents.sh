@@ -82,6 +82,39 @@ if agent_enabled "Gemini CLI"; then
     echo ""
 fi
 
+# Antigravity (Gemini CLI) subagents plugin deployment
+if agent_enabled "Gemini CLI"; then
+    log_action "Setting up Antigravity subagents plugin"
+    ANTIGRAVITY_AGENTS_DIR="$HOME/.gemini/config/plugins/bureau/agents"
+    
+    if [[ -e "$ANTIGRAVITY_AGENTS_DIR" ]]; then
+        rm -rf "$ANTIGRAVITY_AGENTS_DIR"
+    fi
+    mkdir -p "$ANTIGRAVITY_AGENTS_DIR"
+    
+    count=0
+    for agent_file in "$AGENTS_DIR/$ROLE_AGENTS_DIRNAME"/*.md; do
+        if [[ -f "$agent_file" ]]; then
+            agent_name=$(basename "$agent_file")
+            ln -sfn "$agent_file" "$ANTIGRAVITY_AGENTS_DIR/$agent_name"
+            count=$((count + 1))
+        fi
+    done
+    
+    log_success "Symlinked $count subagents to $ANTIGRAVITY_AGENTS_DIR"
+    
+    # Create the plugin.json descriptor for Antigravity
+    cat <<EOF > "$HOME/.gemini/config/plugins/bureau/plugin.json"
+{
+  "name": "bureau",
+  "version": "0.1.0",
+  "description": "Bureau multi-agent orchestration framework capabilities."
+}
+EOF
+    log_success "Generated Antigravity plugin.json"
+    echo ""
+fi
+
 # OpenCode agents (filtered symlinks for auto-discovery)
 if agent_enabled "OpenCode"; then
     log_action "Setting up Bureau agents for OpenCode"
