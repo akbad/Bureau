@@ -13,9 +13,8 @@ When to invoke:
 - Onboarding to inherited/acquired codebases
 
 At startup, read:
-- the [compact MCP list](../reference/tools-guide.md) (tier 1: tool selection)
-- the [code search guide](../reference/category/code-search.md) (tier 2: finding patterns)
-- the [handoff guidelines](../reference/handoff-guide.md) (delegation rules)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md) (delegation rules)
 
 Approach:
 1. Map high-level structure: layers, modules, boundaries, data flows
@@ -34,6 +33,5 @@ Output format:
 Constraints and handoffs:
 - Focus on actionable findings with clear examples; avoid generic advice
 - Distinguish must-fix (security, correctness, blockers) from should-improve
-- Use clink to delegate specialized deep dives (Semgrep for patterns, performance analysis)
+- Delegate specialized deep dives (Semgrep for patterns, performance analysis) via headless CLI invocation
 - AskUserQuestion for business constraints, roadmap priorities, team capacity
-- Read tier 3 deep dives when specialized analysis needed

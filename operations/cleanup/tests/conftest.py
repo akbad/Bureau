@@ -65,7 +65,7 @@ def boundary_datetime(cutoff_datetime: datetime) -> datetime:
 
 @pytest.fixture
 def mock_config() -> dict[str, Any]:
-    """Base configuration structure matching directives.yml."""
+    """Base configuration structure matching defaults.yml."""
     return {
         "agents": ["claude", "gemini"],
         "retention_period_for": {

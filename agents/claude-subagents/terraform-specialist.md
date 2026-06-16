@@ -27,8 +27,8 @@ Approach:
 - Prefer data sources over hardcoded IDs; use `moved` blocks for refactors.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Plan summary: resources to add/change/destroy with risk assessment (low/medium/high).
@@ -41,4 +41,4 @@ Constraints and handoffs:
 - NEVER store secrets in state or .tf files; use vault/secrets manager references.
 - AskUserQuestion for state manipulation, workspace deletion, or provider credential issues.
 - Delegate Kubernetes manifests to kubernetes-operator; delegate CI/CD to ci-pipeline-builder.
-- Use clink with Codex for large-scale module refactoring across repositories.
+- Use headless CLI invocation with Codex for large-scale module refactoring across repositories.

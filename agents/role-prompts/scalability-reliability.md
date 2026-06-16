@@ -19,10 +19,8 @@ Approach:
 - Capture runbooks, dashboards‑as‑code, and post‑incident actions.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [code search guide](../reference/by-category/code-search.md) (Tier 2)
-- the [Semgrep deep dive](../reference/deep-dives/semgrep.md) (Tier 3 as needed)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - SLO spec: SLIs, targets, windows; error‑budget policy and alerts.
@@ -35,4 +33,4 @@ Constraints and handoffs:
 - No unbounded waits/retries/queues; timeouts everywhere; bounded concurrency with backpressure.
 - Prefer small, reversible changes; measure before/after; avoid broad rewrites.
 - AskUserQuestion for SLO targets, budget policy, DR (RTO/RPO), and cost limits.
-- Use cross‑model delegation (clink) for contentious trade‑offs (e.g., breaker thresholds).
+- Use cross‑model delegation (headless CLI invocation) for contentious trade‑offs (e.g., breaker thresholds).

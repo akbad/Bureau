@@ -1,4 +1,5 @@
 """Memory MCP JSONL cleanup handler."""
+import logging
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,15 +9,21 @@ from .base import CleanupHandler, CleanupError
 from ..trash import get_trash_dir, generate_trash_filename, write_manifest
 from ...config_loader import get_storage, get_trash_grace_period
 
+logger = logging.getLogger(__name__)
+
 
 class MemoryMcpHandler(CleanupHandler):
     """Cleanup handler for Memory MCP's JSONL file."""
 
     name = "memory-mcp"
 
-    def _get_file_path(self) -> Path:
+    def _get_file_path(self) -> Path | None:
         """Get the Memory MCP JSONL file path."""
-        return get_storage("memory_mcp")
+        file_path = get_storage("memory_mcp")
+        if not file_path:
+            logger.warning("Memory MCP storage path not configured; skipping cleanup.")
+            return None
+        return file_path
 
     def _read_entities(self) -> list[dict[str, Any]]:
         """Read all entities from JSONL file.
@@ -25,7 +32,10 @@ class MemoryMcpHandler(CleanupHandler):
             CleanupError: On file I/O errors.
         """
         file_path = self._get_file_path()
-        if not file_path.exists():
+        if not (file_path and file_path.exists()):
+            # return empty list if either:
+            # - storage path isn't configured in YMLs 
+            # - file doesn't exist yet
             return []
 
         try:
@@ -49,6 +59,8 @@ class MemoryMcpHandler(CleanupHandler):
             CleanupError: On file I/O errors.
         """
         file_path = self._get_file_path()
+        if not file_path:
+            raise CleanupError("Memory MCP storage path not configured")
 
         try:
             file_path.parent.mkdir(parents=True, exist_ok=True)

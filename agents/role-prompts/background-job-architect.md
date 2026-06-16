@@ -22,8 +22,8 @@ Approach:
 - Graceful shutdown: finish current job or checkpoint before worker dies.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Job definition: class/function, arguments, queue, retry policy, timeout.
@@ -38,4 +38,4 @@ Constraints and handoffs:
 - Avoid job-within-job synchronous waits; use proper orchestration (Temporal, workflows).
 - AskUserQuestion for SLA requirements, failure tolerance, and scaling expectations.
 - Delegate job business logic to implementation-helper; delegate monitoring to observability.
-- Use clink for distributed job orchestration or multi-service saga implementation.
+- Delegate via headless CLI invocation for distributed job orchestration or multi-service saga implementation.

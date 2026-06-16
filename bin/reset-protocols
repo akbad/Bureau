@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Reset Bureau's user-scoped protocols files to defaults
+#
+# Restores the Bureau-managed protocol runtime files in ~/.config/bureau/protocols/
+# to Bureau's shipped defaults (ops-hub.md, root runtime artifacts, and ops/ spokes).
+# Any custom files in the directory will be removed.
+#
+# Note: This is a one-shot reset. For persistent deployment control, use the
+# protocols.* config keys in defaults.yml/local.yml or the --protocols/-p flag
+# on open-bureau / set-up-protocols.sh.
+#
+# Usage:
+#   reset-protocols [options]
+#
+# Options:
+#   -f, --force    Overwrite existing files without prompting
+#   -h, --help     Show this help message
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+source "$REPO_ROOT/bin/lib/logging.sh"
+
+BUREAU_PROTOCOLS_DIR="$HOME/.config/bureau/protocols"
+STATIC_DIR="$REPO_ROOT/protocols/context/static"
+
+# spoke files deployed into ops/ subdirectory
+OPS_SPOKE_FILES=("session-start.md" "task-assessment.md" "task-execution.md" "task-completion.md")
+
+# Parse arguments
+FORCE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -f|--force)
+            FORCE=true
+            shift
+            ;;
+        -h|--help)
+            log_usage
+            exit 0
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            log_usage
+            exit 1
+            ;;
+    esac
+done
+
+# If directory exists and has files, confirm before overwriting
+if [[ -d "$BUREAU_PROTOCOLS_DIR" ]] && [[ -n "$(ls -A "$BUREAU_PROTOCOLS_DIR" 2>/dev/null)" ]]; then
+    if [[ "$FORCE" != true ]]; then
+        log_warning "Protocols directory already contains files:"
+        for f in "$BUREAU_PROTOCOLS_DIR"/*; do
+            [[ -e "$f" ]] && echo "  $(basename "$f")"
+        done
+        if [[ -d "$BUREAU_PROTOCOLS_DIR/ops" ]]; then
+            for f in "$BUREAU_PROTOCOLS_DIR/ops"/*; do
+                [[ -e "$f" ]] && echo "  ops/$(basename "$f")"
+            done
+        fi
+        echo ""
+        if ! log_confirm "Overwrite with defaults? (custom files will be removed)"; then
+            log_action "Cancelled. No files changed."
+            exit 0
+        fi
+    fi
+    # Remove existing files (hub, spokes, old-structure files, deprecated archive)
+    rm -f "$BUREAU_PROTOCOLS_DIR"/*.md
+    rm -rf "$BUREAU_PROTOCOLS_DIR/ops"
+    rm -rf "$BUREAU_PROTOCOLS_DIR/.deprecated"
+fi
+
+# Deploy fresh defaults
+mkdir -p "$BUREAU_PROTOCOLS_DIR/ops"
+
+# copy hub
+cp "$STATIC_DIR/ops-hub.md" "$BUREAU_PROTOCOLS_DIR/ops-hub.md"
+
+# copy spoke files
+for spoke in "${OPS_SPOKE_FILES[@]}"; do
+    if [[ -f "$STATIC_DIR/ops/$spoke" ]]; then
+        cp "$STATIC_DIR/ops/$spoke" "$BUREAU_PROTOCOLS_DIR/ops/$spoke"
+    else
+        log_warning "Default spoke file not found: $STATIC_DIR/ops/$spoke"
+    fi
+done
+
+uv run python "$REPO_ROOT/protocols/scripts/compile-protocol-artifact.py" \
+    --setting output_style \
+    --destination "$BUREAU_PROTOCOLS_DIR/output-style.md" \
+    --source "$STATIC_DIR/ops/output-style.md"
+
+uv run python "$REPO_ROOT/protocols/scripts/compile-protocol-artifact.py" \
+    --setting code_standards \
+    --destination "$BUREAU_PROTOCOLS_DIR/code-standards.md" \
+    --source "$STATIC_DIR/ops/code-standards.md"
+
+# resolve {{PROTOCOLS_DIR}} placeholder in deployed hub
+sed -i '' "s|{{PROTOCOLS_DIR}}|$BUREAU_PROTOCOLS_DIR|g" "$BUREAU_PROTOCOLS_DIR/ops-hub.md"
+
+log_success "Reset protocols files in $BUREAU_PROTOCOLS_DIR"
+echo ""
+echo "Files restored:"
+echo "  output-style.md"
+echo "  code-standards.md"
+echo "  ops-hub.md"
+for spoke in "${OPS_SPOKE_FILES[@]}"; do
+    echo "  ops/$spoke"
+done
+echo ""
+echo "Run 'bin/open-bureau' to regenerate agent context with the restored files."

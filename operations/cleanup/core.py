@@ -11,7 +11,7 @@ from ..config_loader import (
     get_trash_grace_period,
     parse_duration,
 )
-from ..validate_config import full_validate
+from ..validate_config import validate_config
 from .state import load_state, save_state, did_recently_run, now_as_iso, State
 from .trash import empty_expired_trash, empty_all_trash
 from .handlers import HANDLERS
@@ -30,7 +30,7 @@ def run_cleanup(
 ) -> dict:
     """Run cleanup for all or specific storage."""
     # Validate configuration before running cleanup
-    validation_errors = full_validate(_config)
+    validation_errors = validate_config(_config)
     if validation_errors:
         return {
             "error": "Configuration validation failed",
@@ -138,7 +138,7 @@ def wipe_memory_backends(
     config = get_config()
 
     # Validate configuration before wiping
-    validation_errors = full_validate(config)
+    validation_errors = validate_config(config)
     if validation_errors:
         return {
             "error": "Configuration validation failed",
@@ -204,13 +204,14 @@ def main():
         "c": "claude-mem",
         "s": "serena",
         "m": "memory-mcp",
+        "d": "dossiers",
     }
 
     def parse_storage_letters(value: str) -> list[str]:
         letters = list(dict.fromkeys(value.lower()))  # dedupe, preserve order
         invalid = [ch for ch in letters if ch not in STORAGE_MAP]
         if invalid:
-            raise argparse.ArgumentTypeError(f"Invalid storage letter(s): {', '.join(invalid)} (use any of q/c/s/m)")
+            raise argparse.ArgumentTypeError(f"Invalid storage letter(s): {', '.join(invalid)} (use any of q/c/s/m/d)")
         return [STORAGE_MAP[ch] for ch in letters]
 
     parser = argparse.ArgumentParser(
@@ -230,7 +231,7 @@ def main():
         "--storage", "-s",
         type=parse_storage_letters,
         metavar="LETTERS",
-        help="Clean specific storage services by letter: q=Qdrant, c=claude-mem, s=Serena, m=memory-mcp (e.g., -s smq)"
+        help="Clean specific storage services by letter: q=Qdrant, c=claude-mem, s=Serena, m=memory-mcp, d=dossiers (e.g., -s smq)"
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -251,7 +252,7 @@ def main():
         "--wipe",
         nargs="+",
         metavar="STORAGE",
-        help="Completely erase data from storage(s): claude-mem, serena, qdrant, memory-mcp"
+        help="Completely erase data from storage(s): claude-mem, serena, qdrant, memory-mcp, dossiers"
     )
     parser.add_argument(
         "--no-backup",
@@ -269,7 +270,7 @@ def main():
     # if CLI arg set, validate config and exit
     if args.validate:
         config = get_config()
-        errors = full_validate(config)
+        errors = validate_config(config)
         if errors:
             print("Configuration validation failed:", file=sys.stderr)
             for error in errors:

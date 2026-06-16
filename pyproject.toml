@@ -4,10 +4,16 @@ version = "0.1.0"
 description = "Multi-agent AI orchestration framework"
 requires-python = ">=3.13"
 dependencies = [
+    "ipykernel>=7.2.0",
+    "pqdict>=1.3",
     "pyyaml>=6.0",
+    "rapidfuzz>=3.0",
+    "tomlkit>=0.12",
 ]
 
 [project.scripts]
+bureau-dossiers = "operations.dossiers.cli:main"
+bureau-search-mcp = "operations.search_mcp.server:main"
 get-config = "operations.config_cli:main"
 sweep = "operations.cleanup.core:main"
 validate-config = "operations.validate_config:main"
@@ -30,6 +36,23 @@ dev = [
     "types-requests>=2.31",
 ]
 
+[tool.mypy]
+python_version = "3.13"
+packages = ["operations"]
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+# operations/ is checked transitively via imports; not yet strict-ready
+[[tool.mypy.overrides]]
+module = "operations.*"
+follow_imports = "silent"
+
 [tool.pytest.ini_options]
-testpaths = ["operations/cleanup/tests"]
+testpaths = [
+    "operations/cleanup/tests",
+    "operations/tests",
+    "protocols/scripts/tests",
+    "tools/scripts/tests",
+]
 pythonpath = ["."]

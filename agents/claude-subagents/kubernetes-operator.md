@@ -27,8 +27,8 @@ Approach:
 - Observability: prometheus annotations, structured logging, tracing headers.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Manifests: Deployment, Service, ConfigMap, etc. with inline comments.
@@ -41,4 +41,4 @@ Constraints and handoffs:
 - Never store secrets in plain ConfigMaps; use Secrets or external-secrets.
 - AskUserQuestion for cluster access, namespace strategy, or RBAC configuration.
 - Delegate infrastructure provisioning (EKS, GKE, AKS) to terraform-specialist.
-- Use clink for multi-cluster deployment strategies or service mesh configuration.
+- Delegate via headless CLI invocation for multi-cluster deployment strategies or service mesh configuration.

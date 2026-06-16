@@ -1,35 +1,107 @@
 #!/usr/bin/env bash
-# 
+#
 # Bureau one-shot bootstrap/startup script
 # > Run once: ./open-bureau
 # > Idempotent (safe to re-run; won't duplicate or kill running resources)
+#
+# Options:
+#   --concierge, -c                Enable ML classifier setup (install deps + train model)
+#                                  Persisted via `concierge.enabled: true` in config
+#   --protocols, -p <mode>         Protocol deployment mode
+#                                  Modes: replace|r, sync|s, off|o
 #
 # For configuration details, see docs/CONFIGURATION.md
 
 set -euo pipefail
 
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-NC='\033[0m'        # no colour
-
 # Change to repo root
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 1
 
-# Check dependencies, install correct Python version packages and set up env
-bin/check-prereqs
+# Parse open-bureau-specific flags (before passing $@ to subscripts)
+CONCIERGE=false
+PROTO_MODE=""
+PASSTHROUGH_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --concierge|-c)
+            CONCIERGE=true
+            shift
+            ;;
+        --protocols|-p)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: --protocols/-p requires a mode: replace|r, sync|s, off|o" >&2
+                exit 1
+            fi
+            case "$2" in
+                replace|r) PROTO_MODE="replace" ;;
+                sync|s) PROTO_MODE="sync" ;;
+                off|o) PROTO_MODE="off" ;;
+                *)
+                    echo "ERROR: invalid protocols mode '$2' (expected replace|r, sync|s, or off|o)" >&2
+                    exit 1
+                    ;;
+            esac
+            shift 2
+            ;;
+        *)
+            PASSTHROUGH_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}"
 
-# Source agent selection library
+# Check dependencies, install correct Python version packages and set up env
+bin/ensure-prereqs
+
+# Source internal Bureau libraries
+source "$REPO_ROOT/bin/lib/logging.sh"
 source "$REPO_ROOT/bin/lib/agent-selection.sh"
 
-echo -e "${BLUE}====================================================${NC}"
-echo -e "${BLUE}  Bureau bootstrap & startup${NC}"
-echo -e "${BLUE}====================================================${NC}"
-echo ""
+# Check config for concierge.enabled if not set via CLI flag
+if [[ "$CONCIERGE" == false ]]; then
+    concierge_cfg=$(_get_config concierge.enabled 2>/dev/null || echo "false")
+    if [[ "$concierge_cfg" == "true" || "$concierge_cfg" == "True" ]]; then
+        CONCIERGE=true
+    fi
+fi
+
+# Check config for protocols.mode if no CLI flag was set
+if [[ -z "$PROTO_MODE" ]]; then
+    proto_mode_cfg=$(_get_config protocols.mode 2>/dev/null || echo "replace")
+    case "$proto_mode_cfg" in
+        replace) PROTO_MODE="replace" ;;
+        sync) PROTO_MODE="sync" ;;
+        off) PROTO_MODE="off" ;;
+        *)
+            echo "ERROR: invalid protocols.mode '$proto_mode_cfg' in config (expected replace, sync, or off)" >&2
+            exit 1
+            ;;
+    esac
+fi
+
+if [[ -z "$PROTO_MODE" ]]; then
+    PROTO_MODE="replace"
+fi
+
+log_info "Protocol deployment mode: $PROTO_MODE"
+
+if [[ "$PROTO_MODE" == "off" ]]; then
+    log_info "Bureau-managed protocol files will be removed for this run"
+elif [[ "$PROTO_MODE" == "sync" ]]; then
+    log_info "Bureau-managed protocol files will be refreshed with backups for replaced artifacts"
+else
+    log_info "Bureau-managed protocol files will be refreshed in place without backup"
+fi
+    
+
+log_banner "Bureau bootstrap & startup"
+log_empty_line
 
 # Determine enabled agents from config
 discover_agents
-echo ""
+log_empty_line
 
 # Run cleanup if not run recently (silent, non-blocking)
 # Note: --quiet suppresses stdout, but stderr (errors) still shows
@@ -45,33 +117,43 @@ fi
 #     (i.e. as opposed to as isolated subagents)
 # Note: Must be run before tools setup since the agent files mentioned by the PAL
 #   configs must exist when PAL is started up
-echo ""
-echo -e "${BLUE}Setting up agents and agent launchers/slash commands...${NC}"
-echo ""
+log_empty_line
+log_action "Setting up agents and agent launchers/slash commands..."
+log_empty_line
 agents/scripts/set-up-agents.sh
+
+# Run configs setup:
+#   - Generate coding CLIs' context/config files (w/ device-specific abs paths)
+#   - Symlinks them to the appropriate user-scoped locations for each agent
+log_empty_line
+log_action "Setting up config files..."
+log_empty_line
+
+protocols/scripts/set-up-protocols.sh --protocols "$PROTO_MODE"
 
 # Run tools setup & startup, passing along CLI options received
 #   - Configures MCPs for each supported coding CLI
 #   - Launches MCPs servers and backing containers (for those run as local HTTP servers)
-echo -e "${BLUE}Setting up tools...${NC}"
-echo ""
-tools/scripts/set-up-tools.sh "$@"
+log_action "Setting up tools..."
+log_empty_line
 
-# Run configs setup:
-#   - Generate coding CLIs' context/config files (w/ device-specific abs paths) 
-#   - Symlinks them to the appropriate user-scoped locations for each agent
-echo ""
-echo -e "${BLUE}Setting up config files...${NC}"
-echo ""
-protocols/scripts/set-up-configs.sh
+TOOLS_ARGS=("${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}")
+if [[ "$PROTO_MODE" == "off" ]]; then
+    TOOLS_ARGS+=("--bare")
+fi
+tools/scripts/set-up-tools.sh "${TOOLS_ARGS[@]+"${TOOLS_ARGS[@]}"}"
 
-echo ""
-echo -e "${GREEN}==========================================================${NC}"
-echo -e "${GREEN}  Bootstrapping complete: Bureau is ready to use.${NC}"
-echo -e "${GREEN}==========================================================${NC}"
-echo ""
-echo "To add or remove CLIs in the future:"
-echo "  - Add: Create user-scoped config directory (e.g., mkdir -p ~/.gemini)"
-echo "  - Remove: Delete user-scoped config directory (e.g., rm -rf ~/.codex)"
-echo "  - Then re-run: ./bin/open-bureau"
-echo ""
+# Concierge classifier: install ML deps + train/update model (opt-in)
+if [[ "$CONCIERGE" == true ]]; then
+    log_empty_line
+    log_action "Setting up concierge classifier..."
+    log_empty_line
+    bin/ensure-classifier-model
+else
+    log_empty_line
+    log_info "Concierge classifier skipped (enable with --concierge or set concierge.enabled: true in config)"
+fi
+
+log_empty_line
+log_banner "All steps complete: Bureau is configured and ready for use!"
+log_empty_line

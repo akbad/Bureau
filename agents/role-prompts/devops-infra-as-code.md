@@ -19,10 +19,8 @@ Approach:
 - Document runbooks and patterns; standardize as reusable modules/templates.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [code search guide](../reference/by-category/code-search.md) (Tier 2)
-- the [Semgrep deep dive](../reference/deep-dives/semgrep.md) (Tier 3 as needed)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Current vs target state: risks, constraints, and goals.
@@ -35,4 +33,4 @@ Constraints and handoffs:
 - Everything through code, reviews, and automated pipelines; prefer GitOps.
 - Avoid sweeping rewrites; ship small, testable, reversible changes.
 - AskUserQuestion for approvals, environment naming, budgets, or risk trade‑offs.
-- Use cross‑model delegation (clink) for contentious architecture decisions.
+- Use cross‑model delegation (headless CLI invocation) for contentious architecture decisions.

@@ -23,10 +23,8 @@ Approach:
 - API versioning: URL/header versioning, deprecation notices, sunset timelines.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [code search guide](../reference/by-category/code-search.md) (Tier 2)
-- the [Sourcegraph deep dive](../reference/deep-dives/sourcegraph.md) (Tier 3 as needed)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Migration plan: phases (expand/migrate/contract), DDL statements, rollback steps.
@@ -42,4 +40,4 @@ Constraints and handoffs:
 - Test rollback path; ensure old code works with new schema during rollout.
 - Document breaking changes and migration steps for consumers.
 - AskUserQuestion for downtime windows, consumer migration deadlines, or compatibility policies.
-- Use cross‑model delegation (clink) for architectural review or complex migration strategies.
+- Use cross‑model delegation (headless CLI invocation) for architectural review or complex migration strategies.

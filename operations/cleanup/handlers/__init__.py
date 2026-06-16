@@ -4,6 +4,7 @@ from .qdrant import QdrantHandler
 from .claude_mem import ClaudeMemHandler
 from .serena import SerenaHandler
 from .memory_mcp import MemoryMcpHandler
+from .dossiers import DossiersHandler
 
 
 # register memory backends' handler classes
@@ -12,6 +13,7 @@ HANDLERS = (
     SerenaHandler,
     QdrantHandler,
     MemoryMcpHandler,
+    DossiersHandler,
 )
 
 
@@ -22,5 +24,6 @@ __all__ = [
     "ClaudeMemHandler",
     "SerenaHandler",
     "MemoryMcpHandler",
+    "DossiersHandler",
     "HANDLERS",
 ]

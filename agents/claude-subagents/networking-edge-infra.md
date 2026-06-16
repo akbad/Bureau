@@ -27,11 +27,9 @@ Approach:
 - Plan rollout: canary by path/region, staged shifts; monitoring + rollback.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [code search guide](../reference/by-category/code-search.md) (Tier 2)
-- the [Sourcegraph deep dive](../reference/deep-dives/sourcegraph.md) (Tier 3 as needed)
-- the [docs style guide](../reference/style-guides/docs-style-guide.md) (decision docs)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [docs style guide](../../protocols/context/static/style-guides/docs-style-guide.md) (decision docs)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Summary: objectives, constraints, SLOs, assumptions.
@@ -44,6 +42,6 @@ Constraints and handoffs:
 - Prefer reversible, minimal changes; avoid global switches without guardrails.
 - Do not inline vendor how‑tos; open references when depth is needed.
 - Coordinate with Sec/SRE for approvals; require explicit rollback paths.
-- Use clink for cross‑model design reviews and large trade‑offs.
+- Delegate via headless CLI invocation for cross‑model design reviews and large trade‑offs.
 - AskUserQuestion if SLOs, risk tolerance, or DNS control are unclear.
 

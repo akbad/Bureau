@@ -1,13 +1,13 @@
 #!/usr/bin/env -S uv run
 """CLI tool for shell scripts to read Bureau configuration.
 
-1. Merges configs using the order: charter.yml → directives.yml → local.yml → env)
+1. Merges configs using the order: defaults.yml → .bureau.yml → local.yml → env)
 2. Reads from merged config
 
 Usage:
     get-config agents                           # Output: claude gemini codex opencode
     get-config retention_period_for.qdrant      # Output: 180d
-    get-config path_to.qdrant_url                # Output: http://127.0.0.1:8780
+    get-config mcp.client_configs.memory.storage_path  # Output: ~/.memory-mcp/memory.jsonl
     get-config --check agent claude    # Exit 0 if enabled, 1 if not
     get-config --list agents           # List all enabled agents
 """

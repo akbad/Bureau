@@ -28,8 +28,8 @@ Approach:
 - Dead letter strategy: capture failures, enable investigation, support replay.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Architecture diagram: producers, topics/queues, consumers, DLQ flow.
@@ -44,4 +44,4 @@ Constraints and handoffs:
 - Avoid unbounded queues; set retention limits and monitor growth.
 - AskUserQuestion for ordering requirements, throughput estimates, and failure tolerance.
 - Delegate event schema design to schema-evolution; delegate consumer logic to implementation-helper.
-- Use clink for cross-service event contracts or multi-region replication setup.
+- Delegate via headless CLI invocation for cross-service event contracts or multi-region replication setup.

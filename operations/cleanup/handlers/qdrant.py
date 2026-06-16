@@ -1,4 +1,5 @@
 """Qdrant vector database cleanup handler."""
+import logging
 import json
 from datetime import datetime, timezone
 from typing import Any
@@ -9,19 +10,38 @@ from .base import CleanupHandler, CleanupError
 from ..trash import get_trash_dir, generate_trash_filename, write_manifest
 from ...config_loader import get_qdrant_url, get_qdrant_collection, get_trash_grace_period
 
+logger = logging.getLogger(__name__)
+
 
 class QdrantHandler(CleanupHandler):
     """Cleanup handler for Qdrant vector database."""
 
     name = "qdrant"
 
-    def _http_request(self, method: str, endpoint: str, data: dict | None = None) -> dict:
+    def _get_qdrant_config(self) -> tuple[str, str] | None:
+        url = get_qdrant_url()
+        collection = get_qdrant_collection()
+        if not url or not collection:
+            logger.warning("Qdrant config missing (url or collection); skipping cleanup.")
+            return None
+        return url, collection
+
+    def _http_request(
+        self,
+        method: str,
+        endpoint: str,
+        data: dict | None = None,
+        base_url: str | None = None,
+    ) -> dict:
         """Make HTTP request to (locally-running) Qdrant server.
 
         Raises:
             CleanupError: On HTTP errors, connection failures, or invalid responses.
         """
-        url = f"{get_qdrant_url()}{endpoint}"
+        base_url = base_url or get_qdrant_url()
+        if not base_url:
+            raise CleanupError("Qdrant URL not configured")
+        url = f"{base_url}{endpoint}"
         headers = {"Content-Type": "application/json"}
 
         body = json.dumps(data).encode() if data else None
@@ -42,14 +62,14 @@ class QdrantHandler(CleanupHandler):
         except json.JSONDecodeError as e:
             raise CleanupError(f"Invalid JSON response from Qdrant: {e}") from e
 
-    def _collection_exists(self) -> bool:
+    def _collection_exists(self, base_url: str, collection: str) -> bool:
         """Check if collection exists.
 
         Returns False if collection doesn't exist (404).
         Raises CleanupError for other failures.
         """
         try:
-            result = self._http_request("GET", f"/collections/{get_qdrant_collection()}")
+            result = self._http_request("GET", f"/collections/{collection}", base_url=base_url)
             return result.get("status") == "ok"
         except CleanupError as e:
             if "HTTP 404" in str(e):
@@ -61,7 +81,12 @@ class QdrantHandler(CleanupHandler):
 
     def get_stale_items(self, cutoff: datetime) -> list[dict[str, Any]]:
         """Query points with metadata.created_at older than cutoff."""
-        if not self._collection_exists():
+        cfg = self._get_qdrant_config()
+        if not cfg:
+            return []
+        base_url, collection = cfg
+
+        if not self._collection_exists(base_url, collection):
             return []
 
         items = []
@@ -77,8 +102,9 @@ class QdrantHandler(CleanupHandler):
 
             result = self._http_request(
                 "POST",
-                f"/collections/{get_qdrant_collection()}/points/scroll",
-                scroll_params
+                f"/collections/{collection}/points/scroll",
+                scroll_params,
+                base_url=base_url,
             )
 
             if result.get("status") != "ok":
@@ -133,13 +159,17 @@ class QdrantHandler(CleanupHandler):
 
     def export_items_to_trash(self, items: list[dict[str, Any]], retention: str) -> str:
         """Export points to JSON in trash directory."""
+        cfg = self._get_qdrant_config()
+        if not cfg:
+            return ""
+        _, collection = cfg
         trash_dir = get_trash_dir(self.name)
         filename = generate_trash_filename(len(items), "json")
         trash_path = trash_dir / filename
 
         export_data = {
             "exported_at": datetime.now(timezone.utc).isoformat(),
-            "collection": get_qdrant_collection(),
+            "collection": collection,
             "points": items,
         }
 
@@ -157,12 +187,17 @@ class QdrantHandler(CleanupHandler):
         if not items:
             return 0
 
+        cfg = self._get_qdrant_config()
+        if not cfg:
+            return 0
+        base_url, collection = cfg
         point_ids = [item["id"] for item in items]
 
         result = self._http_request(
             "POST",
-            f"/collections/{get_qdrant_collection()}/points/delete",
-            {"points": point_ids}
+            f"/collections/{collection}/points/delete",
+            {"points": point_ids},
+            base_url=base_url,
         )
 
         if result.get("status") == "ok":
@@ -171,7 +206,12 @@ class QdrantHandler(CleanupHandler):
 
     def _get_all_points(self) -> list[dict[str, Any]]:
         """Retrieve all points from the collection."""
-        if not self._collection_exists():
+        cfg = self._get_qdrant_config()
+        if not cfg:
+            return []
+        base_url, collection = cfg
+
+        if not self._collection_exists(base_url, collection):
             return []
 
         items = []
@@ -187,8 +227,9 @@ class QdrantHandler(CleanupHandler):
 
             result = self._http_request(
                 "POST",
-                f"/collections/{get_qdrant_collection()}/points/scroll",
-                scroll_data
+                f"/collections/{collection}/points/scroll",
+                scroll_data,
+                base_url=base_url,
             )
 
             if result.get("status") != "ok":
@@ -215,6 +256,10 @@ class QdrantHandler(CleanupHandler):
     def _wipe(self, backup: bool) -> dict[str, Any]:
         """Completely erase all points from Qdrant collection."""
         items = self._get_all_points()
+        cfg = self._get_qdrant_config()
+        if not cfg:
+            return {"storage": self.name, "wiped": 0, "message": "qdrant not configured"}
+        base_url, collection = cfg
 
         if not items:
             return {"storage": self.name, "wiped": 0, "message": "collection empty or does not exist"}
@@ -228,8 +273,9 @@ class QdrantHandler(CleanupHandler):
         point_ids = [item["id"] for item in items]
         result = self._http_request(
             "POST",
-            f"/collections/{get_qdrant_collection()}/points/delete",
-            {"points": point_ids}
+            f"/collections/{collection}/points/delete",
+            {"points": point_ids},
+            base_url=base_url,
         )
 
         wiped = len(point_ids) if result.get("status") == "ok" else 0

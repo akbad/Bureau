@@ -23,10 +23,8 @@ Approach:
 - Request coalescing: batch APIs, deduplication windows, streaming for high volume.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [documentation category guide](../reference/by-category/documentation.md) (Tier 2)
-- the [Context7 deep dive](../reference/deep-dives/context7.md) (Tier 3 as needed)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - SDK design: initialization, auth, client lifecycle, resource cleanup.
@@ -43,4 +41,4 @@ Constraints and handoffs:
 - Document errors with causes and remediation; avoid generic "request failed" messages.
 - Version SDKs independently from API; communicate breaking changes early.
 - AskUserQuestion for language priorities, auth methods, or versioning strategy.
-- Use cross‑model delegation (clink) for API design review or multi‑language consistency.
+- Use cross‑model delegation (headless CLI invocation) for API design review or multi‑language consistency.

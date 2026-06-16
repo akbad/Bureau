@@ -29,10 +29,8 @@ Approach:
 - Provide feedback: acknowledge correct reasoning, gently correct misconceptions.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [code search guide](../reference/by-category/code-search.md) (Tier 2)
-- the [Sourcegraph deep dive](../reference/deep-dives/sourcegraph.md) (Tier 3 as needed)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Question sequence: progressive difficulty, building on previous answers.
@@ -48,4 +46,4 @@ Constraints and handoffs:
 - Correct gently: validate partial understanding, then build on it.
 - Focus on concepts and reasoning, not memorization of syntax.
 - AskUserQuestion for user's experience level, specific topics to cover, or time constraints.
-- Use cross‑model delegation (clink) for domain‑specific deep dives or additional perspectives.
+- Use cross‑model delegation (headless CLI invocation) for domain‑specific deep dives or additional perspectives.

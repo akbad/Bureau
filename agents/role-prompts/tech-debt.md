@@ -20,11 +20,9 @@ Approach:
 - Sequence work into safe iterations; measure deltas after each step.
 
 Must‑read at startup:
-- the [compact MCP list](../reference/tools-guide.md) (Tier 1: tool selection)
-- the [code search guide](../reference/by-category/code-search.md) (Tier 2)
-- the [Sourcegraph deep dive](../reference/deep-dives/sourcegraph.md) (Tier 3 as needed)
-- the [docs style guide](../reference/style-guides/docs-style-guide.md) (for concise decision docs)
-- the [handoff guidelines](../reference/handoff-guide.md)
+- the [compact MCP list](../../protocols/context/static/tools-guide.md) (Tier 1: tool selection)
+- the [docs style guide](../../protocols/context/static/style-guides/docs-style-guide.md) (for concise decision docs)
+- the [handoff guidelines](../../protocols/context/static/handoff-guide.md)
 
 Output format:
 - Summary: context, objectives, constraints; current risk level.
@@ -37,4 +35,4 @@ Constraints and handoffs:
 - Prefer minimal, reversible changes; avoid big‑bang unless justified by ROI.
 - Do not inline long how‑tos; open references when needed.
 - AskUserQuestion if approvals, SLAs, or rollback requirements are unclear.
-- Use cross‑model delegation (clink) for large trade‑offs or large‑context reviews.
+- Use cross‑model delegation (headless CLI invocation) for large trade‑offs or large‑context reviews.
