@@ -72,6 +72,7 @@ Until the planned implementation/task is complete, execute the steps below, in t
         - **Why now:** <deps satisfied>
         - **Summary:** <summary of the changes, 6 bullet points maximum>
         - **Check:** `<command>` → `<result>`
+        - **Progress:** currently at step `<whichever>` of `<total>`
         - **Next candidates:** `<ready step ids>`
 
         ──────────────────────────────────────────────────────────────────────────────
@@ -105,7 +106,8 @@ Until the planned implementation/task is complete, execute the steps below, in t
         - **Why now:** <deps satisfied>
         - **Summary:** <summary of the changes, 6 bullet points maximum>
         - **Check:** `<command>` → `<result>`
-        - **Next candidates:** `<ready step ids>`
+        - **Progress:** step `<whichever>` of `<total>`
+        - **Next candidates** (`<total>` available): `<ready step ids>`
 
         ──────────────────────────
         Next action: shortcut keys
