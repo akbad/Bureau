@@ -584,9 +584,13 @@ conversations:
   stale_dossier_days: 30
   max_retained_sessions: 5
   # Agent identity registration TTL and cleanup cadence (see docs/dossier-registrations-v2.md).
-  # TTL: how old `registered_at` must be for a registration to count as stale.
+  # TTL: how old `last_heartbeat` must be for a registration to count as stale.
+  #   2h, not 24h: no agent is silent this long while still doing useful work,
+  #   and under v3 PID-liveness cleanup (which spares live processes regardless of
+  #   heartbeat age) the TTL only governs genuinely-dead rows, so a tight value is
+  #   safe. Configurable; bump if a workload legitimately idles longer.
   # Interval: minimum gap between inline cleanup runs.
-  registration_ttl: 24h
+  registration_ttl: 2h
   cleanup_check_interval: 5min
   concierge:
     preferred_agent: claude

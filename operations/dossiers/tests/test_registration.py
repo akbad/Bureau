@@ -26,7 +26,8 @@ class TestRegisterAgent:
     def test_inserts_orchestrator_by_default(self, tmp_path, make_dossier):
         slug = make_dossier()["slug"]
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            register_agent(conn, "orch-claude-code-aaaa", "claude-code", 12345)
+            with conn:  # caller owns the txn (register_agent does not commit)
+                register_agent(conn, "orch-claude-code-aaaa", "claude-code", 12345)
         rows = _all_rows(tmp_path, slug)
         assert len(rows) == 1
         assert rows[0]["agent_id"] == "orch-claude-code-aaaa"
@@ -38,7 +39,8 @@ class TestRegisterAgent:
     def test_worker_role_persists_with_null_cli_pid(self, tmp_path, make_dossier):
         slug = make_dossier()["slug"]
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            register_agent(conn, "claude-code:worker-1:42", "claude-code", None, role="worker")
+            with conn:  # caller owns the txn (register_agent does not commit)
+                register_agent(conn, "claude-code:worker-1:42", "claude-code", None, role="worker")
         rows = _all_rows(tmp_path, slug)
         assert rows[0]["role"] == "worker"
         assert rows[0]["cli_pid"] is None
@@ -65,8 +67,9 @@ class TestDeregisterAgent:
     def test_deletes_matching_row(self, tmp_path, make_dossier):
         slug = make_dossier()["slug"]
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            register_agent(conn, "orch-claude-code-aaaa", "claude-code", 1)
-            deregister_agent(conn, "orch-claude-code-aaaa")
+            with conn:  # caller owns the txn (CRUD does not commit)
+                register_agent(conn, "orch-claude-code-aaaa", "claude-code", 1)
+                deregister_agent(conn, "orch-claude-code-aaaa")
         assert _all_rows(tmp_path, slug) == []
 
     def test_missing_agent_is_noop(self, tmp_path, make_dossier):
@@ -139,15 +142,17 @@ class TestMaybeDeregisterWorker:
     def test_noop_on_orchestrator(self, tmp_path, make_dossier):
         slug = make_dossier()["slug"]
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            register_agent(conn, "orch-claude-code-aaaa", "claude-code", 1)
+            with conn:  # caller owns the txn (register_agent does not commit)
+                register_agent(conn, "orch-claude-code-aaaa", "claude-code", 1)
             assert _maybe_deregister_worker(conn, "orch-claude-code-aaaa") is False
         assert len(_all_rows(tmp_path, slug)) == 1
 
     def test_deregisters_worker_with_no_in_progress_tasks(self, tmp_path, make_dossier):
         slug = make_dossier(tasks=[{"subject": "t1"}])["slug"]
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            register_agent(conn, "claude-code:worker-1:42", "claude-code", None, role="worker")
-            assert _maybe_deregister_worker(conn, "claude-code:worker-1:42") is True
+            with conn:  # caller owns the txn (CRUD does not commit)
+                register_agent(conn, "claude-code:worker-1:42", "claude-code", None, role="worker")
+                assert _maybe_deregister_worker(conn, "claude-code:worker-1:42") is True
         assert _all_rows(tmp_path, slug) == []
 
     def test_keeps_worker_with_active_in_progress_task(self, tmp_path, make_dossier):

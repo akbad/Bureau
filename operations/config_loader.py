@@ -205,7 +205,7 @@ class ConversationsConfig(TypedDict, total=False):
     storage_dir: str                            # default "~/.config/bureau/dossiers"
     stale_dossier_days: int                     # cleanup threshold, default 30
     max_retained_sessions: int                  # prune file_interactions beyond this, default 5
-    registration_ttl: str                       # duration string, default "24h"
+    registration_ttl: str                       # duration string, default "2h"
     cleanup_check_interval: str                 # duration string, default "5min"
     concierge: ConversationsConciergeConfig
     keywords: dict[str, list[str]]
@@ -629,10 +629,10 @@ def get_registration_ttl_seconds() -> int:
     """Return how old a registration must be (in seconds) to count as stale.
 
     Reads ``conversations.registration_ttl`` via `parse_duration`; default
-    ``24h``. Consumed by inline cleanup in ``operations/dossiers/db.py``.
+    ``2h``. Consumed by inline cleanup in ``operations/dossiers/db.py``.
     """
     cfg = get_conversations_config()
-    return int(parse_duration(cfg.get("registration_ttl", "24h")).total_seconds())
+    return int(parse_duration(cfg.get("registration_ttl", "2h")).total_seconds())
 
 
 def get_cleanup_check_interval_seconds() -> int:

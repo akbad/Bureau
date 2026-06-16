@@ -180,7 +180,11 @@ def fold_dossier(
                 # resolve_identity adopts/refreshes my slot (or raises if a
                 # live other instance owns it — then leave their state alone).
                 agent_id = resolve_identity(conn, slug, agent)
-                deregister_agent(conn, agent_id)
+                # own the transaction: deregister_agent no longer self-commits
+                # (C2), and this runs outside the main fold txn, which already
+                # committed above. open_dossier_db closes without committing.
+                with conn:
+                    deregister_agent(conn, agent_id)
                 lock_release_agent_id = agent_id
             except ConcurrentInstanceError as e:
                 # another live process owns the slot — don't clean up their

@@ -514,6 +514,61 @@ def _maybe_reap_stale_registrations(
         pass
 
 
+def list_reap_log(
+    conn: sqlite3.Connection,
+    *,
+    since: str | None = None,
+    agent_type: str | None = None,
+) -> list[dict]:
+    """Return `reap_log` rows, newest first, for post-hoc forensics (Mechanism 3).
+
+    The read side of the audit trail that `_maybe_reap_stale_registrations`
+    writes: which agents the primary defense reaped, when, why, how stale they
+    were, and which tasks reverted. Lives here next to that writer so all
+    `reap_log` knowledge (DDL, write, read) stays in one place.
+
+    Args:
+        conn: an open dossier connection.
+        since: ISO-8601 timestamp; when given, only reaps at or after it (a
+            lexicographic compare, valid because timestamps are zero-padded UTC).
+        agent_type: when given, only reaps of this CLI type — the
+            `idx_reap_log_type_at` index serves exactly this filtered, ordered
+            query; the unfiltered case is a small full scan (the table is tiny).
+
+    Returns:
+        Row dicts ordered by `reaped_at` descending, with `tasks_reverted`
+        decoded from its stored JSON-array string into a ``list[int]`` so callers
+        (table and JSON renderers alike) need no further parsing.
+    """
+    clauses: list[str] = []
+    params: list[str] = []
+    if since is not None:
+        clauses.append("reaped_at >= ?")
+        params.append(since)
+    if agent_type is not None:
+        clauses.append("agent_type = ?")
+        params.append(agent_type)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+
+    rows = conn.execute(
+        "SELECT reaped_at, agent_id, agent_type, role, last_heartbeat, "
+        "stale_by_sec, tasks_reverted, lock_released, reap_reason "
+        "FROM reap_log" + where + " ORDER BY reaped_at DESC",
+        params,
+    ).fetchall()
+
+    entries = []
+    for r in rows:
+        entry = dict(r)
+        # tasks_reverted is persisted as a JSON array string ("[7, 8]" / "[]");
+        # decode to a list so neither renderer re-parses it
+        entry["tasks_reverted"] = (
+            json.loads(entry["tasks_reverted"]) if entry["tasks_reverted"] else []
+        )
+        entries.append(entry)
+    return entries
+
+
 def connect_dossier_db(
     path: Path, *, agent_type: str | None = None, slug: str | None = None
 ) -> sqlite3.Connection:

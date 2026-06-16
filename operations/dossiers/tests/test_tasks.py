@@ -8,6 +8,13 @@ from operations.dossiers.db import (
     MAX_DESCRIPTION_LENGTH,
     MAX_SUBJECT_LENGTH,
 )
+from operations.dossiers.errors import (
+    IdentityReapedError,
+    TaskAlreadyCompletedError,
+    TaskDeletedError,
+    TaskNotFoundError,
+    TaskStateError,
+)
 from operations.dossiers.fold import fold_dossier
 from operations.dossiers.tasks import list_tasks, add_task, update_task, remove_task, claim_task, complete_task
 
@@ -222,14 +229,14 @@ class TestClaimTask:
             tasks=[{"subject": "A", "status": "pending"}],
         )
         claim_task(tmp_path, result["slug"], task_id=1, owner="agent-x")
-        with pytest.raises(ValueError, match="not pending"):
+        with pytest.raises(ValueError, match="is 'in_progress'"):
             claim_task(tmp_path, result["slug"], task_id=1, owner="agent-y")
 
     def test_claim_nonexistent_task_raises(self, tmp_path: Path):
         result = fold_dossier(
             dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
         )
-        with pytest.raises(ValueError, match="not pending"):
+        with pytest.raises(TaskNotFoundError, match="does not exist"):
             claim_task(tmp_path, result["slug"], task_id=999, owner="agent-x")
 
 
@@ -249,7 +256,9 @@ class TestCompleteTask:
             dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
             tasks=[{"subject": "A", "status": "pending"}],
         )
-        with pytest.raises(ValueError, match="not in progress"):
+        # never-claimed task is non-terminal with no caller identity ⇒ the
+        # dispatcher falls through to TaskStateError (unexpected state)
+        with pytest.raises(TaskStateError, match="not 'in_progress'"):
             complete_task(tmp_path, result["slug"], task_id=1)
 
 
@@ -385,7 +394,9 @@ class TestUpdateTaskCasGuard:
         claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
         complete_task(tmp_path, result["slug"], task_id=1, agent=worker)
 
-        with pytest.raises(ValueError, match="not in progress"):
+        # terminal status takes precedence over the (now-deregistered) worker's
+        # missing registration: "already completed", not "reaped"
+        with pytest.raises(TaskAlreadyCompletedError, match="already completed"):
             update_task(
                 tmp_path, result["slug"], task_id=1,
                 status="pending", owner="",
@@ -449,3 +460,119 @@ class TestUpdateTaskCasGuard:
                 (worker,),
             ).fetchone()["n"]
         assert n == 0
+
+
+# ── Mechanism 2: rich CAS failure dispatch + C2 atomicity ───────────────────
+
+
+class TestRichCasErrors:
+    """A failed in_progress CAS is diagnosed into one of five specific causes
+    (`_raise_task_cas_failure`), not a single opaque 'not in progress'."""
+
+    def test_complete_nonexistent_raises_not_found(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+        )
+        with pytest.raises(TaskNotFoundError, match="does not exist"):
+            complete_task(tmp_path, result["slug"], task_id=999)
+
+    def test_complete_already_completed_raises(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1, owner="agent-x")
+        complete_task(tmp_path, result["slug"], task_id=1)
+        with pytest.raises(TaskAlreadyCompletedError, match="already completed"):
+            complete_task(tmp_path, result["slug"], task_id=1)
+
+    def test_deleted_task_takes_precedence_over_missing_registration(
+        self, tmp_path: Path
+    ):
+        """Terminal 'deleted' is reported even when the caller is unregistered —
+        deleted wins over the reaped-identity branch (the ordering deviation)."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1, owner="agent-x")
+        remove_task(tmp_path, result["slug"], task_id=1)  # soft-delete
+        # 'agent-x' is a bare id (never registered); deleted-check fires first
+        with pytest.raises(TaskDeletedError, match="soft-deleted"):
+            complete_task(tmp_path, result["slug"], task_id=1, agent="agent-x")
+
+    def test_reaped_identity_raises_with_reap_log_context(self, tmp_path: Path):
+        """Registration gone + task reverted to a non-terminal state ⇒
+        IdentityReapedError, surfacing the reap_log reason."""
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        worker = "claude-code:worker-1:42"
+        claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
+
+        # simulate a primary-defense reap: delete the registration, revert the
+        # in-progress task to pending, and write the audit row cleanup would
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            with conn:
+                conn.execute("DELETE FROM registrations WHERE agent_id = ?", (worker,))
+                conn.execute(
+                    "UPDATE tasks SET status = 'pending', owner = NULL WHERE id = 1"
+                )
+                conn.execute(
+                    "INSERT INTO reap_log (reaped_at, agent_id, agent_type, role, "
+                    "last_heartbeat, stale_by_sec, tasks_reverted, lock_released, "
+                    "reap_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    ("2026-06-07T00:00:00Z", worker, "claude-code", "worker",
+                     "2026-06-06T00:00:00Z", 7200, "[1]", 0, "pid_dead"),
+                )
+
+        with pytest.raises(IdentityReapedError, match="pid_dead") as exc:
+            complete_task(tmp_path, result["slug"], task_id=1, agent=worker)
+        # the remediation hint and the gone-registration are both surfaced
+        assert "reverted" in str(exc.value)
+        assert worker in str(exc.value)
+
+    def test_non_terminal_state_with_live_registration_raises_state_error(
+        self, tmp_path: Path
+    ):
+        """Registration intact + task not in a terminal/in-progress state ⇒
+        the 'should never happen' TaskStateError, not a reap."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "owned"}, {"subject": "pending"}],
+        )
+        worker = "claude-code:worker-1:42"
+        # claim task 1 so `worker` is registered (and stays live); task 2 is pending
+        claim_task(tmp_path, result["slug"], task_id=1, owner=worker)
+        with pytest.raises(TaskStateError, match="invariant"):
+            complete_task(tmp_path, result["slug"], task_id=2, agent=worker)
+
+    def test_failed_claim_rolls_back_speculative_worker_registration(
+        self, tmp_path: Path
+    ):
+        """C2: register-then-claim is atomic. A claim that loses the CAS must not
+        leave a worker registration behind."""
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A"}],
+        )
+        holder = "claude-code:worker-1:1"
+        contender = "claude-code:worker-2:2"
+        claim_task(tmp_path, result["slug"], task_id=1, owner=holder)
+
+        with pytest.raises(ValueError, match="in_progress"):
+            claim_task(tmp_path, result["slug"], task_id=1, owner=contender)
+
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            ids = {
+                r["agent_id"] for r in conn.execute(
+                    "SELECT agent_id FROM registrations"
+                ).fetchall()
+            }
+        assert holder in ids          # the winner stays registered
+        assert contender not in ids   # the loser's register rolled back

@@ -76,6 +76,30 @@ def _run_cli(
     )
 
 
+def _seed_reap(
+    dossiers_dir: Path,
+    slug: str,
+    *,
+    reaped_at: str,
+    agent_id: str,
+    agent_type: str = "claude-code",
+    tasks_reverted: str = "[]",
+    lock_released: int = 0,
+    reason: str = "pid_dead",
+) -> None:
+    """Insert a reap_log row directly — there is no write-CLI for the audit log."""
+    from operations.dossiers.db import open_dossier_db, safe_db_path
+
+    with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
+        with conn:
+            conn.execute(
+                "INSERT INTO reap_log (reaped_at, agent_id, agent_type, role, "
+                "last_heartbeat, stale_by_sec, tasks_reverted, lock_released, reap_reason) "
+                "VALUES (?, ?, ?, 'orchestrator', '2026-01-01T00:00:00Z', 7200, ?, ?, ?)",
+                (reaped_at, agent_id, agent_type, tasks_reverted, lock_released, reason),
+            )
+
+
 class TestCliFold:
     def test_fold_creates_dossier_from_structured_stdin(self, dossiers_dir: Path):
         result, _ = _fold_via_cli(
@@ -666,14 +690,16 @@ class TestCliTaskAgentFlag:
         _run_cli(dossiers_dir, "tasks", slug, "claim", "--id", "1", "--agent", worker)
         _run_cli(dossiers_dir, "tasks", slug, "complete", "--id", "1", "--agent", worker)
 
-        # orchestrator attempts to revert the already-completed task
+        # orchestrator attempts to revert the already-completed task; the rich
+        # CAS dispatch surfaces the specific cause with its tag
         result = _run_cli(
             dossiers_dir, "tasks", slug, "update",
             "--id", "1", "--status", "pending",
             "--agent", "claude-code:orch-hex",
         )
         assert result.returncode != 0
-        assert "not in progress" in result.stderr
+        assert "[already-completed]" in result.stderr
+        assert "already completed" in result.stderr
 
     def test_update_without_agent_is_unguarded(self, dossiers_dir: Path):
         """Legacy/manual path (no --agent) still allows status edits freely."""
@@ -691,3 +717,56 @@ class TestCliTaskAgentFlag:
             "--id", "1", "--status", "pending",
         )
         assert result.returncode == 0, result.stderr
+
+
+class TestCliReapLog:
+    """Mechanism 3: the `reap-log` forensics subcommand."""
+
+    def test_reap_log_empty_dossier(self, dossiers_dir: Path):
+        _fold_result, slug = _fold_via_cli(dossiers_dir)
+        result = _run_cli(dossiers_dir, "reap-log", slug)
+        assert result.returncode == 0, result.stderr
+        assert "No reaps recorded." in result.stdout
+
+    def test_reap_log_table_lists_entries(self, dossiers_dir: Path):
+        _fold_result, slug = _fold_via_cli(dossiers_dir)
+        _seed_reap(
+            dossiers_dir, slug, reaped_at="2026-06-10T14:32:18Z",
+            agent_id="claude-code:a7f3c2", tasks_reverted="[7, 8, 11]",
+        )
+        result = _run_cli(dossiers_dir, "reap-log", slug)
+        assert result.returncode == 0, result.stderr
+        assert "claude-code:a7f3c2" in result.stdout
+        assert "pid_dead" in result.stdout
+        assert "[7, 8, 11]" in result.stdout
+
+    def test_reap_log_json_emits_full_row(self, dossiers_dir: Path):
+        _fold_result, slug = _fold_via_cli(dossiers_dir)
+        _seed_reap(
+            dossiers_dir, slug, reaped_at="2026-06-10T14:32:18Z",
+            agent_id="claude-code:a7f3c2", tasks_reverted="[7]", lock_released=1,
+        )
+        result = _run_cli(dossiers_dir, "reap-log", slug, "--format", "json")
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert len(payload) == 1
+        entry = payload[0]
+        assert entry["agent_id"] == "claude-code:a7f3c2"
+        assert entry["tasks_reverted"] == [7]   # decoded, not a string
+        assert entry["lock_released"] == 1       # full row, beyond the table cols
+        assert entry["reap_reason"] == "pid_dead"
+
+    def test_reap_log_agent_type_filter(self, dossiers_dir: Path):
+        _fold_result, slug = _fold_via_cli(dossiers_dir)
+        _seed_reap(
+            dossiers_dir, slug, reaped_at="2026-06-01T00:00:00Z",
+            agent_id="cc-orch", agent_type="claude-code",
+        )
+        _seed_reap(
+            dossiers_dir, slug, reaped_at="2026-06-02T00:00:00Z",
+            agent_id="cx-orch", agent_type="codex",
+        )
+        result = _run_cli(dossiers_dir, "reap-log", slug, "--agent-type", "codex")
+        assert result.returncode == 0, result.stderr
+        assert "cx-orch" in result.stdout
+        assert "cc-orch" not in result.stdout

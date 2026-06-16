@@ -31,6 +31,18 @@ Workers are short-lived and single-task. They deregister when their last
 ``_maybe_deregister_worker`` encodes that check in one place: role must be
 ``worker`` and the owner must have zero remaining in-progress tasks.
 Orchestrators never match this predicate and are only deregistered on fold.
+
+## Transaction ownership (C2 invariant)
+
+None of these functions commit. The caller owns the transaction boundary —
+typically a ``with conn:`` block at the call site. This is load-bearing: the
+worker path (``tasks.claim_task``) registers a worker and then CAS-claims its
+task in *one* transaction, so the speculative registration must roll back if
+the claim fails. An internal ``conn.commit()`` here would persist that
+registration permanently (Python's ``with conn:`` only rolls back the *current*
+implicit transaction; an inner commit escapes it), reverting register-then-claim
+to a non-atomic two-step. Each direct caller (incl. ``fold`` and tests) must
+wrap these in its own transaction.
 """
 import sqlite3
 
@@ -50,6 +62,9 @@ def register_agent(
     orchestrator path does not use this (it inlines a target-less UPSERT in
     `identity.resolve_identity`); this serves the worker path, whose ids carry
     a discriminator and so do not collide.
+
+    Does not commit — the caller owns the transaction (see module docstring,
+    "Transaction ownership").
     """
     now = _now_iso()
     conn.execute(
@@ -58,13 +73,14 @@ def register_agent(
         "VALUES (?, ?, ?, ?, ?, ?)",
         (agent_id, agent_type, role, cli_pid, now, now),
     )
-    conn.commit()
 
 
 def deregister_agent(conn: sqlite3.Connection, agent_id: str) -> None:
-    """Delete the registrations row for `agent_id`. Idempotent on missing."""
+    """Delete the registrations row for `agent_id`. Idempotent on missing.
+
+    Does not commit — the caller owns the transaction (see module docstring).
+    """
     conn.execute("DELETE FROM registrations WHERE agent_id = ?", (agent_id,))
-    conn.commit()
 
 
 def refresh_heartbeat(conn: sqlite3.Connection, agent_id: str) -> None:
@@ -72,12 +88,13 @@ def refresh_heartbeat(conn: sqlite3.Connection, agent_id: str) -> None:
 
     No-op if the row is missing (UPDATE matches zero rows). `registered_at` is
     deliberately left untouched — it is the set-once birth time.
+
+    Does not commit — the caller owns the transaction (see module docstring).
     """
     conn.execute(
         "UPDATE registrations SET last_heartbeat = ? WHERE agent_id = ?",
         (_now_iso(), agent_id),
     )
-    conn.commit()
 
 
 def list_agents(conn: sqlite3.Connection) -> list[dict]:
@@ -102,6 +119,10 @@ def _maybe_deregister_worker(conn: sqlite3.Connection, agent_id: str) -> bool:
     Returns True if the row was deleted, False otherwise (not a worker,
     still has in-progress tasks, or row missing). Orchestrators are never
     deregistered by this path.
+
+    Does not commit — the caller owns the transaction (see module docstring).
+    Callers invoke this inside their task-mutation transaction so the
+    in-progress count reflects the just-applied state change.
     """
     row = conn.execute(
         "SELECT role FROM registrations WHERE agent_id = ?", (agent_id,)
@@ -117,5 +138,4 @@ def _maybe_deregister_worker(conn: sqlite3.Connection, agent_id: str) -> bool:
         return False
 
     conn.execute("DELETE FROM registrations WHERE agent_id = ?", (agent_id,))
-    conn.commit()
     return True

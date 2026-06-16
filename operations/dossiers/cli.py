@@ -9,12 +9,17 @@ from pathlib import Path
 from typing import Any
 
 from .context import extract_task_context
-from .db import _check_path_containment, open_dossier_db, safe_db_path
+from .db import _check_path_containment, list_reap_log, open_dossier_db, safe_db_path
 from .errors import (
     AmbiguousQueryError,
     ConcurrentInstanceError,
     DossierNotFoundError,
+    IdentityReapedError,
     LockConflictError,
+    TaskAlreadyCompletedError,
+    TaskDeletedError,
+    TaskNotFoundError,
+    TaskStateError,
 )
 from .fold import fold_dossier
 from .identity import _orchestrator_agent_id
@@ -281,6 +286,35 @@ def cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
+# task-command error → CLI tag, ordered most-specific first so a subclass
+# (ConcurrentInstanceError < LockConflictError < ValueError) matches before its
+# base. All task errors subclass ValueError, so one `except ValueError` at each
+# call site funnels here and this dispatches to the right tag.
+_TASK_ERROR_TAGS: list[tuple[type, str]] = [
+    (ConcurrentInstanceError, "concurrent-instance"),
+    (TaskNotFoundError, "task-not-found"),
+    (IdentityReapedError, "identity-reaped"),
+    (TaskAlreadyCompletedError, "already-completed"),
+    (TaskDeletedError, "task-deleted"),
+    (TaskStateError, "task-state"),
+]
+
+
+def _print_task_error(e: ValueError) -> int:
+    """Print a task-command error to stderr with its ``[tag]`` and return 1.
+
+    Maps the Mechanism 2 task errors (and `ConcurrentInstanceError` from identity
+    resolution) to tagged messages so agents can branch on the failure cause; a
+    plain `ValueError` falls through to an untagged message.
+    """
+    for cls, tag in _TASK_ERROR_TAGS:
+        if isinstance(e, cls):
+            print(f"Error [{tag}]: {e}", file=sys.stderr)
+            return 1
+    print(f"Error: {e}", file=sys.stderr)
+    return 1
+
+
 def cmd_tasks(args: argparse.Namespace) -> int:
     dossiers_dir = _get_dossiers_dir(args)
     try:
@@ -317,34 +351,36 @@ def cmd_tasks(args: argparse.Namespace) -> int:
     elif subcmd == "update":
         # resolve --agent only if provided; enables the worker-reassignment
         # CAS guard inside update_task (see tasks.py docstring)
-        resolved_agent = None
-        if getattr(args, "agent", None):
-            resolved_agent, _ = _resolve_agent(args.agent, slug, dossiers_dir)
-        update_task(
-            dossiers_dir, slug, task_id=args.id,
-            subject=args.subject, status=args.status,
-            owner=args.owner, blocked_by=args.blocked_by,
-            context_notes=getattr(args, "context_notes", None),
-            description=args.description,
-            agent=resolved_agent,
-        )
-        print(f"Task #{args.id} updated.")
+        try:
+            resolved_agent = None
+            if getattr(args, "agent", None):
+                resolved_agent, _ = _resolve_agent(args.agent, slug, dossiers_dir)
+            update_task(
+                dossiers_dir, slug, task_id=args.id,
+                subject=args.subject, status=args.status,
+                owner=args.owner, blocked_by=args.blocked_by,
+                context_notes=getattr(args, "context_notes", None),
+                description=args.description,
+                agent=resolved_agent,
+            )
+            print(f"Task #{args.id} updated.")
+        except ValueError as e:
+            return _print_task_error(e)
 
     elif subcmd == "remove":
-        remove_task(dossiers_dir, slug, task_id=args.id)
-        print(f"Task #{args.id} removed.")
+        try:
+            remove_task(dossiers_dir, slug, task_id=args.id)
+            print(f"Task #{args.id} removed.")
+        except ValueError as e:
+            return _print_task_error(e)
 
     elif subcmd == "claim":
         try:
             resolved_owner, _ = _resolve_agent(args.agent, slug, dossiers_dir)
             claim_task(dossiers_dir, slug, task_id=args.id, owner=resolved_owner)
             print(f"Task #{args.id} claimed by {args.agent}.")
-        except ConcurrentInstanceError as e:
-            print(f"Error [concurrent-instance]: {e}", file=sys.stderr)
-            return 1
         except ValueError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            return 1
+            return _print_task_error(e)
 
     elif subcmd == "complete":
         try:
@@ -353,12 +389,8 @@ def cmd_tasks(args: argparse.Namespace) -> int:
                 resolved_agent, _ = _resolve_agent(args.agent, slug, dossiers_dir)
             complete_task(dossiers_dir, slug, task_id=args.id, agent=resolved_agent)
             print(f"Task #{args.id} completed.")
-        except ConcurrentInstanceError as e:
-            print(f"Error [concurrent-instance]: {e}", file=sys.stderr)
-            return 1
         except ValueError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            return 1
+            return _print_task_error(e)
 
     return 0
 
@@ -441,6 +473,48 @@ def cmd_who(args: argparse.Namespace) -> int:
             f"{_relative_time(ag['registered_at'])}"
         )
         print(line)
+    return 0
+
+
+def cmd_reap_log(args: argparse.Namespace) -> int:
+    """Print the reap audit log for a dossier (Mechanism 3: post-hoc forensics).
+
+    Read-only view over `reap_log`: answers "what got reaped, when, why, and
+    which tasks reverted." `--since` / `--agent-type` filter the rows; `--format
+    json` emits the full row (including `role`, `last_heartbeat`, `lock_released`)
+    for downstream tooling.
+    """
+    dossiers_dir = _get_dossiers_dir(args)
+    try:
+        slug = find_dossier(dossiers_dir, args.slug).stem
+    except (DossierNotFoundError, AmbiguousQueryError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
+        entries = list_reap_log(
+            conn,
+            since=getattr(args, "since", None),
+            agent_type=getattr(args, "agent_type", None),
+        )
+
+    if args.format == "json":
+        print(json.dumps(entries, indent=2))
+        return 0
+
+    if not entries:
+        print("No reaps recorded.")
+        return 0
+
+    # table mirrors the five spec columns; the full row is one `--format json` away
+    print(f"{'reaped_at':<20} {'agent_id':<29} {'reason':<14} "
+          f"{'stale_by':<10} tasks_reverted")
+    for e in entries:
+        stale_by = f"{e['stale_by_sec']}s"
+        print(
+            f"{e['reaped_at']:<20} {e['agent_id']:<29} {e['reap_reason']:<14} "
+            f"{stale_by:<10} {e['tasks_reverted']}"
+        )
     return 0
 
 
@@ -586,6 +660,18 @@ def main() -> int:
                                   parents=[parent_parser])
     p_who.add_argument("slug", help="Dossier slug or hash")
 
+    # reap-log — post-hoc forensics over the reap audit trail (Mechanism 3)
+    p_reap_log = subparsers.add_parser(
+        "reap-log", help="Show the registration reap audit log for a dossier",
+        parents=[parent_parser],
+    )
+    p_reap_log.add_argument("slug", help="Dossier slug or hash")
+    p_reap_log.add_argument("--since", help="Only reaps at or after this ISO-8601 timestamp")
+    p_reap_log.add_argument("--agent-type", dest="agent_type",
+                            help="Only reaps of this CLI type (e.g. claude-code)")
+    p_reap_log.add_argument("--format", choices=["table", "json"], default="table",
+                            help="Output format (default: table)")
+
     # fork
     p_fork = subparsers.add_parser("fork", help="Fork a dossier",
                                    parents=[parent_parser])
@@ -611,6 +697,7 @@ def main() -> int:
         "tasks": cmd_tasks,
         "lock": cmd_lock,
         "who": cmd_who,
+        "reap-log": cmd_reap_log,
         "fork": cmd_fork,
         "context": cmd_context,
     }

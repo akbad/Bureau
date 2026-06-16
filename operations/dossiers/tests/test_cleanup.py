@@ -12,6 +12,7 @@ import pytest
 
 from operations.dossiers.db import (
     _maybe_reap_stale_registrations,
+    list_reap_log,
     open_dossier_db,
     safe_db_path,
 )
@@ -213,7 +214,8 @@ class TestReapCascade:
         set_registration_ttl(99999)  # effectively never stale
         set_cleanup_check_interval(0)
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
-            register_agent(conn, "orch-claude-code-fresh", "claude-code", 1)
+            with conn:  # caller owns the txn (register_agent does not commit)
+                register_agent(conn, "orch-claude-code-fresh", "claude-code", 1)
         with open_dossier_db(safe_db_path(tmp_path, slug)):
             pass
         rows = _registrations(tmp_path, slug)
@@ -336,3 +338,73 @@ class TestFailureIsolation:
         with pytest.raises(TypeError, match="programming bug"):
             with open_dossier_db(safe_db_path(tmp_path, slug)):
                 pass
+
+
+def _insert_reap(
+    tmp_path: Path,
+    slug: str,
+    *,
+    reaped_at: str,
+    agent_id: str,
+    agent_type: str = "claude-code",
+    tasks_reverted: str = "[]",
+    reason: str = "pid_dead",
+) -> None:
+    """Insert a reap_log row directly (the table has no write API outside reaps)."""
+    with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+        with conn:
+            conn.execute(
+                "INSERT INTO reap_log (reaped_at, agent_id, agent_type, role, "
+                "last_heartbeat, stale_by_sec, tasks_reverted, lock_released, reap_reason) "
+                "VALUES (?, ?, ?, 'orchestrator', ?, 7200, ?, 0, ?)",
+                (reaped_at, agent_id, agent_type, _STALE, tasks_reverted, reason),
+            )
+
+
+class TestListReapLog:
+    """The read side of the audit trail (Mechanism 3 / `reap-log` CLI)."""
+
+    def test_empty_when_no_reaps(self, tmp_path, make_dossier):
+        slug = make_dossier()["slug"]
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            assert list_reap_log(conn) == []
+
+    def test_orders_newest_first(self, tmp_path, make_dossier):
+        slug = make_dossier()["slug"]
+        _insert_reap(tmp_path, slug, reaped_at="2026-06-01T00:00:00Z", agent_id="old")
+        _insert_reap(tmp_path, slug, reaped_at="2026-06-10T00:00:00Z", agent_id="new")
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            entries = list_reap_log(conn)
+        assert [e["agent_id"] for e in entries] == ["new", "old"]
+
+    def test_decodes_tasks_reverted_to_list(self, tmp_path, make_dossier):
+        slug = make_dossier()["slug"]
+        _insert_reap(
+            tmp_path, slug, reaped_at="2026-06-01T00:00:00Z",
+            agent_id="a", tasks_reverted="[7, 8, 11]",
+        )
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            entries = list_reap_log(conn)
+        assert entries[0]["tasks_reverted"] == [7, 8, 11]
+
+    def test_since_excludes_older_reaps(self, tmp_path, make_dossier):
+        slug = make_dossier()["slug"]
+        _insert_reap(tmp_path, slug, reaped_at="2026-06-01T00:00:00Z", agent_id="old")
+        _insert_reap(tmp_path, slug, reaped_at="2026-06-10T00:00:00Z", agent_id="new")
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            entries = list_reap_log(conn, since="2026-06-05T00:00:00Z")
+        assert [e["agent_id"] for e in entries] == ["new"]
+
+    def test_agent_type_filters(self, tmp_path, make_dossier):
+        slug = make_dossier()["slug"]
+        _insert_reap(
+            tmp_path, slug, reaped_at="2026-06-01T00:00:00Z",
+            agent_id="cc", agent_type="claude-code",
+        )
+        _insert_reap(
+            tmp_path, slug, reaped_at="2026-06-02T00:00:00Z",
+            agent_id="cx", agent_type="codex",
+        )
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            entries = list_reap_log(conn, agent_type="codex")
+        assert [e["agent_id"] for e in entries] == ["cx"]

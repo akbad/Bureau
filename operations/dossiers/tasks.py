@@ -1,4 +1,5 @@
 """Task CRUD operations for dossier task lists."""
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -7,12 +8,110 @@ from .db import (
     MAX_SUBJECT_LENGTH, MAX_DESCRIPTION_LENGTH, MAX_CONTEXT_NOTES_LENGTH,
     VALID_STATUSES,
 )
+from .errors import (
+    TaskNotFoundError, IdentityReapedError, TaskAlreadyCompletedError,
+    TaskDeletedError, TaskStateError,
+)
 from .registration import _maybe_deregister_worker, register_agent
 
 # nullable fields where passing "" means "clear to NULL";
 # non-nullable fields (subject, status) ignore empty strings to avoid
 # violating SQLite NOT NULL constraints
 CLEARABLE_FIELDS = {"description", "owner", "blocked_by", "context_notes"}
+
+
+def _raise_task_cas_failure(
+    conn: sqlite3.Connection, task_id: int, agent: str | None
+) -> None:
+    """Diagnose why an ``in_progress`` task CAS matched zero rows and raise.
+
+    Mechanism 2 (rich CAS failure errors): a guarded ``UPDATE ... WHERE
+    status='in_progress'`` that affects no rows is opaque on its own. This reads
+    the task's current state — and, when `agent` is known, the caller's
+    registration plus the `reap_log` — to dispatch to the specific cause:
+
+    1. `TaskNotFoundError` — the id does not exist (precondition failure).
+    2. `TaskAlreadyCompletedError` — the task is already ``completed``.
+    3. `TaskDeletedError` — the task was soft-deleted.
+    4. `IdentityReapedError` — the task is in a non-terminal state *and* the
+       caller's registration is gone, i.e. the primary-defense cleanup reaped it
+       and reverted the work (only checked when `agent` is provided; the reap
+       timing is read from `reap_log`).
+    5. `TaskStateError` — non-terminal state with the registration intact ⇒ a
+       coordination invariant was violated (investigate).
+
+    ## Ordering: terminal status before identity
+
+    Terminal states (``completed``/``deleted``) are checked *before* the
+    reaped-identity branch — a deliberate deviation from the v3.md sketch, which
+    checked identity first. The reap signature is a task *reverted to a
+    non-terminal state* plus a missing registration; a ``completed`` task is
+    "already completed" regardless of registration state. Checking identity first
+    misreports the legitimate case where a worker completes its task and is
+    self-deregistered (`_maybe_deregister_worker`) as "reaped, work reverted".
+
+    Args:
+        conn: open connection; only reads are issued (safe inside or after the
+            caller's transaction since the failed CAS wrote nothing).
+        task_id: the task whose CAS failed.
+        agent: the resolved caller id, or ``None`` when the call site has no
+            identity (e.g. the unguarded manual-repair path); when ``None`` the
+            reaped-identity branch is skipped.
+
+    Always raises; the ``-> None`` return is never reached.
+    """
+    diag = conn.execute(
+        "SELECT status, owner, updated_at FROM tasks WHERE id = ?", (task_id,)
+    ).fetchone()
+    if diag is None:
+        # precondition guard: no row to compare-and-swap against
+        raise TaskNotFoundError(f"Task {task_id} does not exist.")
+
+    if diag["status"] == "completed":
+        # terminal + proximate truth; legitimate (manual override or a prior/
+        # concurrent completion), independent of the caller's registration state
+        raise TaskAlreadyCompletedError(
+            f"Task {task_id} is already completed by {diag['owner']} "
+            f"at {diag['updated_at']}. No action needed."
+        )
+    if diag["status"] == "deleted":
+        raise TaskDeletedError(
+            f"Task {task_id} was soft-deleted by {diag['owner']} "
+            f"at {diag['updated_at']}."
+        )
+
+    # non-terminal state: a reverted task. caller identity gone ⇒ primary-defense
+    # cleanup reaped it mid-work (the revert to pending is why the CAS missed)
+    if agent is not None:
+        my_reg = conn.execute(
+            "SELECT 1 FROM registrations WHERE agent_id = ?", (agent,)
+        ).fetchone()
+        if my_reg is None:
+            reap = conn.execute(
+                "SELECT reaped_at, reap_reason FROM reap_log "
+                "WHERE agent_id = ? ORDER BY reaped_at DESC LIMIT 1",
+                (agent,),
+            ).fetchone()
+            reap_info = (
+                f" (reaped at {reap['reaped_at']}, reason={reap['reap_reason']})"
+                if reap else ""
+            )
+            raise IdentityReapedError(
+                f"Task {task_id} CAS failed: your registration '{agent}' is "
+                f"gone{reap_info}. Current task state: status={diag['status']}, "
+                f"owner={diag['owner']}, last_modified={diag['updated_at']}. Your "
+                f"in-progress work was reverted; re-claim and redo: "
+                f"`bureau-dossiers tasks <slug> claim --id {task_id} --agent <type>`."
+            )
+
+    # non-terminal state + registration intact ⇒ "should never happen" invariant
+    # violation; fail loud so it gets investigated rather than silently retried
+    raise TaskStateError(
+        f"Task {task_id} is '{diag['status']}' (not 'in_progress'), last modified "
+        f"{diag['updated_at']} by {diag['owner'] or 'nobody'}. Your registration "
+        f"is intact; this may indicate a coordination invariant was violated — "
+        f"investigate."
+    )
 
 
 def list_tasks(dossiers_dir: Path, slug: str) -> list[dict[str, Any]]:
@@ -116,7 +215,7 @@ def update_task(
             "SELECT id, owner, status FROM tasks WHERE id = ?", (task_id,)
         ).fetchone()
         if not existing:
-            raise ValueError(f"Task {task_id} not found in dossier {slug}")
+            raise TaskNotFoundError(f"Task {task_id} not found in dossier {slug}")
 
         updates = []
         values = []
@@ -154,10 +253,9 @@ def update_task(
             cursor = conn.execute(sql, values)
 
             if cas_guarded and cursor.rowcount == 0:
-                raise ValueError(
-                    f"Task {task_id} cannot be transitioned to {status}: "
-                    f"it is not in progress (may have been completed or reassigned concurrently)"
-                )
+                # raise inside `with conn:` so the no-op txn rolls back cleanly;
+                # the dispatcher only reads, then raises the specific cause
+                _raise_task_cas_failure(conn, task_id, agent)
 
             # former owner deregistration (only meaningful when owner was a worker
             # and we cleared their ownership via an in_progress → ... transition)
@@ -184,8 +282,11 @@ def claim_task(dossiers_dir: Path, slug: str, task_id: int, owner: str) -> None:
     Workers don't have session files; their registration is managed by the
     orchestrator via explicit labels.
 
-    Raises `ValueError` if the task is not pending (already claimed, completed,
-    deleted, or nonexistent).
+    Register-then-claim is atomic: if the claim CAS fails, the speculative worker
+    registration is rolled back (the failure is raised inside the transaction).
+
+    Raises `TaskNotFoundError` if no such task, or `ValueError` if the task
+    exists but is not pending (already claimed, completed, or deleted).
     """
     with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
         with conn:  # transaction boundary
@@ -207,12 +308,20 @@ def claim_task(dossiers_dir: Path, slug: str, task_id: int, owner: str) -> None:
                 "WHERE id = ? AND status = 'pending'",
                 (owner, now, task_id),
             )
-            affected = cursor.rowcount
-    if affected == 0:
-        raise ValueError(
-            f"Task {task_id} cannot be claimed: it is not pending "
-            f"(may not exist, or is already in progress / completed / deleted)"
-        )
+            if cursor.rowcount == 0:
+                # raise INSIDE the txn so the speculative worker register above
+                # rolls back — register-then-claim must be atomic (C2). The claim
+                # CAS expects 'pending', so the reaped-identity branch does not
+                # apply here; just distinguish missing from wrong-state.
+                diag = conn.execute(
+                    "SELECT status FROM tasks WHERE id = ?", (task_id,)
+                ).fetchone()
+                if diag is None:
+                    raise TaskNotFoundError(f"Task {task_id} does not exist.")
+                raise ValueError(
+                    f"Task {task_id} cannot be claimed: it is '{diag['status']}', "
+                    f"not 'pending' (already in progress / completed / deleted)."
+                )
 
 
 def complete_task(
@@ -227,7 +336,9 @@ def complete_task(
     tasks after this completion, the worker's registration row is deleted
     (see `_maybe_deregister_worker` — no-op for orchestrators).
 
-    Raises `ValueError` if the task is not in progress.
+    Raises `TaskNotFoundError` / `IdentityReapedError` /
+    `TaskAlreadyCompletedError` / `TaskDeletedError` / `TaskStateError` (the
+    Mechanism 2 dispatch) when the CAS finds no in-progress row.
     """
     with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
         with conn:  # transaction boundary
@@ -237,14 +348,12 @@ def complete_task(
                 "WHERE id = ? AND status = 'in_progress'",
                 (now, task_id),
             )
-            affected = cursor.rowcount
+            if cursor.rowcount == 0:
+                # raise inside the txn (the no-op CAS rolls back cleanly); the
+                # dispatcher only reads, then raises the specific cause
+                _raise_task_cas_failure(conn, task_id, agent)
 
-            # deregister inside the same transaction so ownership-count query
+            # deregister inside the same transaction so the ownership-count query
             # observes the just-completed task's new state
-            if affected > 0 and agent:
+            if agent:
                 _maybe_deregister_worker(conn, agent)
-    if affected == 0:
-        raise ValueError(
-            f"Task {task_id} cannot be completed: it is not in progress "
-            f"(may not exist, or is still pending / already completed / deleted)"
-        )
