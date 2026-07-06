@@ -423,6 +423,10 @@ mcp:
             - npx
             - -y
             - "@playwright/mcp@latest"
+            # Run windowless (otherwise, steals focus off whatever monitor/app 
+            # you're in); screenshots/DOM/network all work headless.
+            # Drop this flag only if you need to watch the browser drive live.
+            - --headless
 
 
 # ─────────────────────────────────────────────────────────────────────────────
