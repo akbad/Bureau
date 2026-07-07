@@ -13,7 +13,8 @@
 
 ## What Bureau provides
 
-- A unified, cohesive set of MCP servers and plugins
+- **Built-in workflow skills:** structured, multi-step protocols (like [two-phase code assessment](protocols/context/static/skills/assess-mode/SKILL.md)) that agents activate automatically when they recognise a matching task
+- A **unified, cohesive set of MCP servers and plugins**
 - 66 specialized agent roles that are:
     
     - spawnable as **cross-CLI subagents** with *minimal* task delegation overhead
@@ -21,8 +22,6 @@
         
         - **isolated subagents**
         - **interactive main agents**
-
-- **Built-in workflow skills** — structured, multi-step protocols (like [two-phase code assessment](protocols/context/static/skills/assess-mode/SKILL.md)) that agents activate automatically when they recognise a matching task
 
 - A **<ins>*near-zero* learning curve</ins>** via:
   
@@ -60,30 +59,6 @@ rather than adapting to users' ad-hoc workflows, permitting open-ended explorati
 
 - [Specialized roles](agents/role-prompts/) (architect, code-reviewer, etc.) configured for use in *all* supported CLIs
 - Can choose a specific model per task (e.g. Claude for architecture, Gemini for broad code search)
-
-### 2 ways of invoking agents
-
-#### As <ins>subagents</ins> 
-
-> *Isolated agents that use a **separate context** and return results **only***
-    
-| CLI | Subagent usage method |
-| :--- | :--- |
-| **Claude Code** & **OpenCode** <ins>only</ins> | Native/built-in subagent functionality |
-| **All** CLIs, including ***cross-CLI* subagents** | PAL MCP's [`clink` tool](https://github.com/BeehiveInnovations/pal-mcp-server/blob/main/docs/tools/clink.md) |
-
-#### As <ins>interactive main agents</ins>
-
-> *For **direct use** in the **main conversation*** 
-
-| CLI | Main agent activation method |
-| :--- | :--- | 
-| **Claude Code** | Activate at any time using **custom slash commands** set up by Bureau |
-| **OpenCode** | Use built-in [primary agent functionality](https://opencode.ai/docs/agents/#primary-agents) |
-| **Codex** & **Gemini CLI** | Use **custom role-specific launch wrappers** (e.g. `codex-code-reviewer`, `gemini-architect`) set up by Bureau |
-
-> [!TIP]
-> See details for these 2 invocation methods in the [*agent role usage patterns* section below](#agent-role-usage-patterns). 
 
 ### Cohesive MCP server set
 
