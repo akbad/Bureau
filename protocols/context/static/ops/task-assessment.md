@@ -18,11 +18,12 @@
 | Claude Code | `claude -p "prompt"` | `--resume SESSION_ID` | `--output-format json` | `--allowedTools "tools"` |
 | Codex | `codex exec "prompt"` | `codex exec resume SESSION_ID` | `--json` | `--full-auto` |
 | Gemini | `gemini -p "prompt"` | (session ID from init event) | `--output-format json` | TBD: verify Gemini CLI auto-approve flag before implementation |
+| Grok Build | `grok -p "prompt"` | `-r ID` / `-c` | `--output-format json` | `--yolo` / `--permission-mode bypassPermissions` |
 
 **Essential rules:**
 
 - Always set auto-approve flags; headless agents hang on permission prompts.
-- Inject role via `--append-system-prompt` (Claude) or in the prompt itself (Codex/Gemini).
+- Inject role via `--append-system-prompt` (Claude) or in the prompt itself (Codex/Gemini/Grok).
 - Use `--bare` (Claude) for simple scoped tasks that don't need MCPs.
 - Omit `--bare` when the headless agent needs MCP server access.
 - Always use JSON output to capture session IDs.

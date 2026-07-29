@@ -433,13 +433,14 @@ mcp:
 # Agent configuration
 # ─────────────────────────────────────────────────────────────────────────────
 # Coding agent CLIs that Bureau should configure
-# Available: claude, gemini, codex, opencode
+# Available: claude, gemini, codex, opencode, grok
 
 agents:
   - claude
   - gemini
   - codex
   - opencode
+  - grok
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -462,8 +463,8 @@ roles:
 
   # source directories for role discovery
   sources:
-    - path: agents/role-prompts        # For Codex, Gemini, OpenCode
-      cli: [codex, gemini, opencode]
+    - path: agents/role-prompts        # For Codex, Gemini, OpenCode, Grok Build
+      cli: [codex, gemini, opencode, grok]
     - path: agents/claude-subagents    # For Claude Code (has frontmatter)
       cli: [claude]
 

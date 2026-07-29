@@ -43,10 +43,38 @@ def load_cli_entries(cli: str, config_path: str) -> dict[str, Any]:
     if cli == "gemini":
         data = _load_json(path)
         return data.get("mcpServers", {}) if isinstance(data, dict) else {}
+    if cli == "grok":
+        # Grok config.toml uses Codex-like mcp_servers sections; HTTP supports headers.
+        transport = raw_entry.get("transport")
+        if transport is None:
+            if "url" in raw_entry:
+                transport = "http"
+            elif "command" in raw_entry:
+                transport = "stdio"
+        if transport == "http":
+            return _drop_none(
+                {
+                    "transport": "http",
+                    "url": raw_entry.get("url"),
+                    "headers": raw_entry.get("headers"),
+                }
+            )
+        if transport == "stdio":
+            return _drop_none(
+                {
+                    "transport": "stdio",
+                    "command": raw_entry.get("command"),
+                    "args": raw_entry.get("args", []),
+                    "env": raw_entry.get("env"),
+                    "startup_timeout_sec": raw_entry.get("startup_timeout_sec"),
+                    "tool_timeout_sec": raw_entry.get("tool_timeout_sec"),
+                }
+            )
+
     if cli == "opencode":
         data = _load_json(path)
         return data.get("mcp", {}) if isinstance(data, dict) else {}
-    if cli == "codex":
+    if cli in {"codex", "grok"}:
         data = _load_toml(path)
         return data.get("mcp_servers", {}) if isinstance(data, dict) else {}
     return {}
@@ -185,7 +213,7 @@ def normalize_desired_entry(cli: str, desired_entry: dict[str, Any]) -> dict[str
             "transport": "http",
             "url": desired_entry.get("url"),
         }
-        if cli in {"claude", "gemini", "opencode"}:
+        if cli in {"claude", "gemini", "opencode", "grok"}:
             payload["headers"] = desired_entry.get("headers")
         if cli == "codex":
             payload["bearer_token_env_var"] = desired_entry.get("bearer_token_env_var")
@@ -212,7 +240,7 @@ def normalize_desired_entry(cli: str, desired_entry: dict[str, Any]) -> dict[str
         }
         if cli == "gemini":
             payload["timeout_ms"] = desired_entry.get("timeout_ms")
-        if cli == "codex":
+        if cli in {"codex", "grok"}:
             payload["startup_timeout_sec"] = desired_entry.get("startup_timeout_sec")
             payload["tool_timeout_sec"] = desired_entry.get("tool_timeout_sec")
         return _drop_none(payload)

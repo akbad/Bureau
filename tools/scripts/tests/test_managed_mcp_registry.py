@@ -102,6 +102,37 @@ def test_normalize_entries_across_clis():
     }
 
 
+
+    assert normalize_entry(
+        "grok",
+        {
+            "url": "http://localhost:8782/mcp/",
+            "headers": {"Authorization": "Bearer x"},
+            "enabled": True,
+        },
+    ) == {
+        "transport": "http",
+        "url": "http://localhost:8782/mcp/",
+        "headers": {"Authorization": "Bearer x"},
+    }
+
+    assert normalize_entry(
+        "grok",
+        {
+            "command": "uvx",
+            "args": ["mcp-server-fetch"],
+            "env": {"A": "b"},
+            "startup_timeout_sec": 30,
+        },
+    ) == {
+        "transport": "stdio",
+        "command": "uvx",
+        "args": ["mcp-server-fetch"],
+        "env": {"A": "b"},
+        "startup_timeout_sec": 30,
+    }
+
+
 def test_fingerprint_stable_for_same_input():
     normalized = {"transport": "http", "url": "http://x"}
     assert fingerprint_entry(normalized) == fingerprint_entry(normalized)
@@ -358,6 +389,63 @@ def test_record_registry_tracks_legacy_codex_entries():
     )
 
     assert list(recorded["servers"].keys()) == ["filesystem", "github"]
+
+
+
+
+def test_normalize_desired_entry_for_grok_http_and_stdio():
+    http = normalize_desired_entry(
+        "grok",
+        {
+            "transport": "http",
+            "url": "http://localhost:8782/mcp/",
+            "headers": {"A": "b"},
+        },
+    )
+    assert http == {
+        "transport": "http",
+        "url": "http://localhost:8782/mcp/",
+        "headers": {"A": "b"},
+    }
+
+    stdio = normalize_desired_entry(
+        "grok",
+        {
+            "transport": "stdio",
+            "command": ["uvx", "mcp-server-fetch"],
+            "env": {"A": "b"},
+            "startup_timeout_sec": 30,
+            "tool_timeout_sec": 120,
+        },
+    )
+    assert stdio == {
+        "transport": "stdio",
+        "command": "uvx",
+        "args": ["mcp-server-fetch"],
+        "env": {"A": "b"},
+        "startup_timeout_sec": 30,
+        "tool_timeout_sec": 120,
+    }
+
+
+def test_load_grok_entries_from_toml(tmp_path):
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+[mcp_servers.qdrant]
+url = "http://localhost:8782/mcp/"
+enabled = true
+
+[mcp_servers.fetch]
+command = "uvx"
+args = ["mcp-server-fetch"]
+""",
+        encoding="utf-8",
+    )
+    entries = load_cli_entries("grok", str(config_path))
+    assert entries["qdrant"]["url"] == "http://localhost:8782/mcp/"
+    assert entries["fetch"]["command"] == "uvx"
+    assert list(entries["fetch"]["args"]) == ["mcp-server-fetch"]
 
 
 def test_load_codex_entries_from_toml(tmp_path):

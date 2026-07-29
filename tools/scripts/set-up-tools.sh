@@ -47,6 +47,8 @@ source "$REPO_ROOT/bin/lib/logging.sh"
 CLAUDE="Claude Code"
 CODEX="Codex"
 GEMINI="Gemini CLI"
+OPENCODE="OpenCode"
+GROK="Grok Build"
 
 # User-level config locations for supported coding CLIs
 GEMINI_CONFIG="$HOME/.gemini/settings.json"
@@ -54,6 +56,7 @@ CODEX_CONFIG="$HOME/.codex/config.toml"
 CLAUDE_CONFIG="$HOME/.claude/settings.json"
 CLAUDE_CLI_STATE="$HOME/.claude.json"
 OPENCODE_CONFIG="$HOME/.config/opencode/opencode.json"
+GROK_CONFIG="$HOME/.grok/config.toml"
 
 # Contains the list of agents to be configured by this script to use Bureau and its tools
 # Populated later by discover_agents() based on the YML configs
@@ -190,10 +193,62 @@ remove_managed_servers() {
         opencode)
             remove_opencode_servers "$OPENCODE_CONFIG" "${servers[@]}"
             ;;
+        grok)
+            for server_id in "${servers[@]}"; do
+                uv run "$SCRIPT_DIR/add-mcp-to-grok.py" remove \
+                    --config "$GROK_CONFIG" \
+                    --name "$server_id" || true
+            done
+            ;;
         *)
             log_warning "Unknown CLI for managed MCP cleanup: $cli"
             ;;
     esac
+}
+
+# Upsert an MCP server into Grok Build's ~/.grok/config.toml.
+# Exit codes mirror other add helpers: 0=written, 1=already equivalent, 2=error.
+add_mcp_to_grok() {
+    local server_name=$1
+    local transport=$2
+    shift 2
+
+    mkdir -p "$HOME/.grok"
+    [[ ! -f "$GROK_CONFIG" ]] && touch "$GROK_CONFIG"
+
+    local -a cmd=(
+        uv run "$SCRIPT_DIR/add-mcp-to-grok.py" upsert
+        --config "$GROK_CONFIG"
+        --name "$server_name"
+        --transport "$transport"
+    )
+
+    if [[ "$transport" == "http" ]]; then
+        local url=$1
+        shift
+        local headers=("$@")
+        cmd+=(--url "$url")
+        for header in "${headers[@]}"; do
+            cmd+=(--header "$header")
+        done
+    else
+        parse_stdio_mcp_args "$@"
+        for env_pair in "${_STDIO_ENV_PAIRS[@]}"; do
+            cmd+=(--env "$env_pair")
+        done
+        if [[ -n "${_STDIO_STARTUP_TIMEOUT:-}" ]]; then
+            cmd+=(--startup-timeout-sec "$_STDIO_STARTUP_TIMEOUT")
+        fi
+        if [[ -n "${_STDIO_TOOL_TIMEOUT:-}" ]]; then
+            cmd+=(--tool-timeout-sec "$_STDIO_TOOL_TIMEOUT")
+        fi
+        for token in "${_STDIO_CMD_ARGS[@]}"; do
+            cmd+=(--arg "$token")
+        done
+    fi
+
+    "${cmd[@]}"
+    return $?
 }
 
 managed_registry_reconcile() {
@@ -970,6 +1025,10 @@ add_http_mcp_to_agent() {
             fi
             add_mcp_to_codex "$server" "http" "$url" "$bearer_env"
             ;;
+        "$GROK")
+            # Grok HTTP supports headers natively in config.toml.
+            add_mcp_to_grok "$server" "http" "$url" "${headers[@]}"
+            ;;
     esac
 }
 
@@ -1020,6 +1079,19 @@ add_stdio_mcp_to_agent() {
                 codex_args+=("--tool-timeout-sec" "$_STDIO_TOOL_TIMEOUT")
             fi
             add_mcp_to_codex "$server" "stdio" "${codex_args[@]}" -- "${_STDIO_CMD_ARGS[@]}"
+            ;;
+        "$GROK")
+            local grok_args=()
+            for env_pair in "${_STDIO_ENV_PAIRS[@]}"; do
+                grok_args+=(--env "$env_pair")
+            done
+            if [[ -n "$_STDIO_STARTUP_TIMEOUT" ]]; then
+                grok_args+=(--startup-timeout-sec "$_STDIO_STARTUP_TIMEOUT")
+            fi
+            if [[ -n "$_STDIO_TOOL_TIMEOUT" ]]; then
+                grok_args+=(--tool-timeout-sec "$_STDIO_TOOL_TIMEOUT")
+            fi
+            add_mcp_to_grok "$server" "stdio" "${grok_args[@]}" -- "${_STDIO_CMD_ARGS[@]}"
             ;;
     esac
 }
@@ -1239,6 +1311,11 @@ configure_auto_approve() {
             "$GEMINI")
                 uv run "$SCRIPT_DIR/add-gemini-auto-approvals.py" "$GEMINI_CONFIG" "${gemini_auto_approve[@]}"
                 ;;
+            "$GROK")
+                # Full Grok permission rewrite (MCP + optional bash + access paths)
+                # so bash and MCP setup never clobber each other.
+                configure_grok_approvals
+                ;;
             *)
                 log_warning "  Unknown agent: $agent (skipping)"
                 ;;
@@ -1248,6 +1325,41 @@ configure_auto_approve() {
     log_empty_line
     log_success "Agent auto-approvals successfully configured."
     log_info "MCP tools will now be auto-approved without permission prompts"
+}
+
+# Single writer for Grok permissions: always includes MCP (if auto-approve on),
+# bash allow/deny (if enabled), and agent_access paths. Called from both
+# configure_auto_approve and configure_bash_approvals to keep one managed set.
+configure_grok_approvals() {
+    local -a args=()
+    local approvals_enabled
+    approvals_enabled="$(plan_jq '.auto_approved.bash.enabled // false')"
+
+    if [[ "$AUTO_APPROVE_MCP" == true ]]; then
+        while IFS= read -r server_id; do
+            [[ -n "$server_id" ]] || continue
+            args+=(--mcp-server "$server_id")
+        done < <(plan_jq '.auto_approved.mcp_servers.grok // [] | .[]')
+    fi
+
+    if [[ "$approvals_enabled" == "true" ]]; then
+        while IFS= read -r prefix; do
+            [[ -n "$prefix" ]] || continue
+            args+=(--bash-allow "$prefix")
+        done < <(plan_jq '.auto_approved.bash.ruleset.allow[]?')
+        while IFS= read -r prefix; do
+            [[ -n "$prefix" ]] || continue
+            args+=(--bash-deny "$prefix")
+        done < <(plan_jq '.auto_approved.bash.ruleset.deny[]?')
+    fi
+
+    while IFS= read -r access_path; do
+        [[ -n "$access_path" ]] || continue
+        args+=(--access-path "$access_path")
+    done < <(uv run get-config --list access-paths 2>/dev/null || true)
+    args+=(--access-path "~/.config/bureau/protocols")
+
+    uv run "$SCRIPT_DIR/add-grok-auto-approvals.py" "$GROK_CONFIG" "${args[@]}"
 }
 
 configure_bash_approvals() {
@@ -1300,6 +1412,15 @@ configure_bash_approvals() {
                     codex_bash_args+=(--deny "$prefix")
                 done
                 uv run "$SCRIPT_DIR/write-codex-exec-policy.py" "${codex_bash_args[@]}"
+                ;;
+            "$GROK")
+                # If MCP auto-approve will also run, skip here — that path
+                # rewrites the full Grok managed permission set.
+                if [[ "$AUTO_APPROVE_MCP" == true ]]; then
+                    log_info "  Grok bash approvals deferred to MCP auto-approve pass"
+                else
+                    configure_grok_approvals
+                fi
                 ;;
             *)
                 log_warning "  Unknown agent: $agent (skipping)"
@@ -1420,6 +1541,9 @@ fi
 if agent_enabled "$OPENCODE"; then
     managed_registry_reconcile "opencode" "$OPENCODE_CONFIG" "$AUTO_CLEAN_MCP"
 fi
+if agent_enabled "$GROK"; then
+    managed_registry_reconcile "grok" "$GROK_CONFIG" "$AUTO_CLEAN_MCP"
+fi
 
 apply_claude_post_config() {
     local server_id=$1
@@ -1533,6 +1657,9 @@ if agent_enabled "$GEMINI"; then
 fi
 if agent_enabled "$CODEX"; then
     managed_registry_record "codex" "$CODEX_CONFIG"
+fi
+if agent_enabled "$GROK"; then
+    managed_registry_record "grok" "$GROK_CONFIG"
 fi
 
 # Configure MCP auto-approvals if requested

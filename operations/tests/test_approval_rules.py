@@ -56,3 +56,32 @@ def test_build_codex_rule_lines():
     assert lines[0].startswith("prefix_rule(pattern=[")
     assert "decision=\"allow\"" in lines[0]
     assert "decision=\"forbidden\"" in lines[1]
+
+
+def test_build_grok_bash_rules():
+    from operations.approval_rules import build_grok_bash_rules
+
+    assert build_grok_bash_rules(["git status", "rg"]) == [
+        "Bash(git status *)",
+        "Bash(rg *)",
+    ]
+
+
+def test_build_grok_mcp_rules():
+    from operations.approval_rules import build_grok_mcp_rules
+
+    assert build_grok_mcp_rules(["qdrant", "serena"]) == [
+        "MCPTool(qdrant__*)",
+        "MCPTool(serena__*)",
+    ]
+
+
+def test_build_grok_path_rules():
+    from operations.approval_rules import build_grok_path_rules
+
+    assert build_grok_path_rules(["~/.config/bureau", "/tmp/x/**"]) == [
+        "Read(~/.config/bureau/**)",
+        "Edit(~/.config/bureau/**)",
+        "Read(/tmp/x/**)",
+        "Edit(/tmp/x/**)",
+    ]

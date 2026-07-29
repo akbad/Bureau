@@ -34,6 +34,7 @@ CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
 OPENCODE_SKILLS_DIR="$HOME/.config/opencode/skill"
 CODEX_SKILLS_DIR="$HOME/.agents/skills"
 ANTIGRAVITY_SKILLS_DIR="$HOME/.gemini/config/plugins/bureau/skills"
+GROK_SKILLS_DIR="$HOME/.grok/skills"
 LEGACY_CODEX_SKILLS_DIR="$HOME/.codex/skills"
 LEGACY_BUREAU_SKILL_PREFIX="bureau-"
 GENERATED_BUREAU_SKILLS_DIR="$HOME/.config/bureau/generated/skills"
@@ -281,6 +282,7 @@ remove_bureau_skill_dirs "$CLAUDE_SKILLS_DIR"
 remove_bureau_skill_dirs "$OPENCODE_SKILLS_DIR"
 remove_bureau_skill_dirs "$CODEX_SKILLS_DIR"
 remove_bureau_skill_dirs "$ANTIGRAVITY_SKILLS_DIR"
+remove_bureau_skill_dirs "$GROK_SKILLS_DIR"
 remove_bureau_skill_dirs "$LEGACY_CODEX_SKILLS_DIR"
 
 log_empty_line
@@ -308,6 +310,10 @@ echo ""
 
 log_header "Antigravity (Gemini CLI)" "$ANTIGRAVITY_SKILLS_DIR"
 set_up_bureau_skill_dirs "$ANTIGRAVITY_SKILLS_DIR"
+echo ""
+
+log_header "Grok Build" "$GROK_SKILLS_DIR"
+set_up_bureau_skill_dirs "$GROK_SKILLS_DIR"
 echo ""
 
 log_divider

@@ -5,7 +5,7 @@
 2. Reads from merged config
 
 Usage:
-    get-config agents                           # Output: claude gemini codex opencode
+    get-config agents                           # Output: claude gemini codex opencode grok
     get-config retention_period_for.qdrant      # Output: 180d
     get-config mcp.client_configs.memory.storage_path  # Output: ~/.memory-mcp/memory.jsonl
     get-config --check agent claude    # Exit 0 if enabled, 1 if not

@@ -71,6 +71,7 @@ To use Bureau, you need at least one of the following:
 | Codex | `~/.codex/` |
 | Gemini CLI | `~/.gemini/` |
 | OpenCode | `~/.config/opencode/` |
+| Grok Build | `~/.grok/` (`config.toml`, `hooks/`, `skills/`, `agents/`, `commands/`) |
 
 ### Dependencies 
 
@@ -233,6 +234,16 @@ $ claude
 
 1. Run `/status`: Bureau's MCP servers should show as "connected"
 2. Press Tab to cycle through agents: Bureau agents should appear
+
+</details>
+
+<details>
+<summary><strong>Grok Build</strong></summary>
+
+1. Start a new session and ask "What operational context were you given?" — it should reference Bureau's ops-hub and task-specific spokes (via `~/.grok/hooks/bureau-ops.json`)
+2. Run `grok mcp list`: Bureau MCP servers should appear from `~/.grok/config.toml` (not only via Claude freeload)
+3. Run `/architect-bureau` (or another enabled role): the role prompt should inject into the conversation
+4. Check skills: assess-mode / fold-dossier / micro-mode / unfold-dossier should be available under `~/.grok/skills/`
 
 </details>
 

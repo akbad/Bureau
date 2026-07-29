@@ -70,9 +70,9 @@ discover_agents
 
 # Build --agent args for configure-hooks.py (expects lowercase config names,
 # not display names like "Claude Code")
-CONFIGURE_HOOK_SUPPORTED_AGENTS=(claude codex gemini)
+CONFIGURE_HOOK_SUPPORTED_AGENTS=(claude codex gemini grok)
 CONFIGURE_HOOK_AGENT_ARGS=()
-REMOVE_HOOK_SUPPORTED_AGENTS=(claude codex gemini)
+REMOVE_HOOK_SUPPORTED_AGENTS=(claude codex gemini grok)
 REMOVE_HOOK_AGENT_ARGS=()
 for agent in "${AGENTS[@]}"; do
     config_name="$(_agent_config_name "$agent")"

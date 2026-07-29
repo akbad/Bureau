@@ -2,7 +2,7 @@
 
 > *Endowing agents with the intelligence to **leverage versatile custom tools** and **orchestrate each other, autonomously.***
 > 
-> *Supports Gemini CLI, Claude Code, Codex and OpenCode.*
+> *Supports Gemini CLI, Claude Code, Codex, OpenCode, and Grok Build.*
 
 > [!IMPORTANT]
 > ### Shortcuts to key resources
@@ -55,10 +55,10 @@ rather than adapting to users' ad-hoc workflows, permitting open-ended explorati
 
 ## Feature list
 
-### Consistent agent roles across 4 CLI platforms
+### Consistent agent roles across 5 CLI platforms
 
 - [Specialized roles](agents/role-prompts/) (architect, code-reviewer, etc.) configured for use in *all* supported CLIs
-- Can choose a specific model per task (e.g. Claude for architecture, Gemini for broad code search)
+- Can choose a specific model per task (e.g. Claude for architecture, Gemini for broad code search, Grok for implementation)
 
 ### Cohesive MCP server set
 
@@ -194,6 +194,18 @@ Use the built-in [primary agents mechanism](https://opencode.ai/docs/agents/#pri
 
 > [!NOTE]
 > Bureau-provided agents will be named/shown as `Bureau-Agents/<rolename>` in the OpenCode interface.
+
+#### Grok Build
+
+Use Bureau-installed slash commands or agent definitions:
+
+```bash
+$ grok
+> /architect-bureau
+# architect role prompt injected into the conversation
+```
+
+Bureau roles are also installed as Grok agents named `bureau-<role>` (visible in `/config-agents`).
 
 ## Configuration
 

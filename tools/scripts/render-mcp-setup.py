@@ -112,6 +112,7 @@ def render_setup_plan(config: Mapping[str, Any]) -> dict[str, Any]:
         "claude": sorted(client_configs_by_cli.get("claude", {}).keys()),
         "gemini": sorted(client_configs_by_cli.get("gemini", {}).keys()),
         "codex": sorted(client_configs_by_cli.get("codex", {}).keys()),
+        "grok": sorted(client_configs_by_cli.get("grok", {}).keys()),
         "codex_tools": codex_tools,
     }
 

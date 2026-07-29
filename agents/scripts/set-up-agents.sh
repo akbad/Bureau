@@ -82,6 +82,13 @@ if agent_enabled "Gemini CLI"; then
     echo ""
 fi
 
+# Grok Build roles (agents + slash commands)
+if agent_enabled "Grok Build"; then
+    log_action "Setting up Grok Build roles"
+    "$AGENTS_DIR/scripts/set-up-grok-roles.sh"
+    echo ""
+fi
+
 # Antigravity (Gemini CLI) subagents plugin deployment
 if agent_enabled "Gemini CLI"; then
     log_action "Setting up Antigravity subagents plugin"
