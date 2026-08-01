@@ -423,10 +423,22 @@ mcp:
             - npx
             - -y
             - "@playwright/mcp@latest"
-            # Run windowless (otherwise, steals focus off whatever monitor/app 
+            # Run windowless (otherwise, steals focus off whatever monitor/app
             # you're in); screenshots/DOM/network all work headless.
             # Drop this flag only if you need to watch the browser drive live.
             - --headless
+            # REQUIRED for concurrent agents. Without it, Playwright MCP opens a
+            # persistent profile at ~/Library/Caches/ms-playwright-mcp/mcp-<channel>-<hash>,
+            # where <hash> is derived from the CLIENT'S WORKSPACE ROOT. Two agents
+            # working in the same directory therefore resolve to the same profile,
+            # and a persistent profile can only be held by one browser at a time —
+            # the second agent fails with "Browser is already in use for <dir>".
+            # --isolated keeps the profile in memory instead, so every session gets
+            # a clean context and nothing is written to disk.
+            # Tradeoff: no logins persist across sessions. If you need authenticated
+            # browsing, add --storage-state <path> to seed auth from a saved file
+            # rather than dropping this flag.
+            - --isolated
 
 
 # ─────────────────────────────────────────────────────────────────────────────
