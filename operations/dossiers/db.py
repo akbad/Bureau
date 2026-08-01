@@ -260,6 +260,16 @@ def _user_version(conn: sqlite3.Connection) -> int:
     return conn.execute("PRAGMA user_version").fetchone()[0]
 
 
+# Each migration targets a FIXED version, never the moving `SCHEMA_VERSION`.
+# Gating on the constant means the *next* version bump makes every already-
+# migrated database fail this migration's entry check and re-run a rebuild that
+# assumes an older shape: `DROP TABLE registrations` succeeds, `CREATE TABLE
+# reap_log` then fails with "already exists", and the raise bricks every connect
+# until someone notices. The transaction boundary saves the data, but the tool
+# is unusable and a `.pre-v4.bak` is written on every attempt.
+_V4_TARGET_VERSION = 4
+
+
 def migrate_v3_to_v4(conn: sqlite3.Connection, path: Path) -> None:
     """Migrate a v3 dossier to v4: rebuild `registrations`, add `reap_log`.
 
@@ -301,7 +311,7 @@ def migrate_v3_to_v4(conn: sqlite3.Connection, path: Path) -> None:
     Assumes a v3 base (all v3 columns present on the durable tables); this is
     the only shipped pre-v4 schema. Sub-v3 dossiers are not supported.
     """
-    if _user_version(conn) >= SCHEMA_VERSION:
+    if _user_version(conn) >= _V4_TARGET_VERSION:
         return  # fast path: already migrated (or fresh-created at v4)
 
     # Backup before touching anything. VACUUM INTO requires no open
@@ -318,7 +328,7 @@ def migrate_v3_to_v4(conn: sqlite3.Connection, path: Path) -> None:
     conn.isolation_level = None
     try:
         conn.execute("BEGIN IMMEDIATE")
-        if _user_version(conn) >= SCHEMA_VERSION:
+        if _user_version(conn) >= _V4_TARGET_VERSION:
             # Race loser: another connection migrated while we took the lock.
             conn.execute("ROLLBACK")
             return
@@ -327,7 +337,7 @@ def migrate_v3_to_v4(conn: sqlite3.Connection, path: Path) -> None:
         conn.execute("DROP TABLE IF EXISTS registrations")
         for stmt in _V4_REBUILD_STATEMENTS:
             conn.execute(stmt)
-        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")  # LAST write
+        conn.execute(f"PRAGMA user_version = {_V4_TARGET_VERSION}")  # LAST write
         conn.execute("COMMIT")
     except Exception:
         conn.execute("ROLLBACK")

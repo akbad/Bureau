@@ -310,3 +310,47 @@ class TestMigrateV3ToV4:
         _make_v3_db(db, with_orphans=False)
         connect_dossier_db(db).close()
         assert capsys.readouterr().err == ""
+
+
+class TestMigrationVersionGating:
+    """A migration must target a FIXED version, never the moving constant.
+
+    `migrate_v3_to_v4` gated on `SCHEMA_VERSION`, so advancing that constant
+    for a later migration would make every v4 database fail the gate, fall
+    into the destructive `DROP TABLE registrations` rebuild, and then be
+    stamped with the new version without the new migration ever running.
+    """
+
+    def test_v4_database_is_untouched_when_schema_version_advances(
+        self, tmp_path, monkeypatch
+    ):
+        """Simulate a future version bump; the v3->v4 rebuild must not fire."""
+        import operations.dossiers.db as db_module
+
+        path = tmp_path / "gated.db"
+        db_module.create_dossier_db(path)
+
+        # a live registration is exactly what the destructive rebuild drops
+        conn = sqlite3.connect(path)
+        conn.execute(
+            "INSERT INTO registrations "
+            "(agent_id, agent_type, role, cli_pid, registered_at, last_heartbeat) "
+            "VALUES ('orch-claude-code-abc', 'claude-code', 'orchestrator', 1, 'T', 'T')"
+        )
+        conn.commit()
+        conn.close()
+
+        # a later migration lands and advances the constant
+        monkeypatch.setattr(db_module, "SCHEMA_VERSION", db_module.SCHEMA_VERSION + 1)
+
+        conn = db_module.connect_dossier_db(path)
+        try:
+            survivors = conn.execute(
+                "SELECT COUNT(*) FROM registrations"
+            ).fetchone()[0]
+            stamped = conn.execute("PRAGMA user_version").fetchone()[0]
+        finally:
+            conn.close()
+
+        assert survivors == 1, "v3->v4 rebuild fired on a v4 database and dropped rows"
+        assert stamped == 4, f"database mis-stamped as v{stamped} without a v5 migration"
