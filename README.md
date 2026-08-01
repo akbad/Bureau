@@ -15,7 +15,7 @@
 
 - **Built-in workflow skills:** structured, multi-step protocols (like [two-phase code assessment](protocols/context/static/skills/assess-mode/SKILL.md)) that agents activate automatically when they recognise a matching task
 - A **unified, cohesive set of MCP servers and plugins**
-- 66 specialized agent roles that are:
+- 29 specialized agent roles that are:
     
     - spawnable as **cross-CLI subagents** with *minimal* task delegation overhead
     - usable in *every* supported CLI as both: 
