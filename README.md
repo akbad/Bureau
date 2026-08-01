@@ -155,12 +155,6 @@ skills:
 "Spawn the security-compliance agent to audit these changes"
 ```
 
-**Any CLI** *(via PAL MCP's `clink`):*
-```
-"clink with gemini architect to design API structure"
-"clink with codex observability to analyze these metrics"
-```
-
 ### Activating interactive main agents
 
 #### Claude Code
