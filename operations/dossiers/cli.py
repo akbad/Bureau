@@ -150,8 +150,20 @@ def cmd_fold(args: argparse.Namespace) -> int:
         tasks=tasks,
         decisions=decisions,
         files=files,
+        max_retained_sessions=args.max_retained_sessions,
     )
-    print(f"Dossier saved: `{result['slug']}` ({result['task_count']} tasks, {result['decision_count']} decisions)")
+    summary = (
+        f"Dossier saved: `{result['slug']}` "
+        f"({result['task_count']} tasks, {result['decision_count']} decisions)"
+    )
+    # surface destruction explicitly: retention is opt-in and unrecoverable,
+    # so a fold that deleted rows must never look like one that did not
+    if result["pruned_file_rows"]:
+        summary += (
+            f"\nPruned {result['pruned_file_rows']} file-interaction row(s) "
+            f"outside the newest {args.max_retained_sessions} sessions."
+        )
+    print(summary)
     return 0
 
 
@@ -570,6 +582,15 @@ def main() -> int:
     p_fold.add_argument(
         "--input-file", required=True,
         help="JSON file with all fold fields, or '-' to read from stdin",
+    )
+    p_fold.add_argument(
+        "--max-retained-sessions", type=int, default=0,
+        dest="max_retained_sessions",
+        help=(
+            "DESTRUCTIVE, opt-in: delete file-interaction rows for sessions "
+            "older than the newest N. Default 0 (never delete). Unfold already "
+            "windows its output, so this is only for reclaiming storage."
+        ),
     )
 
     # unfold

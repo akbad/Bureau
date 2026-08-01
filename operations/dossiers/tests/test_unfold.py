@@ -224,3 +224,43 @@ class TestListDossiers:
 
         assert len(results) == 1
         assert results[0]["tasks"] == 2
+
+
+class TestFileInteractionRenderWindow:
+    """Storage keeps every file row; the render window keeps unfold compact.
+
+    F2 moved retention from write time to render time. These tests pin the
+    resulting split: nothing is destroyed, but compact output stays bounded.
+    """
+
+    @staticmethod
+    def _dossier_with_sessions(tmp_path: Path, count: int) -> str:
+        """Fold `count` sessions, each contributing one distinct file row."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Windowed", agent="a", digest="S1.",
+            files=[{"path": "/f1.py", "action": "read"}],
+        )
+        for i in range(2, count + 1):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a",
+                digest=f"S{i}.",
+                files=[{"path": f"/f{i}.py", "action": "read"}],
+            )
+        return result["slug"]
+
+    def test_compact_unfold_windows_to_recent_sessions(self, tmp_path: Path):
+        """Compact output shows only the newest `max_sessions` sessions' rows."""
+        slug = self._dossier_with_sessions(tmp_path, 7)
+        out = unfold_dossier(tmp_path, slug, max_sessions=5)
+        # sessions 3-7 are inside the window; 1-2 fall outside it
+        for i in range(3, 8):
+            assert f"/f{i}.py" in out
+        assert "/f1.py" not in out
+        assert "/f2.py" not in out
+
+    def test_full_unfold_renders_every_file_row(self, tmp_path: Path):
+        """`--full` renders the complete history, proving nothing was deleted."""
+        slug = self._dossier_with_sessions(tmp_path, 7)
+        out = unfold_dossier(tmp_path, slug, max_sessions=5, full=True)
+        for i in range(1, 8):
+            assert f"/f{i}.py" in out, f"/f{i}.py was destroyed or not rendered"

@@ -1,5 +1,6 @@
 """Tests for dossier fold (create/update) operations."""
 import json
+import logging
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -228,6 +229,54 @@ class TestFoldPruning:
         fi_count = conn.execute("SELECT COUNT(*) FROM file_interactions").fetchone()[0]
         conn.close()
         assert fi_count == 1
+
+    def test_default_fold_never_prunes_file_interactions(self, tmp_path: Path):
+        """A fold that does not opt into pruning must preserve every file row.
+
+        Regression guard for F2: appending a session used to destroy the
+        evicted sessions' file annotations as a side effect, with no flag to
+        stop it and no mention in the success line.
+        """
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="S1.",
+            files=[{"path": "/a.py", "action": "read"}],
+        )
+        for i in range(6):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a",
+                digest=f"S{i + 2}.",
+                files=[{"path": f"/{i}.py", "action": "read"}],
+            )
+        conn = sqlite3.connect(tmp_path / f"{result['slug']}.db")
+        fi_count = conn.execute("SELECT COUNT(*) FROM file_interactions").fetchone()[0]
+        session_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+        conn.close()
+        assert session_count == 7
+        assert fi_count == 7, "default fold must not delete file interactions"
+
+    def test_prune_reports_deleted_row_count(self, tmp_path: Path):
+        """Opting into pruning reports how many rows it destroyed."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="S1.",
+            files=[{"path": "/a.py", "action": "read"}],
+        )
+        for i in range(5):
+            last = fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a",
+                digest=f"S{i + 2}.",
+                files=[{"path": f"/{i}.py", "action": "read"}],
+                max_retained_sessions=5,
+            )
+        # 6 sessions, window of 5 -> session 1's single row is destroyed
+        assert last["pruned_file_rows"] == 1
+
+    def test_default_fold_reports_zero_pruned_rows(self, tmp_path: Path):
+        """A non-pruning fold reports zero, not a missing key."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="S1.",
+            files=[{"path": "/a.py", "action": "read"}],
+        )
+        assert result["pruned_file_rows"] == 0
 
 
 class TestRefoldTaskDuplication:
@@ -489,3 +538,48 @@ class TestRefoldDeregistration:
 
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
             assert conn.execute("SELECT COUNT(*) FROM registrations").fetchone()[0] == 1
+
+
+class TestFoldLockWarnings:
+    """Fold must not warn about a lock that nobody holds (F8).
+
+    `--claim` is opt-in, so the overwhelmingly common fold runs against an
+    unlocked dossier. Warning on every one of those trains readers to ignore
+    fold warnings wholesale, which defeats the warnings that matter.
+    """
+
+    def test_refold_on_unlocked_dossier_logs_no_lock_warning(
+        self, tmp_path: Path, caplog
+    ):
+        """The normal case — an unlocked dossier — must be silent."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Quiet", agent="claude-code", digest="S1.",
+        )
+        with caplog.at_level(logging.WARNING, logger="operations.dossiers.fold"):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="claude-code",
+                digest="S2.",
+            )
+        lock_warnings = [
+            r.getMessage() for r in caplog.records if "Lock on" in r.getMessage()
+        ]
+        assert lock_warnings == [], f"unexpected lock warning: {lock_warnings}"
+
+    def test_refold_still_warns_when_another_agent_holds_the_lock(
+        self, tmp_path: Path, caplog
+    ):
+        """A genuinely contended lock is still worth reporting."""
+        from operations.dossiers.lock import claim_lock
+
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Contended", agent="claude-code", digest="S1.",
+        )
+        claim_lock(tmp_path, result["slug"], agent="some-other-agent")
+        with caplog.at_level(logging.WARNING, logger="operations.dossiers.fold"):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="claude-code",
+                digest="S2.",
+            )
+        assert any(
+            "not released on fold" in r.getMessage() for r in caplog.records
+        ), "a lock held by another agent must still warn"

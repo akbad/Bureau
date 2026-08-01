@@ -88,11 +88,20 @@ def unfold_dossier(dossiers_dir: Path, query: str, max_sessions: int = 5, full: 
             "SELECT * FROM tasks WHERE status != 'deleted' ORDER BY id"
         ).fetchall()
         decisions = conn.execute("SELECT * FROM decisions ORDER BY id").fetchall()
+        # Render window on file interactions. Storage now keeps every row
+        # (fold no longer prunes), so the bound that used to be enforced
+        # destructively at write time is enforced non-destructively here.
+        # Compact mode shows the newest `max_sessions` sessions — byte-identical
+        # to the old post-prune output — while `full` reaches the whole history.
+        # A negative LIMIT is SQLite's "no upper bound", so one query serves both.
+        file_session_window = -1 if full else max_sessions
         file_interactions = conn.execute(
             "SELECT fi.file_path, fi.action, fi.annotation, s.id as session_id "
             "FROM file_interactions fi "
             "JOIN sessions s ON fi.session_id = s.id "
+            "WHERE s.id IN (SELECT id FROM sessions ORDER BY id DESC LIMIT ?) "
             "ORDER BY s.id DESC, fi.id",
+            (file_session_window,),
         ).fetchall()
 
         # always fetch latest session for compact resumption context (H1)

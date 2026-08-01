@@ -43,14 +43,24 @@ def fold_dossier(
     tasks: list[dict[str, Any]] | None = None,
     decisions: list[dict[str, Any]] | None = None,
     files: list[dict[str, Any]] | None = None,
-    max_retained_sessions: int = 5,
+    max_retained_sessions: int = 0,
 ) -> dict[str, str]:
     """Create a new dossier or append a session to an existing one.
 
     For new dossiers: provide `name`. A hash and slug are generated.
     For existing dossiers: provide `slug`. A new session is appended.
 
-    Returns dict with 'slug' and 'hash' keys.
+    Args:
+        max_retained_sessions: When > 0, delete `file_interactions` rows
+            belonging to sessions older than the newest N. **Opt-in, and
+            destructive.** Defaults to 0 (never prune) because a fold's
+            contract is "append a session"; keeping the output compact is a
+            rendering concern that `unfold` handles with a non-destructive
+            window. See the retention comment at the prune site.
+
+    Returns:
+        Dict with `slug`, `hash`, `task_count`, `decision_count`, and
+        `pruned_file_rows` (0 unless retention was explicitly requested).
     """
     # validate inputs before any side effects
     if len(digest) > MAX_DIGEST_LENGTH:
@@ -150,17 +160,34 @@ def fold_dossier(
                     (session_id, f["path"], f["action"], f.get("annotation")),
                 )
 
-            # Prune old file_interactions
+            # ── File-interaction retention (opt-in, destructive) ───────────
+            # This prune used to run on EVERY fold with a hard-coded window of
+            # 5 and no way to disable it, so appending a session silently
+            # destroyed earlier sessions' per-file annotations. That is data
+            # loss the caller never requested and the success line never
+            # mentioned.
+            #
+            # The invariant now: a fold only ever APPENDS. Keeping injected
+            # context small is a *rendering* concern, and `unfold` enforces it
+            # with a window that hides old rows instead of deleting them, so
+            # the compact view is byte-identical to the old behaviour while
+            # `--full` can still reach the whole history.
+            #
+            # Rejected: keeping the prune and merely logging it. That still
+            # makes an append destructive by default, and the rows it destroys
+            # are unrecoverable — the treadmill only ever runs one way.
+            pruned_file_rows = 0
             if max_retained_sessions > 0:
                 cutoff_session = conn.execute(
                     "SELECT id FROM sessions ORDER BY id DESC LIMIT 1 OFFSET ?",
                     (max_retained_sessions,),
                 ).fetchone()
                 if cutoff_session:
-                    conn.execute(
+                    cursor = conn.execute(
                         "DELETE FROM file_interactions WHERE session_id <= ?",
                         (cutoff_session["id"],),
                     )
+                    pruned_file_rows = cursor.rowcount
 
             # query actual DB counts from the same transaction so the result reflects
             # exactly what this fold committed, not a post-commit concurrent write
@@ -185,7 +212,21 @@ def fold_dossier(
                 # committed above. open_dossier_db closes without committing.
                 with conn:
                     deregister_agent(conn, agent_id)
-                lock_release_agent_id = agent_id
+                # Only attempt a release if SOMETHING holds the lock. `--claim`
+                # is opt-in, so the overwhelmingly common fold runs against an
+                # unlocked dossier, and `release_lock` treats "held by no one"
+                # as an error — so calling it unconditionally logged a lock
+                # warning on essentially every fold. Warning noise that fires
+                # on the happy path trains readers to ignore the channel, which
+                # matters because real payload warnings share it.
+                #
+                # Not a TOCTOU risk: `release_lock`'s conditional UPDATE remains
+                # the authority. A lock claimed between this read and the
+                # release simply fails to match and is reported exactly as
+                # before. This read only suppresses the no-op case.
+                holder_row = conn.execute("SELECT locked_by FROM metadata").fetchone()
+                if holder_row and holder_row["locked_by"] is not None:
+                    lock_release_agent_id = agent_id
             except ConcurrentInstanceError as e:
                 # another live process owns the slot — don't clean up their
                 # state. The fold itself already committed.
@@ -205,4 +246,10 @@ def fold_dossier(
                 e,
             )
 
-    return {"slug": slug, "hash": dossier_hash, "task_count": task_count, "decision_count": decision_count}
+    return {
+        "slug": slug,
+        "hash": dossier_hash,
+        "task_count": task_count,
+        "decision_count": decision_count,
+        "pruned_file_rows": pruned_file_rows,
+    }
