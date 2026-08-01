@@ -11,6 +11,13 @@ from pathlib import Path
 from operations import json_config_utils as cu
 
 
+# prefix for the machine-readable final stdout line that reports which MCP ids this
+# run wrote; set-up-tools.sh extracts everything after it. A marker (rather than a
+# bare last line) keeps extraction unambiguous when the CSV is empty and earlier
+# stdout lines exist (e.g. load_json_config's invalid-JSON warnings). See C6.
+OC_WRITTEN_MARKER = "__BUREAU_OC_WRITTEN__:"
+
+
 LEGACY_BUREAU_INSTRUCTIONS = {
     "/repo/protocols/context/static/tools-guide.md",
     "/repo/protocols/context/static/handoff-guide.md",
@@ -90,6 +97,33 @@ def merge_missing(base: dict, add: dict, parent_key: str = "") -> dict:
     return base
 
 
+def newly_written_mcp_ids(original_mcp: object, generated_mcp: object) -> list[str]:
+    """Return the MCP server ids this run newly created in the OpenCode config.
+
+    An id is Bureau-written only if it was absent (or null) in the user's config
+    before the merge. `merge_missing` preserves a pre-existing entry (overwriting
+    only its `command`), so a pre-existing id — which may be the user's own — must
+    NOT be reported as Bureau-written; otherwise a later prune keyed off the
+    registry could delete the user's entry (issue C6). This gives OpenCode's
+    separate merge path the same write-confirmed ownership signal that Claude and
+    Codex get from the per-agent add loop.
+
+    Args:
+        `original_mcp`: the `mcp` table from the user's config BEFORE the merge.
+        `generated_mcp`: the `mcp` table from Bureau's generated template.
+
+    Returns:
+        Sorted ids in `generated_mcp` that were absent or null in `original_mcp`.
+    """
+    original = original_mcp if isinstance(original_mcp, dict) else {}
+    generated = generated_mcp if isinstance(generated_mcp, dict) else {}
+    return sorted(
+        server_id
+        for server_id in generated
+        if server_id not in original or original.get(server_id) is None
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True, help="Path to user OpenCode config (will be created/updated)")
@@ -111,6 +145,11 @@ def main() -> int:
     generated_cfg = cu.load_json_config(str(generated_path), default={}, create_backup=False)
     target_cfg = cu.load_json_config(str(target_path), default={}, create_backup=True)
 
+    # snapshot the user's MCP ids BEFORE merge_missing mutates target_cfg in place,
+    # so we can report which MCP servers this run actually created (issue C6 below)
+    original_mcp = target_cfg.get("mcp")
+    original_mcp = dict(original_mcp) if isinstance(original_mcp, dict) else {}
+
     merged = merge_missing(target_cfg, generated_cfg)
     existing_instructions = target_cfg.get("instructions", [])
     managed_instructions = generated_cfg.get("instructions", [])
@@ -130,6 +169,14 @@ def main() -> int:
             remove=args.bare,
         )
     cu.save_json_config(str(target_path), merged, indent=2)
+
+    # report the newly-written MCP ids so set-up-tools.sh can hand ONLY
+    # Bureau-authored entries to the registry recorder — a pre-existing (possibly
+    # user-owned) entry must never be recorded as Bureau's (issue C6). A marker
+    # prefix makes the value unambiguous to extract even when the CSV is empty and
+    # `load_json_config` printed invalid-JSON warnings to stdout ahead of it.
+    written = newly_written_mcp_ids(original_mcp, generated_cfg.get("mcp"))
+    print(f"{OC_WRITTEN_MARKER}{','.join(written)}")
     return 0
 
 
