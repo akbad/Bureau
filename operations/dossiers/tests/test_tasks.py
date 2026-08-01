@@ -7,6 +7,8 @@ from operations.dossiers.db import (
     MAX_CONTEXT_NOTES_LENGTH,
     MAX_DESCRIPTION_LENGTH,
     MAX_SUBJECT_LENGTH,
+    open_dossier_db,
+    safe_db_path,
 )
 from operations.dossiers.errors import (
     IdentityReapedError,
@@ -576,3 +578,38 @@ class TestRichCasErrors:
             }
         assert holder in ids          # the winner stays registered
         assert contender not in ids   # the loser's register rolled back
+
+
+class TestWorkerRegistrationPid:
+    """reg-A half 1: a worker's registration must carry a real ancestor pid.
+
+    `claim_task` inserted workers with `cli_pid = None`, so the reap's liveness
+    filter had nothing to ask and fell through to reaping on age alone.
+    """
+
+    def test_claim_registers_worker_with_the_cli_pid(self, tmp_path: Path, mock_cli_pid):
+        mock_cli_pid(4242)
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A", "status": "pending"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1, owner="claude-code:worker-1:42")
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            row = conn.execute(
+                "SELECT role, cli_pid FROM registrations WHERE agent_id = ?",
+                ("claude-code:worker-1:42",),
+            ).fetchone()
+        assert row["role"] == "worker"
+        assert row["cli_pid"] == 4242
+
+    def test_bare_owner_registers_nothing(self, tmp_path: Path, mock_cli_pid):
+        # unchanged: only labelled owners (with ':') get a speculative worker row
+        mock_cli_pid(4242)
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A", "status": "pending"}],
+        )
+        claim_task(tmp_path, result["slug"], task_id=1, owner="agent-x")
+        with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
+            rows = conn.execute("SELECT * FROM registrations").fetchall()
+        assert rows == []

@@ -12,6 +12,7 @@ from .errors import (
     TaskNotFoundError, IdentityReapedError, TaskAlreadyCompletedError,
     TaskDeletedError, TaskStateError,
 )
+from .identity import _get_cli_process_pid
 from .registration import _maybe_deregister_worker, register_agent
 
 # nullable fields where passing "" means "clear to NULL";
@@ -298,8 +299,14 @@ def claim_task(dossiers_dir: Path, slug: str, task_id: int, owner: str) -> None:
                     "SELECT 1 FROM registrations WHERE agent_id = ?", (owner,)
                 ).fetchone()
                 if not already:
+                    # record the ancestor CLI pid, not None (reg-A): a NULL here
+                    # gives the reap's liveness oracle nothing to ask, so it
+                    # falls through to reaping the worker on age alone. The pid
+                    # is the enclosing CLI process — the worker lives exactly as
+                    # long as it does.
                     register_agent(
-                        conn, owner, owner.split(":", 1)[0], None, role="worker"
+                        conn, owner, owner.split(":", 1)[0],
+                        _get_cli_process_pid(), role="worker",
                     )
 
             now = _now_iso()

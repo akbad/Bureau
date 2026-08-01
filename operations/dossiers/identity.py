@@ -192,6 +192,57 @@ def _maybe_warn_identity_reset(
     )
 
 
+def resolve_worker_identity(conn: sqlite3.Connection, agent_id: str) -> str:
+    """Refresh a worker's registration on connect and return its id (reg-A).
+
+    The worker-role counterpart to `resolve_identity`, and it exists for the
+    same reason: identity must be established *before* the reap preamble runs
+    on the same connection, or an agent's own connect can reap it.
+
+    Workers had no such path. Their id is an explicit label rather than a
+    computed hash, so `cli._resolve_agent` returned it without touching the
+    database at all, which left two gaps that combined into silent work loss:
+
+      - `last_heartbeat` never moved after `claim_task` wrote the row, so a
+        worker aged past the TTL no matter how active it was.
+      - `cli_pid` was NULL, so `_process_alive` had nothing to ask and the reap
+        fell through to `timestamp_only` — age alone, against a 2h TTL.
+
+    Both are closed here. The `cli_pid` write is an adoption, not just an
+    insert-time value: it heals rows registered before this fix, and it
+    re-points a label at whichever CLI is running it now.
+
+    ## What this deliberately does not do
+
+    A worker abandoned by a *live* CLI is now protected indefinitely, where it
+    used to revert after the TTL. That is the intended trade and it is the
+    orchestrator's existing semantics, not a new policy: liveness is owned by
+    the pid oracle, never by idleness. The failure it replaces was silent and
+    destructive (active work reverted mid-flight); what remains is visible in
+    `tasks list` and repairable with `tasks update --status pending`.
+
+    Args:
+        conn: open dossier DB connection.
+        agent_id: the worker's explicit label (``<type>:worker-<n>:<ts>``).
+
+    Returns:
+        `agent_id` unchanged, so callers can pass it straight to
+        `_maybe_reap_stale_registrations` as `protect_agent_id`. A label with no
+        row yet (``unfold --worker`` resolves before `claim_task` inserts) is a
+        no-op UPDATE; protecting an absent row is harmless.
+    """
+    conn.execute(
+        # `role = 'worker'` is a safety guard, not a filter: routing an
+        # orchestrator id through this path must never overwrite its cli_pid,
+        # which would bypass `resolve_identity`'s concurrent-instance check.
+        "UPDATE registrations SET last_heartbeat = ?, cli_pid = ? "
+        "WHERE agent_id = ? AND role = 'worker'",
+        (_now_iso(), _get_cli_process_pid(), agent_id),
+    )
+    conn.commit()
+    return agent_id
+
+
 def resolve_identity(
     conn: sqlite3.Connection,
     slug: str,

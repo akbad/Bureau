@@ -75,6 +75,13 @@ def make_dossier_with_deleted_tasks(
 def mock_cli_pid(monkeypatch: pytest.MonkeyPatch) -> Callable[[int], None]:
     """Factory: pin `identity._get_cli_process_pid` to a test value.
 
+    `_get_cli_process_pid` is defined in `identity` and imported by name into
+    `tasks` (which stamps a worker's pid at `claim_task`), so both bindings are
+    patched — same reason `mock_process_alive` patches two namespaces. A
+    module-level `from ... import` binds the function object, not the module
+    attribute, so patching only the definition site would leave `tasks` calling
+    the real one.
+
     Usage:
 
         def test_something(mock_cli_pid):
@@ -84,6 +91,10 @@ def mock_cli_pid(monkeypatch: pytest.MonkeyPatch) -> Callable[[int], None]:
     def _set(pid: int) -> None:
         monkeypatch.setattr(
             "operations.dossiers.identity._get_cli_process_pid",
+            lambda: pid,
+        )
+        monkeypatch.setattr(
+            "operations.dossiers.tasks._get_cli_process_pid",
             lambda: pid,
         )
     return _set

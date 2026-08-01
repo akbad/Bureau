@@ -76,9 +76,10 @@ def _process_alive(pid: int | None) -> bool:
     different user. This is the safe bias — surface a false conflict / decline
     to reap rather than silently adopt or reap an unrelated live process.
 
-    `None` (a worker with no recorded `cli_pid`) and `pid <= 0` (which
-    `os.kill` would interpret as a process-group target) both return False so
-    callers fall back to timestamp-only handling.
+    `None` and `pid <= 0` (which `os.kill` would interpret as a process-group
+    target) both return False so callers fall back to timestamp-only handling.
+    Since reg-A, workers record a real `cli_pid` like orchestrators do, so a
+    NULL now means a row written before that fix rather than "this is a worker".
     """
     if pid is None or pid <= 0:
         return False
@@ -402,8 +403,10 @@ def _maybe_reap_stale_registrations(
          belt-and-suspenders guard on top of the resolve-before-reap ordering
          in `connect_dossier_db`).
       2. Phase B — Python confirms death via `_process_alive(cli_pid)`. A live
-         process with a stale heartbeat (idle-but-alive) is skipped. A worker
-         with no recorded `cli_pid` falls back to timestamp-only.
+         process with a stale heartbeat (idle-but-alive) is skipped, whatever
+         its role. A row with no recorded `cli_pid` falls back to
+         timestamp-only; since reg-A that means a pre-fix worker row, not a
+         worker as such.
       3. Phase C — for each genuinely-dead row: write a `reap_log` audit row,
          then cascade (revert its in-progress tasks to pending, release its
          lock, delete the registration).
@@ -580,7 +583,11 @@ def list_reap_log(
 
 
 def connect_dossier_db(
-    path: Path, *, agent_type: str | None = None, slug: str | None = None
+    path: Path,
+    *,
+    agent_type: str | None = None,
+    slug: str | None = None,
+    worker_agent_id: str | None = None,
 ) -> sqlite3.Connection:
     """Open an existing dossier database. Raises FileNotFoundError if missing.
 
@@ -590,6 +597,12 @@ def connect_dossier_db(
     returning orchestrator adopt and refresh its row's heartbeat before
     `_maybe_reap_stale_registrations` can consider it, and supplies
     `protect_agent_id` so the agent's own row is never a reap candidate.
+
+    `worker_agent_id` is the same contract for the worker role (reg-A), whose
+    id is an explicit label rather than a computed hash: it refreshes the
+    worker's heartbeat and adopts its `cli_pid` on the same connection, ahead
+    of the same reap. The two are mutually exclusive — an agent is one role or
+    the other — and `agent_type`/`slug` wins if both are somehow passed.
 
     Agent-less callers (lock/task reads, unfold, context, fork) pass neither;
     cleanup still runs (PID-liveness-aware), it just has no row to protect.
@@ -610,6 +623,10 @@ def connect_dossier_db(
             from operations.dossiers.identity import resolve_identity
 
             protect_agent_id = resolve_identity(conn, slug, agent_type)
+        elif worker_agent_id is not None:
+            from operations.dossiers.identity import resolve_worker_identity
+
+            protect_agent_id = resolve_worker_identity(conn, worker_agent_id)
 
         _maybe_reap_stale_registrations(conn, protect_agent_id=protect_agent_id)
     except BaseException:
@@ -622,14 +639,21 @@ def connect_dossier_db(
 
 @contextmanager
 def open_dossier_db(
-    path: Path, *, agent_type: str | None = None, slug: str | None = None
+    path: Path,
+    *,
+    agent_type: str | None = None,
+    slug: str | None = None,
+    worker_agent_id: str | None = None,
 ):
     """Context manager for dossier database connections.
 
     Guarantees connection cleanup even if an exception is raised. Forwards
-    `agent_type`/`slug` to `connect_dossier_db` for resolve-before-reap.
+    `agent_type`/`slug` (orchestrators) or `worker_agent_id` (workers) to
+    `connect_dossier_db` for resolve-before-reap.
     """
-    conn = connect_dossier_db(path, agent_type=agent_type, slug=slug)
+    conn = connect_dossier_db(
+        path, agent_type=agent_type, slug=slug, worker_agent_id=worker_agent_id
+    )
     try:
         yield conn
     finally:
