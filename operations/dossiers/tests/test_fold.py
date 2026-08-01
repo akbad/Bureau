@@ -583,3 +583,47 @@ class TestFoldLockWarnings:
         assert any(
             "not released on fold" in r.getMessage() for r in caplog.records
         ), "a lock held by another agent must still warn"
+
+
+class TestFailedFoldLeavesNothingBehind:
+    """A new fold creates its database *before* the transaction that fills it.
+
+    Any failure below that point used to leave a schema-only file with no
+    `metadata` row: invisible to `list` (which skips metadata-less databases)
+    but still matched by `find_dossier`'s `*.db` glob, so `unfold <name>`
+    found it and died on a NULL metadata row.
+    """
+
+    def test_failed_new_fold_removes_the_database_it_created(self, tmp_path: Path):
+        with pytest.raises(ValueError):
+            fold_dossier(
+                dossiers_dir=tmp_path, name="Doomed", agent="claude-code",
+                digest="D.", tasks=[{"subject": _over_limit(MAX_SUBJECT_LENGTH)}],
+            )
+
+        assert list(tmp_path.glob("*.db")) == [], "a failed new fold left an orphan"
+
+    def test_failed_new_fold_leaves_no_wal_sidecars(self, tmp_path: Path):
+        with pytest.raises(ValueError):
+            fold_dossier(
+                dossiers_dir=tmp_path, name="Doomed", agent="claude-code",
+                digest="D.", tasks=[{"subject": _over_limit(MAX_SUBJECT_LENGTH)}],
+            )
+
+        assert list(tmp_path.iterdir()) == [], "a failed new fold left files behind"
+
+    def test_failed_refold_preserves_the_existing_dossier(self, tmp_path: Path):
+        """The cleanup must never delete a database that predates the call."""
+        created = fold_dossier(
+            dossiers_dir=tmp_path, name="Keep", agent="claude-code", digest="S1.",
+        )
+
+        with pytest.raises(KeyError):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=created["slug"], agent="claude-code",
+                digest="S2.", decisions=[{"why": "no 'what' key"}],
+            )
+
+        with connect_dossier_db(tmp_path / f"{created['slug']}.db") as conn:
+            name = conn.execute("SELECT name FROM metadata").fetchone()["name"]
+        assert name == "Keep"

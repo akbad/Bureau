@@ -31,6 +31,26 @@ def _slugify(name: str) -> str:
     return slug
 
 
+def _discard_new_dossier(db_path: Path) -> None:
+    """Delete a just-created dossier database and its WAL sidecars.
+
+    Only ever called for a *new* fold that failed before committing, so there
+    is nothing here worth keeping: the file holds schema and no `metadata`
+    row. The `-wal`/`-shm` companions are normally removed by SQLite on a
+    clean close, but are unlinked explicitly so an unclean exit cannot leave
+    a sidecar orphaned next to a database that no longer exists.
+
+    Idempotent (`missing_ok=True`) because this runs on an error path where
+    the exact stage of failure is unknown.
+    """
+    for path in (
+        db_path,
+        db_path.with_name(f"{db_path.name}-wal"),
+        db_path.with_name(f"{db_path.name}-shm"),
+    ):
+        path.unlink(missing_ok=True)
+
+
 def fold_dossier(
     dossiers_dir: Path,
     agent: str,
@@ -49,6 +69,11 @@ def fold_dossier(
 
     For new dossiers: provide `name`. A hash and slug are generated.
     For existing dossiers: provide `slug`. A new session is appended.
+
+    A failed fold leaves nothing behind. A re-fold's writes roll back with the
+    transaction, so the existing dossier is untouched; a new fold's database is
+    deleted outright, because it is created *before* the transaction that
+    populates it (see `_discard_new_dossier`).
 
     Args:
         max_retained_sessions: When > 0, delete `file_interactions` rows
@@ -88,149 +113,174 @@ def fold_dossier(
 
         create_dossier_db(db_path)
 
-    with open_dossier_db(db_path) as conn:
-        with conn:  # transaction: auto-commit on success, rollback on exception
-            if is_refold:
-                meta = conn.execute("SELECT hash FROM metadata").fetchone()
-                dossier_hash = meta["hash"]
+    try:
+        with open_dossier_db(db_path) as conn:
+            with conn:  # transaction: auto-commit on success, rollback on exception
+                if is_refold:
+                    meta = conn.execute("SELECT hash FROM metadata").fetchone()
+                    dossier_hash = meta["hash"]
 
-                conn.execute(
-                    "UPDATE metadata SET updated_at = ?, agent = ?, branch = ?, commit_hash = ?",
-                    (now, agent, branch, commit_hash),
-                )
-            else:
-                conn.execute(
-                    """INSERT INTO metadata
-                       (id, hash, name, slug, created_at, updated_at, agent, project, branch, commit_hash, parent, locked_by, locked_at)
-                       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)""",
-                    (dossier_hash, name, slug, now, now, agent, project, branch, commit_hash),
-                )
-
-            # Insert session
-            cursor = conn.execute(
-                "INSERT INTO sessions (folded_at, agent, branch, commit_hash, digest) VALUES (?, ?, ?, ?, ?)",
-                (now, agent, branch, commit_hash, digest),
-            )
-            session_id = cursor.lastrowid
-
-            # Insert tasks (only on initial fold — re-fold manages tasks via CLI)
-            if not is_refold:
-                for task in (tasks or []):
-                    status = task.get("status", "pending")
-                    _validate_task_fields(
-                        subject=task["subject"],
-                        description=task.get("description"),
-                        status=status,
-                        context_notes=task.get("context_notes"),
-                    )
+                    # `branch`/`commit_hash` are per-session snapshots: overwrite
+                    # with whatever this session observed, including NULL.
+                    # `project` is not — it is the stable repo the dossier is
+                    # *about*, and the documented re-fold payload sends it, so it
+                    # was silently dropped here until now. COALESCE refreshes it
+                    # when sent (repos move; worktrees differ) while refusing to
+                    # erase it for an older cached skill that omits the key.
                     conn.execute(
-                        "INSERT INTO tasks (subject, description, status, owner, blocked_by, context_notes) "
-                        "VALUES (?, ?, ?, ?, ?, ?)",
-                        (
-                            task["subject"],
-                            task.get("description"),
-                            status,
-                            task.get("owner"),
-                            task.get("blocked_by"),
-                            task.get("context_notes"),
-                        ),
+                        "UPDATE metadata SET updated_at = ?, agent = ?, branch = ?, "
+                        "commit_hash = ?, project = COALESCE(?, project)",
+                        (now, agent, branch, commit_hash, project),
+                    )
+                else:
+                    conn.execute(
+                        """INSERT INTO metadata
+                           (id, hash, name, slug, created_at, updated_at, agent, project, branch, commit_hash, parent, locked_by, locked_at)
+                           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)""",
+                        (dossier_hash, name, slug, now, now, agent, project, branch, commit_hash),
                     )
 
-            # Insert decisions
-            for decision in (decisions or []):
-                # deduplicate: skip if an identical decision already exists
-                existing = conn.execute(
-                    "SELECT id FROM decisions WHERE what = ? AND why = ?",
-                    (decision["what"], decision["why"]),
-                ).fetchone()
-                if existing:
-                    continue
-                alternatives = decision.get("alternatives")
-                if alternatives is not None and not isinstance(alternatives, str):
-                    alternatives = json.dumps(alternatives)
-                conn.execute(
-                    "INSERT INTO decisions (session_id, what, why, alternatives, decided_by) VALUES (?, ?, ?, ?, ?)",
-                    (session_id, decision["what"], decision["why"], alternatives, decision.get("decided_by")),
+                # Insert session
+                cursor = conn.execute(
+                    "INSERT INTO sessions (folded_at, agent, branch, commit_hash, digest) VALUES (?, ?, ?, ?, ?)",
+                    (now, agent, branch, commit_hash, digest),
                 )
+                session_id = cursor.lastrowid
 
-            # Insert file interactions
-            for f in (files or []):
-                conn.execute(
-                    "INSERT INTO file_interactions (session_id, file_path, action, annotation) VALUES (?, ?, ?, ?)",
-                    (session_id, f["path"], f["action"], f.get("annotation")),
-                )
+                # Insert tasks (only on initial fold — re-fold manages tasks via CLI)
+                if not is_refold:
+                    for task in (tasks or []):
+                        status = task.get("status", "pending")
+                        _validate_task_fields(
+                            subject=task["subject"],
+                            description=task.get("description"),
+                            status=status,
+                            context_notes=task.get("context_notes"),
+                        )
+                        conn.execute(
+                            "INSERT INTO tasks (subject, description, status, owner, blocked_by, context_notes) "
+                            "VALUES (?, ?, ?, ?, ?, ?)",
+                            (
+                                task["subject"],
+                                task.get("description"),
+                                status,
+                                task.get("owner"),
+                                task.get("blocked_by"),
+                                task.get("context_notes"),
+                            ),
+                        )
 
-            # ── File-interaction retention (opt-in, destructive) ───────────
-            # This prune used to run on EVERY fold with a hard-coded window of
-            # 5 and no way to disable it, so appending a session silently
-            # destroyed earlier sessions' per-file annotations. That is data
-            # loss the caller never requested and the success line never
-            # mentioned.
-            #
-            # The invariant now: a fold only ever APPENDS. Keeping injected
-            # context small is a *rendering* concern, and `unfold` enforces it
-            # with a window that hides old rows instead of deleting them, so
-            # the compact view is byte-identical to the old behaviour while
-            # `--full` can still reach the whole history.
-            #
-            # Rejected: keeping the prune and merely logging it. That still
-            # makes an append destructive by default, and the rows it destroys
-            # are unrecoverable — the treadmill only ever runs one way.
-            pruned_file_rows = 0
-            if max_retained_sessions > 0:
-                cutoff_session = conn.execute(
-                    "SELECT id FROM sessions ORDER BY id DESC LIMIT 1 OFFSET ?",
-                    (max_retained_sessions,),
-                ).fetchone()
-                if cutoff_session:
-                    cursor = conn.execute(
-                        "DELETE FROM file_interactions WHERE session_id <= ?",
-                        (cutoff_session["id"],),
+                # Insert decisions
+                for decision in (decisions or []):
+                    # deduplicate: skip if an identical decision already exists
+                    existing = conn.execute(
+                        "SELECT id FROM decisions WHERE what = ? AND why = ?",
+                        (decision["what"], decision["why"]),
+                    ).fetchone()
+                    if existing:
+                        continue
+                    alternatives = decision.get("alternatives")
+                    if alternatives is not None and not isinstance(alternatives, str):
+                        alternatives = json.dumps(alternatives)
+                    conn.execute(
+                        "INSERT INTO decisions (session_id, what, why, alternatives, decided_by) VALUES (?, ?, ?, ?, ?)",
+                        (session_id, decision["what"], decision["why"], alternatives, decision.get("decided_by")),
                     )
-                    pruned_file_rows = cursor.rowcount
 
-            # query actual DB counts from the same transaction so the result reflects
-            # exactly what this fold committed, not a post-commit concurrent write
-            task_count = conn.execute("SELECT COUNT(*) FROM tasks WHERE status != 'deleted'").fetchone()[0]
-            decision_count = conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
+                # Insert file interactions
+                for f in (files or []):
+                    conn.execute(
+                        "INSERT INTO file_interactions (session_id, file_path, action, annotation) VALUES (?, ?, ?, ?)",
+                        (session_id, f["path"], f["action"], f.get("annotation")),
+                    )
 
-        # ── Exit path 1: refold deregistration + lock release ─────────────
-        # Fold semantically means "I'm done with this dossier." Delete the
-        # agent's registrations row so the slot can be reused, and release the
-        # lock so other agents aren't blocked. Single store: the row is the
-        # only identity artifact (no session file).
-        # Only applies to refolds by an orchestrator (bare type). Fresh folds
-        # have no prior registration to clean up. Worker labels never reach fold.
-        lock_release_agent_id = None
-        if is_refold and agent and ":" not in agent:
-            try:
-                # resolve_identity adopts/refreshes my slot (or raises if a
-                # live other instance owns it — then leave their state alone).
-                agent_id = resolve_identity(conn, slug, agent)
-                # own the transaction: deregister_agent no longer self-commits
-                # (C2), and this runs outside the main fold txn, which already
-                # committed above. open_dossier_db closes without committing.
-                with conn:
-                    deregister_agent(conn, agent_id)
-                # Only attempt a release if SOMETHING holds the lock. `--claim`
-                # is opt-in, so the overwhelmingly common fold runs against an
-                # unlocked dossier, and `release_lock` treats "held by no one"
-                # as an error — so calling it unconditionally logged a lock
-                # warning on essentially every fold. Warning noise that fires
-                # on the happy path trains readers to ignore the channel, which
-                # matters because real payload warnings share it.
+                # ── File-interaction retention (opt-in, destructive) ───────────
+                # This prune used to run on EVERY fold with a hard-coded window of
+                # 5 and no way to disable it, so appending a session silently
+                # destroyed earlier sessions' per-file annotations. That is data
+                # loss the caller never requested and the success line never
+                # mentioned.
                 #
-                # Not a TOCTOU risk: `release_lock`'s conditional UPDATE remains
-                # the authority. A lock claimed between this read and the
-                # release simply fails to match and is reported exactly as
-                # before. This read only suppresses the no-op case.
-                holder_row = conn.execute("SELECT locked_by FROM metadata").fetchone()
-                if holder_row and holder_row["locked_by"] is not None:
-                    lock_release_agent_id = agent_id
-            except ConcurrentInstanceError as e:
-                # another live process owns the slot — don't clean up their
-                # state. The fold itself already committed.
-                _log.warning("Skipping fold deregistration: %s", e)
+                # The invariant now: a fold only ever APPENDS. Keeping injected
+                # context small is a *rendering* concern, and `unfold` enforces it
+                # with a window that hides old rows instead of deleting them, so
+                # the compact view is byte-identical to the old behaviour while
+                # `--full` can still reach the whole history.
+                #
+                # Rejected: keeping the prune and merely logging it. That still
+                # makes an append destructive by default, and the rows it destroys
+                # are unrecoverable — the treadmill only ever runs one way.
+                pruned_file_rows = 0
+                if max_retained_sessions > 0:
+                    cutoff_session = conn.execute(
+                        "SELECT id FROM sessions ORDER BY id DESC LIMIT 1 OFFSET ?",
+                        (max_retained_sessions,),
+                    ).fetchone()
+                    if cutoff_session:
+                        cursor = conn.execute(
+                            "DELETE FROM file_interactions WHERE session_id <= ?",
+                            (cutoff_session["id"],),
+                        )
+                        pruned_file_rows = cursor.rowcount
+
+                # query actual DB counts from the same transaction so the result reflects
+                # exactly what this fold committed, not a post-commit concurrent write
+                task_count = conn.execute("SELECT COUNT(*) FROM tasks WHERE status != 'deleted'").fetchone()[0]
+                decision_count = conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
+
+            # ── Exit path 1: refold deregistration + lock release ─────────────
+            # Fold semantically means "I'm done with this dossier." Delete the
+            # agent's registrations row so the slot can be reused, and release the
+            # lock so other agents aren't blocked. Single store: the row is the
+            # only identity artifact (no session file).
+            # Only applies to refolds by an orchestrator (bare type). Fresh folds
+            # have no prior registration to clean up. Worker labels never reach fold.
+            lock_release_agent_id = None
+            if is_refold and agent and ":" not in agent:
+                try:
+                    # resolve_identity adopts/refreshes my slot (or raises if a
+                    # live other instance owns it — then leave their state alone).
+                    agent_id = resolve_identity(conn, slug, agent)
+                    # own the transaction: deregister_agent no longer self-commits
+                    # (C2), and this runs outside the main fold txn, which already
+                    # committed above. open_dossier_db closes without committing.
+                    with conn:
+                        deregister_agent(conn, agent_id)
+                    # Only attempt a release if SOMETHING holds the lock. `--claim`
+                    # is opt-in, so the overwhelmingly common fold runs against an
+                    # unlocked dossier, and `release_lock` treats "held by no one"
+                    # as an error — so calling it unconditionally logged a lock
+                    # warning on essentially every fold. Warning noise that fires
+                    # on the happy path trains readers to ignore the channel, which
+                    # matters because real payload warnings share it.
+                    #
+                    # Not a TOCTOU risk: `release_lock`'s conditional UPDATE remains
+                    # the authority. A lock claimed between this read and the
+                    # release simply fails to match and is reported exactly as
+                    # before. This read only suppresses the no-op case.
+                    holder_row = conn.execute("SELECT locked_by FROM metadata").fetchone()
+                    if holder_row and holder_row["locked_by"] is not None:
+                        lock_release_agent_id = agent_id
+                except ConcurrentInstanceError as e:
+                    # another live process owns the slot — don't clean up their
+                    # state. The fold itself already committed.
+                    _log.warning("Skipping fold deregistration: %s", e)
+
+    except BaseException:
+        # A new fold creates its database BEFORE the transaction that
+        # populates it, so any failure below leaves a schema-only file with
+        # no `metadata` row. That orphan is invisible to `list` (which skips
+        # metadata-less databases) yet still matched by `find_dossier`'s
+        # `*.db` glob, so `unfold <name>` finds it and dies subscripting a
+        # NULL row. Deleting it is what makes "a failed fold leaves nothing
+        # behind" true rather than aspirational.
+        #
+        # `BaseException`, matching `db.connect_dossier_db`: a Ctrl-C mid-fold
+        # must not strand a database either. Re-folds never take this branch
+        # -- their database predates the call and holds real data.
+        if not is_refold:
+            _discard_new_dossier(db_path)
+        raise
 
     # release the lock outside the db context so release_lock's own connection
     # sees the committed deregistration. Catch ValueError to tolerate

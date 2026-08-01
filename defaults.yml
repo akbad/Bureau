@@ -482,7 +482,7 @@ roles:
 
 # Skills configuration (installed via protocols/scripts/set-up-skills.sh)
 skills:
-  enabled: [micro-mode, assess-mode, fold-dossier, unfold-dossier]
+  enabled: [micro-mode, assess-mode, fold-dossier, unfold-dossier, vde]
   disabled: []
   sources:
     - path: protocols/context/static/skills

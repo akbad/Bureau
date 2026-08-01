@@ -76,9 +76,17 @@ def unfold_dossier(dossiers_dir: Path, query: str, max_sessions: int = 5, full: 
     Finds the dossier by hash or name, reads all state, and returns
     a markdown string ready for injection into an agent's context.
 
-    When ``full=False`` (default), session digests are omitted for a
-    compact view.  When ``full=True``, the last ``max_sessions``
-    session digests are rendered (all sessions are kept in storage).
+    The latest session's digest is rendered in **both** modes — it carries the
+    in-flight state a resuming agent cannot do without. ``full`` widens two
+    things around it:
+
+      - **Older digests.** ``full=True`` additionally renders the sessions
+        preceding the latest, up to ``max_sessions`` sessions in total.
+      - **File interactions.** Compact mode windows them to the newest
+        ``max_sessions`` sessions; ``full=True`` renders every session's.
+
+    Storage is never the constraint: a fold only appends, so both modes read
+    from a complete history and differ only in how much of it they render.
     """
     db_path = find_dossier(dossiers_dir, query)
 

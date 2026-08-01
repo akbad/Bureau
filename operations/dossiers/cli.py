@@ -23,6 +23,7 @@ from .errors import (
 )
 from .fold import fold_dossier
 from .identity import _orchestrator_agent_id
+from .payload import check_fold_payload
 from .registration import list_agents
 from .unfold import unfold_dossier, list_dossiers, find_dossier
 from .tasks import list_tasks, add_task, update_task, remove_task, claim_task, complete_task
@@ -115,6 +116,17 @@ def cmd_fold(args: argparse.Namespace) -> int:
     dossiers_dir.mkdir(parents=True, exist_ok=True)
 
     input_data = _load_fold_input(args)
+
+    # Report the payload contract before anything can exit early, so an agent
+    # running a cached skill copy always learns what this version dropped.
+    # Advisory only — the fold proceeds regardless (see payload.py, "Warn,
+    # never reject"). Mode is decided by the payload's `slug`, matching
+    # `fold_dossier`'s own `is_refold` predicate.
+    for warning in check_fold_payload(
+        input_data, is_refold=bool(input_data.get("slug"))
+    ):
+        print(f"Warning: {warning}", file=sys.stderr)
+
     name = input_data.get("name")
     slug = input_data.get("slug")
     agent = input_data.get("agent")
