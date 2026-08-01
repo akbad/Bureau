@@ -22,9 +22,12 @@ def test_expand_placeholders_leaves_unknown_keys():
 
 
 def test_expand_placeholders_resolves_nested_config_values():
+    # workspace is now a top-level anchor; the nested whitelist references ${workspace}.
+    # The outer ${mcp.client_configs.fs.settings.whitelist} still exercises deep
+    # (multi-segment) dot-path resolution plus recursive placeholder expansion.
     config = {
-        "path_to": {"workspace": "~/code"},
-        "mcp": {"client_configs": {"fs": {"settings": {"whitelist": "${path_to.workspace}"}}}},
+        "workspace": "~/code",
+        "mcp": {"client_configs": {"fs": {"settings": {"whitelist": "${workspace}"}}}},
     }
     env = {}
     value = "root=${mcp.client_configs.fs.settings.whitelist}"

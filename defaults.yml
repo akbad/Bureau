@@ -482,20 +482,37 @@ skills:
 
 # File paths for config files, connection settings, etc.
 # Note: environment variables take precedence over these values
-path_to:
-  # Base workspace for user projects (override using: $BUREAU_WORKSPACE)
-  # When set, the following paths are automatically derived from it
-  # (unless explicitly overridden):
-  #   - serena_memories_root (root for recursive scanning of Serena memory
-  #     files during Bureau-run cleanup)
-  workspace: ~/code
+# Base workspace for user projects: the canonical anchor for the main code tree.
+# This answers ONLY "where is the code tree?" — it grants agents NO implicit
+# filesystem access. Broad agent access is opt-in via agent_access.paths.workspace
+# (default-disabled, below). Override using: $BUREAU_WORKSPACE.
+# When set, serena_memories_root is derived from it (unless explicitly overridden):
+# the root for recursive scanning of Serena memory files during Bureau-run cleanup.
+workspace: ~/code
 
+path_to:
   # MCP server clone location (relative paths resolve from main repo root,
   # shared across Bureau worktrees)
   mcp_clones: .mcp-servers
 
   # Bureau's own repo path for local stdio MCPs implemented by this package.
   bureau_repo: .
+
+# Agent access policy: which directories Bureau-managed agent CLIs may touch.
+# Modeled as a keyed map (NOT a list) so individual entries can be toggled or
+# overridden in .bureau.yml/local.yml without copy-pasting the whole set — the
+# config loader deep-merges dicts but replaces lists wholesale.
+agent_access:
+  paths:
+    # Bureau's own config dir — reachable by every Bureau-supported CLI by default.
+    bureau_config:
+      enabled: true
+      path: ~/.config/bureau
+
+    # The main code tree. Default-disabled: broad agent access must be opt-in.
+    workspace:
+      enabled: false
+      path: ${workspace}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

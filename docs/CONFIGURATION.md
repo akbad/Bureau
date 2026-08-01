@@ -674,7 +674,7 @@ Some configuration values can be overridden via environment variables:
 
 | Environment Variable | Overrides | Description |
 |:---------------------|:----------|:------------|
-| `BUREAU_WORKSPACE` | `path_to.workspace` | Base workspace directory |
+| `BUREAU_WORKSPACE` | `workspace` | Base workspace directory (top-level anchor) |
 | `BUREAU_TELEGRAM_TOKEN` | — | Telegram bot token (required to start the Concierge bot; never stored in config files) |
 | `BUREAU_TELEGRAM_USER_ID` | — | Telegram user ID (fallback when no wizard config exists) |
 
