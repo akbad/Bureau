@@ -21,6 +21,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 source "$REPO_ROOT/bin/lib/logging.sh"
+source "$REPO_ROOT/bin/lib/fs.sh"
 
 BUREAU_PROTOCOLS_DIR="$HOME/.config/bureau/protocols"
 STATIC_DIR="$REPO_ROOT/protocols/context/static"
@@ -99,7 +100,7 @@ uv run python "$REPO_ROOT/protocols/scripts/compile-protocol-artifact.py" \
     --source "$STATIC_DIR/ops/code-standards.md"
 
 # resolve {{PROTOCOLS_DIR}} placeholder in deployed hub
-sed -i '' "s|{{PROTOCOLS_DIR}}|$BUREAU_PROTOCOLS_DIR|g" "$BUREAU_PROTOCOLS_DIR/ops-hub.md"
+_sed_inplace "s|{{PROTOCOLS_DIR}}|$BUREAU_PROTOCOLS_DIR|g" "$BUREAU_PROTOCOLS_DIR/ops-hub.md"
 
 log_success "Reset protocols files in $BUREAU_PROTOCOLS_DIR"
 echo ""
