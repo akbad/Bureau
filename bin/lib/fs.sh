@@ -9,6 +9,10 @@
 #   _sed_inplace "<sed-script>" "<file>"  - Portable, atomic in-place sed
 #
 # All functions are safe to source under `set -euo pipefail`.
+#
+# The BSD-vs-GNU rules this library exists to enforce — and the defects that
+# earned each of them — are recorded in docs/ENGINEERING.md, "Shell
+# portability". Read that before adding a helper here.
 
 # Return the directory component of a path, without spawning `dirname`.
 #

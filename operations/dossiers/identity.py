@@ -39,6 +39,17 @@ NOTHING`, whose `was_insert` result drives a post-SQL dispatch on liveness.
 no portable, side-effect-free liveness primitive, so a transaction depending on
 one would be non-deterministic and untestable. As an injectable Python
 function, every branch (alive / dead / raises) is unit-testable by stubbing it.
+
+## Binding invariants
+
+Two rules govern every change in this module, both recorded with the defects
+that earned them in `docs/ENGINEERING.md`, "Agent identity and liveness":
+
+  1. Identity is resolved *before* the reap, on the same connection, for
+     **every** role — `resolve_identity` and `resolve_worker_identity` are
+     counterparts, not parallel mechanisms.
+  2. Liveness is the pid oracle, never idleness. Every registration row carries
+     a real ancestor `cli_pid`; elapsed time alone never justifies a reap.
 """
 import hashlib
 import logging

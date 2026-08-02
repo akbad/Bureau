@@ -268,6 +268,10 @@ def _user_version(conn: sqlite3.Connection) -> int:
 # reap_log` then fails with "already exists", and the raise bricks every connect
 # until someone notices. The transaction boundary saves the data, but the tool
 # is unusable and a `.pre-v4.bak` is written on every attempt.
+#
+# This is a binding rule for every future migration, not a local fix: see
+# docs/ENGINEERING.md, "Schema migrations". It is recorded there because this
+# was the *second* decay of this machinery, which makes it a pattern.
 _V4_TARGET_VERSION = 4
 
 
