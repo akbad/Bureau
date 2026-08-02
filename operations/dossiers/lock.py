@@ -33,6 +33,29 @@ def claim_lock(dossiers_dir: Path, slug: str, agent: str) -> None:
             raise LockConflictError(f"Dossier already locked by {holder}")
 
 
+def release_lock_on_conn(conn, agent: str) -> int:
+    """Clear the lock iff `agent` holds it, on a caller-supplied connection.
+
+    The connection-level primitive behind `release_lock`, extracted so a caller
+    already inside a transaction can release *atomically with* its other writes
+    rather than through a second connection afterwards (reg-B).
+
+    Kept as one definition rather than duplicating the UPDATE at the second call
+    site: the conditional predicate is the whole safety property, and two copies
+    of a safety predicate is how they diverge.
+
+    Does not commit — the caller owns the transaction, matching
+    `registration.py`'s convention.
+
+    Returns the number of rows updated: 1 if the lock was held by `agent` and is
+    now clear, 0 if it was held by somebody else or by no one.
+    """
+    return conn.execute(
+        "UPDATE metadata SET locked_by = NULL, locked_at = NULL WHERE locked_by = ?",
+        (agent,),
+    ).rowcount
+
+
 def release_lock(dossiers_dir: Path, slug: str, agent: str | None = None, force: bool = False) -> None:
     """Release advisory lock.
 
@@ -47,12 +70,8 @@ def release_lock(dossiers_dir: Path, slug: str, agent: str | None = None, force:
         elif agent:
             with conn:  # transaction boundary
                 # atomic check-and-release: only clears if caller holds the lock
-                cursor = conn.execute(
-                    "UPDATE metadata SET locked_by = NULL, locked_at = NULL "
-                    "WHERE locked_by = ?",
-                    (agent,),
-                )
-            if cursor.rowcount == 0:
+                released = release_lock_on_conn(conn, agent)
+            if released == 0:
                 meta = conn.execute("SELECT locked_by FROM metadata").fetchone()
                 holder = meta["locked_by"] if meta and meta["locked_by"] else "no one"
                 raise ValueError(

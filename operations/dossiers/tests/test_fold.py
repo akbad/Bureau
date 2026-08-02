@@ -627,3 +627,163 @@ class TestFailedFoldLeavesNothingBehind:
         with connect_dossier_db(tmp_path / f"{created['slug']}.db") as conn:
             name = conn.execute("SELECT name FROM metadata").fetchone()["name"]
         assert name == "Keep"
+
+
+class TestRefoldExitAtomicity:
+    """reg-B: the lock release and the deregistration must not be separable.
+
+    They used to be two commits on two connections: `deregister_agent` committed
+    inside the dossier context, then `release_lock` opened a fresh connection
+    after it. A failure in between left `registrations` empty while
+    `metadata.locked_by` still named the deleted agent — and cleanup can never
+    repair that, because its cascade only iterates registration rows that still
+    exist. `lock release --force` was the sole escape.
+    """
+
+    def _registered_lock_holder(self, tmp_path, slug):
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+        from operations.dossiers.identity import resolve_identity
+        from operations.dossiers.lock import claim_lock
+
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            agent_id = resolve_identity(conn, slug, "claude-code")
+        claim_lock(tmp_path, slug, agent=agent_id)
+        return agent_id
+
+    def test_an_orphaned_lock_is_unrepairable_by_cleanup(
+        self, tmp_path, make_dossier, set_registration_ttl, set_cleanup_check_interval
+    ):
+        """Why reg-B outranks its blast radius: the bad state has no way out.
+
+        Passes before and after the fix; it characterises the hazard rather
+        than the fix, and is what makes an orphaned lock worth preventing
+        atomically instead of merely narrowing the window.
+        """
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+        from operations.dossiers.lock import get_lock_status
+
+        slug = make_dossier()["slug"]
+        # exactly the state the old exit path could leave: a lock naming an
+        # agent whose registration row is gone
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            conn.execute(
+                "UPDATE metadata SET locked_by = ?, locked_at = ?",
+                ("orch-claude-code-vanished", "2000-01-01T00:00:00Z"),
+            )
+            conn.commit()
+
+        set_registration_ttl(1)
+        set_cleanup_check_interval(0)
+        for _ in range(3):  # cleanup runs as a connect preamble; give it chances
+            with open_dossier_db(safe_db_path(tmp_path, slug)):
+                pass
+
+        # the cascade only iterates rows that still exist, so it never sees this
+        assert get_lock_status(tmp_path, slug)["locked_by"] == "orch-claude-code-vanished"
+
+    def test_a_failing_out_of_band_release_cannot_orphan_the_lock(
+        self, tmp_path, make_dossier, mock_cli_pid, monkeypatch
+    ):
+        """The reg-B window: deregistration committed, then the release failed.
+
+        `raising=False` because the fix removes the out-of-band `release_lock`
+        call entirely. Pre-fix the patch lands and the orphan appears; post-fix
+        there is nothing to patch and the invariant holds by construction.
+        """
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+        from operations.dossiers.lock import get_lock_status
+
+        mock_cli_pid(54321)
+        slug = make_dossier()["slug"]
+        self._registered_lock_holder(tmp_path, slug)
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("crash after deregistration, before release")
+
+        monkeypatch.setattr(
+            "operations.dossiers.fold.release_lock", _boom, raising=False
+        )
+        try:
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=slug, agent="claude-code", digest="s2"
+            )
+        except RuntimeError:
+            pass  # the crash itself is fine; the state it leaves behind is not
+
+        holder = get_lock_status(tmp_path, slug)["locked_by"]
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            registered = [
+                r["agent_id"]
+                for r in conn.execute("SELECT agent_id FROM registrations").fetchall()
+            ]
+        assert holder is None or holder in registered, (
+            f"orphaned lock: {holder!r} holds the lock with no registration row"
+        )
+
+    def test_failure_during_deregistration_rolls_back_the_release(
+        self, tmp_path, make_dossier, mock_cli_pid, monkeypatch
+    ):
+        """Reordering alone is not enough; the two writes must share a txn.
+
+        With the release moved first but left in its own transaction, a failing
+        deregistration would leave the lock released and the registration
+        intact. One transaction is what makes that unreachable.
+        """
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+        from operations.dossiers.lock import get_lock_status
+
+        mock_cli_pid(54321)
+        slug = make_dossier()["slug"]
+        agent_id = self._registered_lock_holder(tmp_path, slug)
+
+        def _boom(conn, agent):
+            raise RuntimeError("crash during deregistration")
+
+        monkeypatch.setattr("operations.dossiers.fold.deregister_agent", _boom)
+        with pytest.raises(RuntimeError):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=slug, agent="claude-code", digest="s2"
+            )
+
+        assert get_lock_status(tmp_path, slug)["locked_by"] == agent_id
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            assert conn.execute(
+                "SELECT COUNT(*) FROM registrations"
+            ).fetchone()[0] == 1
+
+    def test_lock_never_outlives_its_registration(
+        self, tmp_path, make_dossier, mock_cli_pid
+    ):
+        # the invariant reg-B violated, stated directly: no state in which
+        # `locked_by` names an agent with no registration row
+        from operations.dossiers.db import open_dossier_db, safe_db_path
+        from operations.dossiers.lock import get_lock_status
+
+        mock_cli_pid(54321)
+        slug = make_dossier()["slug"]
+        self._registered_lock_holder(tmp_path, slug)
+
+        fold_dossier(dossiers_dir=tmp_path, slug=slug, agent="claude-code", digest="s2")
+
+        holder = get_lock_status(tmp_path, slug)["locked_by"]
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            registered = [
+                r["agent_id"]
+                for r in conn.execute("SELECT agent_id FROM registrations").fetchall()
+            ]
+        assert holder is None or holder in registered
+
+    def test_lock_held_by_another_agent_survives_the_fold(
+        self, tmp_path, make_dossier, mock_cli_pid
+    ):
+        # releasing on the same connection must keep `release_lock`'s conditional
+        # semantics: a lock we do not hold is not ours to clear
+        from operations.dossiers.lock import claim_lock, get_lock_status
+
+        mock_cli_pid(54321)
+        slug = make_dossier()["slug"]
+        claim_lock(tmp_path, slug, agent="somebody-else")
+
+        fold_dossier(dossiers_dir=tmp_path, slug=slug, agent="claude-code", digest="s2")
+
+        assert get_lock_status(tmp_path, slug)["locked_by"] == "somebody-else"
