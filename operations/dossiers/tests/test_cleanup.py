@@ -18,6 +18,7 @@ from operations.dossiers.db import (
 )
 from operations.dossiers.lock import claim_lock, get_lock_status
 from operations.dossiers.registration import register_agent
+from operations.dossiers.tasks import claim_task
 
 # A pid the liveness oracle is told is dead in tests; None means "worker
 # without a recorded cli_pid" (timestamp-only path).
@@ -408,3 +409,144 @@ class TestListReapLog:
         with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
             entries = list_reap_log(conn, agent_type="codex")
         assert [e["agent_id"] for e in entries] == ["cx"]
+
+
+class TestWorkerLiveness:
+    """reg-A: a worker doing real work must not be reaped out from under itself.
+
+    Before the fix, workers registered with `cli_pid = None` and never refreshed
+    `last_heartbeat`, so Phase B took the `timestamp_only` path and reaped them
+    on age alone against a 2h TTL — reverting in-progress work silently.
+    """
+
+    _WORKER = "claude-code:worker-1:1743926400"
+
+    def _working_worker_via_claim(self, tmp_path, slug):
+        """Register a worker the way a real one does: by claiming its task.
+
+        Deliberately *not* a hand-seeded row. The reg-A defect lives in what
+        `claim_task` writes, so a test that seeds `cli_pid` itself would assert
+        the reap logic (already correct) and never see the bug.
+        """
+        claim_task(tmp_path, slug, task_id=1, owner=self._WORKER)
+        self._age_heartbeat(tmp_path, slug)
+
+    def _age_heartbeat(self, tmp_path, slug):
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            conn.execute(
+                "UPDATE registrations SET last_heartbeat = ? WHERE agent_id = ?",
+                (_STALE, self._WORKER),
+            )
+            conn.commit()
+
+    def _seed_working_worker(self, tmp_path, slug, cli_pid):
+        """A worker past TTL with an in-progress task, as mid-task workers are."""
+        _seed_stale_registration(
+            tmp_path, slug, agent_id=self._WORKER, role="worker", cli_pid=cli_pid,
+        )
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            conn.execute(
+                "UPDATE tasks SET status = 'in_progress', owner = ? WHERE id = 1",
+                (self._WORKER,),
+            )
+            conn.commit()
+
+    def test_live_worker_survives_stale_heartbeat_and_keeps_its_task(
+        self, tmp_path, make_dossier, mock_process_alive, mock_cli_pid,
+        set_registration_ttl, set_cleanup_check_interval,
+    ):
+        # The rank-1 reproduction: a worker mid-task, idle past the TTL, whose
+        # CLI is alive. Before the fix its row carried no pid, so cleanup took
+        # the timestamp_only path and reverted its work.
+        slug = make_dossier(tasks=[{"subject": "t1"}])["slug"]
+        mock_cli_pid(4242)
+        mock_process_alive({4242: True})  # the worker's CLI is alive
+        self._working_worker_via_claim(tmp_path, slug)
+        set_registration_ttl(1)
+        set_cleanup_check_interval(0)
+
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            task = conn.execute("SELECT status, owner FROM tasks WHERE id = 1").fetchone()
+        assert [r["agent_id"] for r in _registrations(tmp_path, slug)] == [self._WORKER]
+        assert task["status"] == "in_progress"   # work not reverted
+        assert task["owner"] == self._WORKER
+
+    def test_live_worker_survives_a_third_party_cleanup_connect(
+        self, tmp_path, make_dossier, mock_process_alive, mock_cli_pid,
+        set_registration_ttl, set_cleanup_check_interval,
+    ):
+        # The reap that hurt was another agent's, not the worker's own. Protection
+        # must come from the recorded pid, not from `protect_agent_id`.
+        slug = make_dossier(tasks=[{"subject": "t1"}])["slug"]
+        mock_cli_pid(4242)
+        mock_process_alive({4242: True, 7777: True})
+        self._working_worker_via_claim(tmp_path, slug)
+        set_registration_ttl(1)
+        set_cleanup_check_interval(0)
+
+        mock_cli_pid(7777)  # a different agent connects and runs cleanup
+        with open_dossier_db(
+            safe_db_path(tmp_path, slug), agent_type="codex", slug=slug
+        ) as conn:
+            task = conn.execute("SELECT status, owner FROM tasks WHERE id = 1").fetchone()
+        assert any(r["agent_id"] == self._WORKER for r in _registrations(tmp_path, slug))
+        assert task["status"] == "in_progress"
+
+    def test_dead_worker_is_still_reaped(
+        self, tmp_path, make_dossier, mock_process_alive,
+        set_registration_ttl, set_cleanup_check_interval,
+    ):
+        # the anti-over-correction guard: recording a cli_pid must not disable
+        # the reaper, only make it ask the liveness oracle instead of the clock
+        slug = make_dossier(tasks=[{"subject": "t1"}])["slug"]
+        self._seed_working_worker(tmp_path, slug, cli_pid=4242)
+        set_registration_ttl(1)
+        set_cleanup_check_interval(0)
+        mock_process_alive({4242: False})  # the worker's CLI died
+
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            task = conn.execute("SELECT status, owner FROM tasks WHERE id = 1").fetchone()
+        assert _registrations(tmp_path, slug) == []
+        assert task["status"] == "pending"  # work correctly reverted for re-claim
+        assert _reap_log(tmp_path, slug)[0]["reap_reason"] == "pid_dead"
+
+    def test_legacy_null_pid_worker_still_reaps_on_timestamp(
+        self, tmp_path, make_dossier, mock_process_alive,
+        set_registration_ttl, set_cleanup_check_interval,
+    ):
+        # rows registered before this fix carry NULL; the timestamp_only path
+        # stays as the fallback for them
+        slug = make_dossier(tasks=[{"subject": "t1"}])["slug"]
+        self._seed_working_worker(tmp_path, slug, cli_pid=None)
+        set_registration_ttl(1)
+        set_cleanup_check_interval(0)
+        mock_process_alive({})
+
+        with open_dossier_db(safe_db_path(tmp_path, slug)):
+            pass
+        assert _registrations(tmp_path, slug) == []
+        assert _reap_log(tmp_path, slug)[0]["reap_reason"] == "timestamp_only"
+
+    def test_worker_connect_refreshes_its_own_heartbeat_before_the_reap(
+        self, tmp_path, make_dossier, mock_process_alive, mock_cli_pid,
+        set_registration_ttl, set_cleanup_check_interval,
+    ):
+        # the C1 ordering property, extended to workers: a worker returning after
+        # TTL elapse must not be reaped by the very connect it is making
+        slug = make_dossier(tasks=[{"subject": "t1"}])["slug"]
+        self._seed_working_worker(tmp_path, slug, cli_pid=None)
+        set_registration_ttl(1)
+        set_cleanup_check_interval(0)
+        mock_cli_pid(4242)
+        mock_process_alive({4242: True})
+
+        with open_dossier_db(
+            safe_db_path(tmp_path, slug), worker_agent_id=self._WORKER
+        ) as conn:
+            row = conn.execute(
+                "SELECT cli_pid, last_heartbeat FROM registrations WHERE agent_id = ?",
+                (self._WORKER,),
+            ).fetchone()
+        assert row is not None, "the connecting worker reaped its own row"
+        assert row["cli_pid"] == 4242
+        assert row["last_heartbeat"] > _STALE

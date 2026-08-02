@@ -9,7 +9,7 @@ from typing import Any
 from .db import create_dossier_db, open_dossier_db, safe_db_path, _now_iso, MAX_DIGEST_LENGTH, MAX_TASKS_PER_DOSSIER
 from .errors import ConcurrentInstanceError
 from .identity import resolve_identity
-from .lock import release_lock
+from .lock import release_lock_on_conn
 from .registration import deregister_agent
 from .tasks import _validate_task_fields
 
@@ -235,32 +235,53 @@ def fold_dossier(
             # only identity artifact (no session file).
             # Only applies to refolds by an orchestrator (bare type). Fresh folds
             # have no prior registration to clean up. Worker labels never reach fold.
-            lock_release_agent_id = None
             if is_refold and agent and ":" not in agent:
                 try:
                     # resolve_identity adopts/refreshes my slot (or raises if a
                     # live other instance owns it — then leave their state alone).
                     agent_id = resolve_identity(conn, slug, agent)
-                    # own the transaction: deregister_agent no longer self-commits
-                    # (C2), and this runs outside the main fold txn, which already
-                    # committed above. open_dossier_db closes without committing.
-                    with conn:
-                        deregister_agent(conn, agent_id)
-                    # Only attempt a release if SOMETHING holds the lock. `--claim`
-                    # is opt-in, so the overwhelmingly common fold runs against an
-                    # unlocked dossier, and `release_lock` treats "held by no one"
-                    # as an error — so calling it unconditionally logged a lock
-                    # warning on essentially every fold. Warning noise that fires
-                    # on the happy path trains readers to ignore the channel, which
-                    # matters because real payload warnings share it.
+
+                    # ONE transaction for both writes, release first (reg-B).
                     #
-                    # Not a TOCTOU risk: `release_lock`'s conditional UPDATE remains
-                    # the authority. A lock claimed between this read and the
-                    # release simply fails to match and is reported exactly as
-                    # before. This read only suppresses the no-op case.
-                    holder_row = conn.execute("SELECT locked_by FROM metadata").fetchone()
-                    if holder_row and holder_row["locked_by"] is not None:
-                        lock_release_agent_id = agent_id
+                    # These used to be two commits on two connections:
+                    # `deregister_agent` committed here, then `release_lock`
+                    # opened a fresh connection after the dossier context closed.
+                    # A failure in between left `registrations` empty while
+                    # `metadata.locked_by` still named the deleted agent, and
+                    # that state is UNRECOVERABLE by design: cleanup's cascade
+                    # only iterates registration rows that still exist, so it can
+                    # never find a lock whose holder has no row. `lock release
+                    # --force` was the only way out.
+                    #
+                    # Reordering alone would only narrow the window. Sharing a
+                    # transaction removes it: either both land or neither does.
+                    # Order still matters for the *rollback* direction, though —
+                    # if only one could survive, a stale registration is the
+                    # right residue, because cleanup reaps it on TTL while an
+                    # orphaned lock has no repair path at all.
+                    with conn:
+                        # Only release if SOMETHING holds it. `--claim` is opt-in,
+                        # so the common fold runs unlocked, and reporting a
+                        # no-op release logged a warning on essentially every
+                        # fold (r2-F8). Warning noise on the happy path trains
+                        # readers to ignore the channel that real payload
+                        # warnings share.
+                        #
+                        # Not a TOCTOU risk: `release_lock_on_conn`'s conditional
+                        # UPDATE remains the authority. This read only suppresses
+                        # the no-op case; a lock claimed by someone else simply
+                        # fails to match and is reported below.
+                        holder_row = conn.execute(
+                            "SELECT locked_by FROM metadata"
+                        ).fetchone()
+                        if holder_row and holder_row["locked_by"] is not None:
+                            if release_lock_on_conn(conn, agent_id) == 0:
+                                _log.warning(
+                                    "Lock on %s not released on fold: held by %s, "
+                                    "not %s.",
+                                    slug, holder_row["locked_by"], agent_id,
+                                )
+                        deregister_agent(conn, agent_id)
                 except ConcurrentInstanceError as e:
                     # another live process owns the slot — don't clean up their
                     # state. The fold itself already committed.
@@ -281,20 +302,6 @@ def fold_dossier(
         if not is_refold:
             _discard_new_dossier(db_path)
         raise
-
-    # release the lock outside the db context so release_lock's own connection
-    # sees the committed deregistration. Catch ValueError to tolerate
-    # old-protocol locks (bare type) that won't match the resolved agent_id.
-    if lock_release_agent_id is not None:
-        try:
-            release_lock(dossiers_dir, slug, agent=lock_release_agent_id)
-        except ValueError as e:
-            _log.warning(
-                "Lock on %s not released on fold (held by another agent or "
-                "pre-v2 protocol): %s",
-                slug,
-                e,
-            )
 
     return {
         "slug": slug,

@@ -6,9 +6,12 @@ via subprocess to exercise argument parsing and exit codes end-to-end.
 """
 import json
 import re as _re
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 
 def _fold_via_cli(
@@ -770,3 +773,86 @@ class TestCliReapLog:
         assert result.returncode == 0, result.stderr
         assert "cx-orch" in result.stdout
         assert "cc-orch" not in result.stdout
+
+
+class TestCliWorkerHeartbeat:
+    """reg-A half 2: every worker-reachable CLI path refreshes the heartbeat.
+
+    `_resolve_agent` short-circuits on the ':' in a worker label, so before this
+    fix a worker's row was written once by `claim_task` and never touched again,
+    no matter how many CLI calls it made.
+    """
+
+    _WORKER = "claude-code:worker-1:1743926400"
+
+    def _heartbeat(self, dossiers_dir: Path, slug: str) -> str:
+        db = dossiers_dir / f"{slug}.db"
+        with sqlite3.connect(db) as conn:
+            row = conn.execute(
+                "SELECT last_heartbeat FROM registrations WHERE agent_id = ?",
+                (self._WORKER,),
+            ).fetchone()
+        return row[0] if row else ""
+
+    def _age_heartbeat(self, dossiers_dir: Path, slug: str) -> None:
+        db = dossiers_dir / f"{slug}.db"
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "UPDATE registrations SET last_heartbeat = '2020-01-01T00:00:00Z' "
+                "WHERE agent_id = ?",
+                (self._WORKER,),
+            )
+
+    def _claim(self, dossiers_dir: Path) -> str:
+        """Register the worker against *two* in-progress tasks.
+
+        One task is not enough: transitioning a worker's last in-progress task
+        out is exactly what `_maybe_deregister_worker` deletes the row for, so a
+        single-task worker legitimately has no row left to inspect after
+        ``complete``. Holding a second task isolates the heartbeat behaviour
+        from the deregistration behaviour.
+        """
+        _, slug = _fold_via_cli(
+            dossiers_dir,
+            tasks=[
+                {"subject": "Build API", "status": "pending"},
+                {"subject": "Write docs", "status": "pending"},
+            ],
+        )
+        for task in ("1", "2"):
+            result = _run_cli(
+                dossiers_dir, "unfold", slug,
+                "--worker", "--task", task, "--agent", self._WORKER,
+            )
+            assert result.returncode == 0, result.stderr
+        return slug
+
+    def test_claim_via_cli_records_a_live_cli_pid(self, dossiers_dir: Path):
+        slug = self._claim(dossiers_dir)
+        with sqlite3.connect(dossiers_dir / f"{slug}.db") as conn:
+            pid = conn.execute(
+                "SELECT cli_pid FROM registrations WHERE agent_id = ?",
+                (self._WORKER,),
+            ).fetchone()[0]
+        assert pid is not None and pid > 0
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ("tasks", "{slug}", "update", "--id", "1", "--status", "blocked",
+             "--agent", _WORKER),
+            ("tasks", "{slug}", "complete", "--id", "1", "--agent", _WORKER),
+            ("lock", "{slug}", "claim", "--agent", _WORKER),
+        ],
+        ids=["tasks-update", "tasks-complete", "lock-claim"],
+    )
+    def test_worker_reachable_commands_refresh_the_heartbeat(
+        self, dossiers_dir: Path, argv: tuple[str, ...]
+    ):
+        slug = self._claim(dossiers_dir)
+        self._age_heartbeat(dossiers_dir, slug)
+        assert self._heartbeat(dossiers_dir, slug) == "2020-01-01T00:00:00Z"
+
+        result = _run_cli(dossiers_dir, *(a.format(slug=slug) for a in argv))
+        assert result.returncode == 0, result.stderr
+        assert self._heartbeat(dossiers_dir, slug) > "2020-01-01T00:00:00Z"

@@ -223,8 +223,23 @@ bureau/
 ├── protocols/      # Context/guidance files for agents
 ├── tools/          # MCP servers and their documentation
 ├── operations/     # Python modules (config loading, cleanup, etc.)
+├── docs/           # Setup, configuration, usage, CI, engineering invariants
 │
 │   GITIGNORED:
 ├── .archives/      # Operational state (trash, cleanup timestamps)
 └── .mcp-servers/   # Cloned MCP server repos (shared across Bureau worktrees)
 ```
+
+## Documentation
+
+| Document | Read it when |
+| :--- | :--- |
+| [`docs/SETUP.md`](docs/SETUP.md) | installing Bureau for the first time |
+| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | changing MCP servers, roles, retention, or ports |
+| [`docs/USAGE.md`](docs/USAGE.md) | driving Bureau day to day |
+| [`docs/CI.md`](docs/CI.md) | running or changing the pipeline |
+| [`docs/ENGINEERING.md`](docs/ENGINEERING.md) | **changing Bureau's own code** |
+
+> [!IMPORTANT]
+>
+> Read [`docs/ENGINEERING.md`](docs/ENGINEERING.md) before contributing. It records the invariants that constrain this codebase and the defect each one was earned by: shell portability across BSD and GNU, agent identity and liveness, schema migrations, and the skill/CLI contract. Several of the rules exist because the same class of bug shipped twice.

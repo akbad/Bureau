@@ -379,7 +379,14 @@ class TestDisplayNameFromPath:
 class TestHubSpokeDeployment:
     """Tests for hub-and-spoke deployment logic extracted from set-up-protocols.sh."""
 
+    # NOTE: this template *re-implements* the deployment rather than invoking
+    # the real script, so it can drift from production — and it had. It carried
+    # the same BSD-only `sed -i ''` as `bin/reset-protocols`, and because the
+    # template has no `set -e`, the failure was silent: only
+    # `test_hub_paths_resolved` noticed, via the unresolved placeholder.
+    # Worth replacing with a call to the real script; see `s1-G`.
     DEPLOY_SCRIPT_TEMPLATE = """
+    source "{repo_root}/bin/lib/fs.sh"
     BUREAU_PROTOCOLS_DIR="{protocols_dir}"
     STATIC_DIR="{static_dir}"
 
@@ -390,14 +397,14 @@ class TestHubSpokeDeployment:
     for spoke in session-start.md task-assessment.md task-execution.md task-completion.md; do
         cp "$STATIC_DIR/ops/$spoke" "$BUREAU_PROTOCOLS_DIR/ops/$spoke"
     done
-    sed -i '' "s|{{{{PROTOCOLS_DIR}}}}|$BUREAU_PROTOCOLS_DIR|g" "$BUREAU_PROTOCOLS_DIR/ops-hub.md"
+    _sed_inplace "s|{{{{PROTOCOLS_DIR}}}}|$BUREAU_PROTOCOLS_DIR|g" "$BUREAU_PROTOCOLS_DIR/ops-hub.md"
     echo "DEPLOYED"
     """
 
     def test_deploys_all_files(self, tmp_path: Path) -> None:
         protocols_dir = tmp_path / "protocols"
         script = self.DEPLOY_SCRIPT_TEMPLATE.format(
-            protocols_dir=protocols_dir, static_dir=STATIC_DIR
+            protocols_dir=protocols_dir, static_dir=STATIC_DIR, repo_root=REPO_ROOT
         )
         result = subprocess.run(
             ["bash", "-c", script], capture_output=True, text=True
@@ -414,7 +421,7 @@ class TestHubSpokeDeployment:
     def test_hub_paths_resolved(self, tmp_path: Path) -> None:
         protocols_dir = tmp_path / "protocols"
         script = self.DEPLOY_SCRIPT_TEMPLATE.format(
-            protocols_dir=protocols_dir, static_dir=STATIC_DIR
+            protocols_dir=protocols_dir, static_dir=STATIC_DIR, repo_root=REPO_ROOT
         )
         subprocess.run(["bash", "-c", script], capture_output=True, text=True)
         hub_content = (protocols_dir / "ops-hub.md").read_text()
@@ -425,7 +432,7 @@ class TestHubSpokeDeployment:
         """Running deploy twice should produce same result."""
         protocols_dir = tmp_path / "protocols"
         script = self.DEPLOY_SCRIPT_TEMPLATE.format(
-            protocols_dir=protocols_dir, static_dir=STATIC_DIR
+            protocols_dir=protocols_dir, static_dir=STATIC_DIR, repo_root=REPO_ROOT
         )
         subprocess.run(["bash", "-c", script], capture_output=True, text=True)
         first_hub = (protocols_dir / "ops-hub.md").read_text()

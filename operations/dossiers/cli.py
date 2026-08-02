@@ -48,8 +48,16 @@ def _resolve_agent(args_agent: str, slug: str, dossiers_dir: Path) -> tuple[str,
         ordering fix) and protects the agent's own row from reaping. The
         orchestrator id is deterministic, so it is recomputed here rather than
         threaded out of the context manager.
-      - Worker label (``claude-code:worker-1:1743926400``): return as-is; the
-        prefix before the first ``:`` is the agent_type.
+      - Worker label (``claude-code:worker-1:1743926400``): the id is the label
+        itself, so there is nothing to compute — but the connect still happens,
+        because that is what refreshes the worker's heartbeat and adopts its
+        `cli_pid` before the reap runs (reg-A). Skipping it is what let an
+        active worker be reaped on age alone. The prefix before the first ``:``
+        is the agent_type.
+
+    Every worker-reachable command (``unfold --worker``, ``tasks
+    claim/update/complete``, ``lock claim/release``) funnels through here, so
+    this one call site is the whole worker heartbeat surface.
 
     Returns ``(agent_id, agent_type)``.
 
@@ -58,6 +66,10 @@ def _resolve_agent(args_agent: str, slug: str, dossiers_dir: Path) -> tuple[str,
             slot (propagated from `resolve_identity` inside the connect).
     """
     if ":" in args_agent:
+        with open_dossier_db(
+            safe_db_path(dossiers_dir, slug), worker_agent_id=args_agent
+        ):
+            pass  # refresh + reap happen inside connect, in the correct order
         return args_agent, args_agent.split(":", 1)[0]
     with open_dossier_db(
         safe_db_path(dossiers_dir, slug), agent_type=args_agent, slug=slug
