@@ -118,8 +118,14 @@ log_banner() {
     local divider_char="━"
     local line_len=$(( ${#title} + 16 ))
 
+    # Built with bash parameter expansion, NOT `printf ... | tr ' ' "$char"`.
+    # `tr` is byte-oriented: it truncates SET2 to SET1's length, so a
+    # multi-byte divider char maps every space to its *first byte* alone —
+    # emitting invalid UTF-8 that makes strict decoders (any consumer piping
+    # this output) blow up. Locale does not help; GNU tr ignores it here.
     local divider
-    divider=$(printf '%*s' "$line_len" "" | tr ' ' "$divider_char")
+    printf -v divider '%*s' "$line_len" ""
+    divider=${divider// /"$divider_char"}
 
     echo "$divider"
     echo "${padding}${title}${padding}"
