@@ -613,3 +613,59 @@ class TestWorkerRegistrationPid:
         with open_dossier_db(safe_db_path(tmp_path, result["slug"])) as conn:
             rows = conn.execute("SELECT * FROM registrations").fetchall()
         assert rows == []
+
+
+class TestUpdateTaskCasCoverage:
+    """reg-C: the CAS guard only covered two of the four transitions.
+
+    `cas_guarded = agent is not None and status in ("pending", "blocked")` is
+    the pre-resolution version of the rule. The design resolved that
+    `completed` and `deleted` need the same protection: they are terminal, so
+    an unguarded write to either is the *least* recoverable of the four.
+    """
+
+    def _in_progress_task(self, tmp_path: Path) -> str:
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "A", "status": "pending"}],
+        )
+        return result["slug"]
+
+    @pytest.mark.parametrize("status", ["completed", "deleted", "pending", "blocked"])
+    def test_guarded_transition_from_pending_is_refused(
+        self, tmp_path: Path, status: str
+    ):
+        # a task nobody claimed is not in_progress, so an identified caller
+        # transitioning it must fail the CAS rather than silently succeed
+        slug = self._in_progress_task(tmp_path)
+        with pytest.raises((TaskStateError, IdentityReapedError)):
+            update_task(tmp_path, slug, task_id=1, status=status, agent="claude-code:w:1")
+        assert list_tasks(tmp_path, slug)[0]["status"] == "pending"
+
+    @pytest.mark.parametrize("status", ["completed", "deleted", "pending", "blocked"])
+    def test_guarded_transition_from_in_progress_succeeds(
+        self, tmp_path: Path, status: str
+    ):
+        # the guard must not block the legitimate transition it exists to serialise
+        slug = self._in_progress_task(tmp_path)
+        claim_task(tmp_path, slug, task_id=1, owner="claude-code:w:1")
+        update_task(tmp_path, slug, task_id=1, status=status, agent="claude-code:w:1")
+        tasks = list_tasks(tmp_path, slug)
+        if status == "deleted":
+            assert tasks == []  # list_tasks hides soft-deleted rows
+        else:
+            assert tasks[0]["status"] == status
+
+    def test_unidentified_caller_still_bypasses_the_guard(self, tmp_path: Path):
+        # the documented manual-repair escape hatch: no --agent, no CAS.
+        # Pinned so widening the guard cannot quietly remove it.
+        slug = self._in_progress_task(tmp_path)
+        update_task(tmp_path, slug, task_id=1, status="completed")
+        assert list_tasks(tmp_path, slug)[0]["status"] == "completed"
+
+    def test_completing_an_already_completed_task_is_reported(self, tmp_path: Path):
+        slug = self._in_progress_task(tmp_path)
+        claim_task(tmp_path, slug, task_id=1, owner="claude-code:w:1")
+        update_task(tmp_path, slug, task_id=1, status="completed", agent="claude-code:w:1")
+        with pytest.raises(TaskAlreadyCompletedError):
+            update_task(tmp_path, slug, task_id=1, status="completed", agent="claude-code:w:1")

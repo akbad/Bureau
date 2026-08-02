@@ -20,6 +20,20 @@ from .registration import _maybe_deregister_worker, register_agent
 # violating SQLite NOT NULL constraints
 CLEARABLE_FIELDS = {"description", "owner", "blocked_by", "context_notes"}
 
+# Statuses whose write is CAS-guarded when the caller identifies itself.
+#
+# These are exactly the transitions *out of* `in_progress`, which is the set
+# the guard was always meant to cover. It shipped holding only `pending` and
+# `blocked`, so an identified caller could move a task straight to `completed`
+# or `deleted` with no compare-and-swap at all — the two terminal states, and
+# therefore the two least recoverable ones to get wrong (reg-C).
+#
+# Widening this does not restrict a new class of caller: `pending`/`blocked`
+# already behaved this way, so the guard is now consistent rather than novel.
+# The unidentified path (no `agent`) remains unguarded on purpose — that is the
+# documented manual-repair escape hatch.
+CAS_GUARDED_STATUSES = ("pending", "blocked", "completed", "deleted")
+
 
 def _raise_task_cas_failure(
     conn: sqlite3.Connection, task_id: int, agent: str | None
@@ -193,12 +207,15 @@ def update_task(
 
     ## Worker-reassignment CAS guard
 
-    When `agent` is provided **and** `status` is being set to ``pending`` or
-    ``blocked``, the UPDATE adds a ``WHERE status = 'in_progress'`` guard.
-    Without this, an orchestrator reassigning a worker's task could clobber
-    a concurrent ``complete_task`` and revert a ``completed`` row back to
-    ``pending``. The CAS returns `rowcount = 0` on contention and the caller
-    sees a clear error.
+    When `agent` is provided **and** `status` is one of `CAS_GUARDED_STATUSES`
+    (every transition *out of* ``in_progress``), the UPDATE adds a
+    ``WHERE status = 'in_progress'`` guard. Without this, an orchestrator
+    reassigning a worker's task could clobber a concurrent ``complete_task``
+    and revert a ``completed`` row back to ``pending``. The CAS returns
+    `rowcount = 0` on contention and the caller sees a clear error.
+
+    The guard originally covered only ``pending`` and ``blocked``, leaving the
+    two *terminal* statuses unprotected (reg-C); see `CAS_GUARDED_STATUSES`.
 
     When `agent` is not provided, the update is unguarded (current escape-hatch
     semantics for manual repair via CLI with no `--agent`).
@@ -240,7 +257,7 @@ def update_task(
             return
 
         # decide whether to add the worker-reassignment CAS guard
-        cas_guarded = agent is not None and status in ("pending", "blocked")
+        cas_guarded = agent is not None and status in CAS_GUARDED_STATUSES
 
         with conn:
             updates.append("updated_at = ?")
