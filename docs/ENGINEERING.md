@@ -112,6 +112,36 @@ Rules governing `operations/dossiers/` registration, reaping, and task ownership
 
 **Enforcement.** `TestWorkerLiveness` in `test_cleanup.py`, including two guard tests that pin what must be *preserved*: a worker whose CLI died is still reaped (`pid_dead`), and a pre-fix NULL row still reaps on timestamp.
 
+### Prefer atomicity to ordering when the bad state is unrepairable
+
+**Rule.** If interleaving two writes can produce a state nothing can repair, put them in one transaction. Reordering them only narrows the window.
+
+**Incident.** `reg-B`. Fold committed `deregister_agent` inside the dossier context, then opened a second connection to release the lock. A failure in between left `registrations` empty while `metadata.locked_by` still named the deleted agent, and **cleanup can never repair that**: its cascade only iterates registration rows that still exist, so a lock whose holder has no row is invisible to it. `lock release --force` was the only way out.
+
+The filed recommendation was to release before deregistering. Both writes were already on the same connection inside the same context, so one transaction was available and strictly better.
+
+**Order still matters, for the rollback direction.** If only one write could survive, it must be the registration: cleanup reaps a stale registration on TTL, while an orphaned lock is terminal. Choose the ordering so the *recoverable* residue is the one left behind.
+
+**Enforcement.** `TestRefoldExitAtomicity`, which includes a characterisation test that seeds an orphaned lock and proves three cleanup passes cannot clear it. That test passes before and after the fix; it exists to justify the cost of atomicity.
+
+### A safety predicate gets one definition
+
+**Rule.** When a conditional guard *is* the safety property, it gets exactly one definition. Do not copy the SQL to a second call site.
+
+**Incident.** `reg-B`'s fix needed the lock release inside an existing transaction, which tempted an inline copy of `release_lock`'s `WHERE locked_by = ?` UPDATE. Two copies of a safety predicate is how they diverge, and a diverged safety predicate fails silently in exactly the case it exists to catch. Extracted as `release_lock_on_conn`, which `release_lock` now delegates to.
+
+**Precedent in this repo.** The same reasoning produced the shared DDL constants in `db.py` and the single payload declaration in `payload.py`.
+
+### Clearing half of a coupled state leaves the other half broken
+
+**Rule.** When removing state that describes "who is working here", enumerate everything in that category first. Fixing one table and leaving its correlates is not a partial fix, it is a different bug.
+
+**Incident.** `reg-D` was filed as "clear registrations on fork". Doing only that would have left the fork holding `in_progress` tasks whose owners are source-slug-derived ids with no registration row — which is precisely the unrepairable-orphan class `reg-B` had just eliminated, reintroduced through the fork path. `reap_log` was a third correlate, causing false `IDENTITY RESET` warnings citing events in another dossier.
+
+**The rule that unifies them** was already stated for one member of the set: *a fork starts with nobody working on it*. The lock was simply the only piece of in-flight state anyone had remembered to clear.
+
+**Enforcement.** `TestForkRegistrations` and `TestForkClearsInFlightState`, which also pin what must *not* change: completed and deleted tasks survive (a fork inherits history), and the source keeps everything.
+
 ### A test that seeds the corrupted state cannot see the corruption
 
 **Rule.** A regression test must reach the defective state through the production path that creates it.
