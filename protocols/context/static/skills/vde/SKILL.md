@@ -185,7 +185,7 @@ Commit. This rung is mandatory at every tier, and a decision that hedges is not 
 
 ## The decision record
 
-At tiers 2 and 3, close with this block. It is five lines, not a design document.
+At tiers 2 and 3, close with this block. It is six lines, not a design document.
 
 ```
 Decision:    <what was chosen>
