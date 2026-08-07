@@ -22,14 +22,11 @@ CLEARABLE_FIELDS = {"description", "owner", "blocked_by", "context_notes"}
 
 # Statuses whose write is CAS-guarded when the caller identifies itself.
 #
-# These are exactly the transitions *out of* `in_progress`, which is the set
-# the guard was always meant to cover. It shipped holding only `pending` and
-# `blocked`, so an identified caller could move a task straight to `completed`
-# or `deleted` with no compare-and-swap at all — the two terminal states, and
-# therefore the two least recoverable ones to get wrong (reg-C).
+# These are exactly the transitions *out of* `in_progress`. An identified
+# caller must not be able to move a task it does not own, and that applies most
+# strongly to `completed` and `deleted`: they are terminal, and so the two least
+# recoverable states to reach by mistake.
 #
-# Widening this does not restrict a new class of caller: `pending`/`blocked`
-# already behaved this way, so the guard is now consistent rather than novel.
 # The unidentified path (no `agent`) remains unguarded on purpose — that is the
 # documented manual-repair escape hatch.
 CAS_GUARDED_STATUSES = ("pending", "blocked", "completed", "deleted")
@@ -214,8 +211,8 @@ def update_task(
     and revert a ``completed`` row back to ``pending``. The CAS returns
     `rowcount = 0` on contention and the caller sees a clear error.
 
-    The guard originally covered only ``pending`` and ``blocked``, leaving the
-    two *terminal* statuses unprotected (reg-C); see `CAS_GUARDED_STATUSES`.
+    The guarded set is `CAS_GUARDED_STATUSES`: the transitions out of
+    ``in_progress``.
 
     When `agent` is not provided, the update is unguarded (current escape-hatch
     semantics for manual repair via CLI with no `--agent`).
@@ -316,7 +313,7 @@ def claim_task(dossiers_dir: Path, slug: str, task_id: int, owner: str) -> None:
                     "SELECT 1 FROM registrations WHERE agent_id = ?", (owner,)
                 ).fetchone()
                 if not already:
-                    # record the ancestor CLI pid, not None (reg-A): a NULL here
+                    # record the ancestor CLI pid, not None: a NULL here
                     # gives the reap's liveness oracle nothing to ask, so it
                     # falls through to reaping the worker on age alone. The pid
                     # is the enclosing CLI process — the worker lives exactly as

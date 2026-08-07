@@ -61,15 +61,14 @@ def fork_dossier(
 
 
 def _clear_in_flight_state(conn, now: str) -> None:
-    """Drop everything describing *who is currently working here* (reg-D).
+    """Drop everything describing *who is currently working here*.
 
-    A fork already advertises "always unlocked". The lock was simply the only
-    piece of in-flight state anyone had remembered to clear; registrations,
-    task ownership and the reap log are the same category and were inherited
-    verbatim. Every id in them is derived from the **source** slug, so none of
-    it is even addressable from the fork.
+    A fork starts with nobody working on it. `sqlite3.backup()` copies verbatim,
+    so registrations, task ownership and the reap log would otherwise be
+    inherited from the source — and every id in them is derived from the
+    **source** slug, so none of it is even addressable from the fork.
 
-    Each removal fixes a distinct failure, not just untidiness:
+    Each removal prevents a distinct failure, not just untidiness:
 
       - **`registrations`** — the inherited orchestrator row occupies the
         fork's single `(agent_type, orchestrator)` slot under an id that a
@@ -79,10 +78,9 @@ def _clear_in_flight_state(conn, now: str) -> None:
 
       - **In-flight task ownership** — an `in_progress` task whose owner has no
         registration row is *unrepairable*: the reap cascade only iterates rows
-        that still exist, so nothing ever reverts it. That is precisely the
-        orphan class `reg-B` removed from the fold path, and clearing
-        registrations alone would have reintroduced it here. Reverting to
-        `pending` is what makes the task claimable again.
+        that still exist, so nothing ever reverts it. Clearing registrations
+        without also releasing their tasks would manufacture exactly that
+        state. Reverting to `pending` is what makes the task claimable again.
 
       - **`reap_log`** — `_maybe_warn_identity_reset` fires on any reap of the
         caller's `agent_type` within the last hour, so an inherited entry tells

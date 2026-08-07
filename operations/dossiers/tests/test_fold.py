@@ -630,14 +630,12 @@ class TestFailedFoldLeavesNothingBehind:
 
 
 class TestRefoldExitAtomicity:
-    """reg-B: the lock release and the deregistration must not be separable.
+    """The lock release and the deregistration must not be separable.
 
-    They used to be two commits on two connections: `deregister_agent` committed
-    inside the dossier context, then `release_lock` opened a fresh connection
-    after it. A failure in between left `registrations` empty while
-    `metadata.locked_by` still named the deleted agent — and cleanup can never
-    repair that, because its cascade only iterates registration rows that still
-    exist. `lock release --force` was the sole escape.
+    Split across two commits, a failure in between leaves `registrations` empty
+    while `metadata.locked_by` still names the deleted agent — and cleanup can
+    never repair that, because its cascade only iterates registration rows that
+    still exist, leaving `lock release --force` as the sole escape.
     """
 
     def _registered_lock_holder(self, tmp_path, slug):
@@ -653,7 +651,7 @@ class TestRefoldExitAtomicity:
     def test_an_orphaned_lock_is_unrepairable_by_cleanup(
         self, tmp_path, make_dossier, set_registration_ttl, set_cleanup_check_interval
     ):
-        """Why reg-B outranks its blast radius: the bad state has no way out.
+        """Why this outranks its blast radius: the bad state has no way out.
 
         Passes before and after the fix; it characterises the hazard rather
         than the fix, and is what makes an orphaned lock worth preventing
@@ -684,11 +682,11 @@ class TestRefoldExitAtomicity:
     def test_a_failing_out_of_band_release_cannot_orphan_the_lock(
         self, tmp_path, make_dossier, mock_cli_pid, monkeypatch
     ):
-        """The reg-B window: deregistration committed, then the release failed.
+        """The hazardous window: deregistration commits, then the release fails.
 
-        `raising=False` because the fix removes the out-of-band `release_lock`
-        call entirely. Pre-fix the patch lands and the orphan appears; post-fix
-        there is nothing to patch and the invariant holds by construction.
+        `raising=False` because no out-of-band `release_lock` call exists to
+        patch: sharing one transaction is what makes the window unreachable, so
+        the invariant holds by construction rather than by the patch missing.
         """
         from operations.dossiers.db import open_dossier_db, safe_db_path
         from operations.dossiers.lock import get_lock_status
@@ -754,7 +752,7 @@ class TestRefoldExitAtomicity:
     def test_lock_never_outlives_its_registration(
         self, tmp_path, make_dossier, mock_cli_pid
     ):
-        # the invariant reg-B violated, stated directly: no state in which
+        # the invariant, stated directly: no state in which
         # `locked_by` names an agent with no registration row
         from operations.dossiers.db import open_dossier_db, safe_db_path
         from operations.dossiers.lock import get_lock_status

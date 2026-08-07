@@ -35,7 +35,17 @@ DEFAULT_DOSSIERS_DIR = Path(os.path.expanduser("~/.config/bureau/dossiers"))
 
 
 def _get_dossiers_dir(args: argparse.Namespace) -> Path:
-    return Path(args.dossiers_dir) if args.dossiers_dir else DEFAULT_DOSSIERS_DIR
+    """Resolve the dossiers directory from parsed args, falling back to the default.
+
+    Args:
+        args: the parsed namespace. `dossiers_dir` may be **absent** rather than
+            `None`: the option defaults to `argparse.SUPPRESS` so a subparser
+            cannot overwrite a value the top-level parser already read (see
+            `main`). `getattr` is therefore required — attribute access would
+            raise on the common case of the flag being omitted entirely.
+    """
+    dossiers_dir = getattr(args, "dossiers_dir", None)
+    return Path(dossiers_dir) if dossiers_dir else DEFAULT_DOSSIERS_DIR
 
 
 def _resolve_agent(args_agent: str, slug: str, dossiers_dir: Path) -> tuple[str, str]:
@@ -51,9 +61,9 @@ def _resolve_agent(args_agent: str, slug: str, dossiers_dir: Path) -> tuple[str,
       - Worker label (``claude-code:worker-1:1743926400``): the id is the label
         itself, so there is nothing to compute — but the connect still happens,
         because that is what refreshes the worker's heartbeat and adopts its
-        `cli_pid` before the reap runs (reg-A). Skipping it is what let an
-        active worker be reaped on age alone. The prefix before the first ``:``
-        is the agent_type.
+        `cli_pid` before the reap runs. Skipping it would let an active worker
+        be reaped on age alone. The prefix before the first ``:`` is the
+        agent_type.
 
     Every worker-reachable command (``unfold --worker``, ``tasks
     claim/update/complete``, ``lock claim/release``) funnels through here, so
@@ -592,9 +602,25 @@ def cmd_context(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    # Shared parent parser for --dossiers-dir so it can appear before or after subcommand
+    # Shared parent parser for --dossiers-dir so it can appear before or after
+    # the subcommand. The parent is attached to the top-level parser *and* to
+    # every subparser, so the option exists at both placements.
+    #
+    # `default=argparse.SUPPRESS` is load-bearing, not stylistic. With an
+    # ordinary default, a subparser's copy of the option fires even when the
+    # flag was given *before* the subcommand and overwrites the already-parsed
+    # value with `None`, sending every command to the home directory instead.
+    # The caller would believe they are isolated to a copy while operating on
+    # real dossiers — a silent wrong target rather than an error. SUPPRESS makes
+    # argparse omit the attribute entirely when the flag is absent, so an
+    # earlier value survives and the most specific placement wins when both are
+    # given.
     parent_parser = argparse.ArgumentParser(add_help=False)
-    parent_parser.add_argument("--dossiers-dir", help="Override dossiers directory")
+    parent_parser.add_argument(
+        "--dossiers-dir",
+        default=argparse.SUPPRESS,
+        help="Override dossiers directory (valid before or after the subcommand)",
+    )
 
     parser = argparse.ArgumentParser(prog="dossiers", description="Bureau dossier CLI",
                                      parents=[parent_parser])

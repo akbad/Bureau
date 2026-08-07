@@ -234,7 +234,7 @@ class TestMigrateV3ToV4:
             )}
             assert "reap_log" in objs
             assert "idx_registrations_orchestrator_slot" in objs
-            assert "idx_registrations_type" not in objs  # Q7: dropped for free
+            assert "idx_registrations_type" not in objs  # dead v2/v3 index
         finally:
             conn.close()
 

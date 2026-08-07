@@ -38,7 +38,7 @@ def release_lock_on_conn(conn, agent: str) -> int:
 
     The connection-level primitive behind `release_lock`, extracted so a caller
     already inside a transaction can release *atomically with* its other writes
-    rather than through a second connection afterwards (reg-B).
+    rather than through a second connection afterwards.
 
     Kept as one definition rather than duplicating the UPDATE at the second call
     site: the conditional predicate is the whole safety property, and two copies

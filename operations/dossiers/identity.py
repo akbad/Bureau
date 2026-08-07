@@ -204,7 +204,7 @@ def _maybe_warn_identity_reset(
 
 
 def resolve_worker_identity(conn: sqlite3.Connection, agent_id: str) -> str:
-    """Refresh a worker's registration on connect and return its id (reg-A).
+    """Refresh a worker's registration on connect and return its id.
 
     The worker-role counterpart to `resolve_identity`, and it exists for the
     same reason: identity must be established *before* the reap preamble runs
@@ -225,12 +225,13 @@ def resolve_worker_identity(conn: sqlite3.Connection, agent_id: str) -> str:
 
     ## What this deliberately does not do
 
-    A worker abandoned by a *live* CLI is now protected indefinitely, where it
-    used to revert after the TTL. That is the intended trade and it is the
-    orchestrator's existing semantics, not a new policy: liveness is owned by
-    the pid oracle, never by idleness. The failure it replaces was silent and
-    destructive (active work reverted mid-flight); what remains is visible in
-    `tasks list` and repairable with `tasks update --status pending`.
+    A worker abandoned by a *live* CLI is protected indefinitely rather than
+    reverting on TTL. That is deliberate, and it is the orchestrator's existing
+    semantics rather than a special rule: liveness is owned by the pid oracle,
+    never by idleness. The trade is favourable because the alternative failure
+    is silent and destructive (active work reverted mid-flight), whereas an
+    abandoned claim is visible in `tasks list` and repairable with
+    `tasks update --status pending`.
 
     Args:
         conn: open dossier DB connection.

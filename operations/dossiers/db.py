@@ -78,8 +78,8 @@ def _process_alive(pid: int | None) -> bool:
 
     `None` and `pid <= 0` (which `os.kill` would interpret as a process-group
     target) both return False so callers fall back to timestamp-only handling.
-    Since reg-A, workers record a real `cli_pid` like orchestrators do, so a
-    NULL now means a row written before that fix rather than "this is a worker".
+    Workers record a real `cli_pid` just as orchestrators do, so a NULL means a
+    row written by an older version rather than "this is a worker".
     """
     if pid is None or pid <= 0:
         return False
@@ -119,7 +119,7 @@ def escape_md(text: str | None) -> str:
 # constants so the *fresh-create* path (`_SCHEMA_SQL` via executescript) and
 # the *migration* path (`migrate_v3_to_v4`, statement-by-statement inside one
 # transaction) build byte-identical schema from a single source. Convergence
-# of the two paths is asserted by a test (diff of sqlite_schema); divergence
+# of the two paths is asserted by a test (diff of sqlite_master); divergence
 # is the classic silent-migration bug.
 #
 # These deliberately omit "IF NOT EXISTS": the fresh path runs against a new
@@ -338,7 +338,7 @@ def migrate_v3_to_v4(conn: sqlite3.Connection, path: Path) -> None:
             conn.execute("ROLLBACK")
             return
         # DROP TABLE removes the table's indexes (incl. the dead v2/v3
-        # idx_registrations_type — Q7 resolved for free).
+        # idx_registrations_type).
         conn.execute("DROP TABLE IF EXISTS registrations")
         for stmt in _V4_REBUILD_STATEMENTS:
             conn.execute(stmt)
@@ -409,7 +409,7 @@ def _maybe_reap_stale_registrations(
       2. Phase B — Python confirms death via `_process_alive(cli_pid)`. A live
          process with a stale heartbeat (idle-but-alive) is skipped, whatever
          its role. A row with no recorded `cli_pid` falls back to
-         timestamp-only; since reg-A that means a pre-fix worker row, not a
+         timestamp-only; that means a row written by an older version, not a
          worker as such.
       3. Phase C — for each genuinely-dead row: write a `reap_log` audit row,
          then cascade (revert its in-progress tasks to pending, release its
@@ -602,7 +602,7 @@ def connect_dossier_db(
     `_maybe_reap_stale_registrations` can consider it, and supplies
     `protect_agent_id` so the agent's own row is never a reap candidate.
 
-    `worker_agent_id` is the same contract for the worker role (reg-A), whose
+    `worker_agent_id` is the same contract for the worker role, whose
     id is an explicit label rather than a computed hash: it refreshes the
     worker's heartbeat and adopts its `cli_pid` on the same connection, ahead
     of the same reap. The two are mutually exclusive — an agent is one role or

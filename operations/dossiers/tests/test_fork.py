@@ -61,11 +61,12 @@ class TestForkDossier:
 
 
 class TestForkRegistrations:
-    """reg-D: a fork inherited the source's registration rows.
+    """A fork must not inherit the source's registration rows.
 
-    `sqlite3.backup()` copies every table verbatim, and nothing cleared
-    `registrations` afterwards. `test_fork.py` never inspected the table, so
-    this shipped untested in both directions.
+    `sqlite3.backup()` copies every table verbatim, so anything describing who
+    is working on the source arrives in the fork unless it is explicitly
+    cleared. These assert both directions: cleared in the fork, intact in the
+    source.
 
     The rows are not merely stale, they are *unreachable*: `agent_id` is a hash
     of the **source** slug, so an agent resolving against the fork computes a
@@ -185,7 +186,8 @@ class TestForkClearsInFlightState:
 
         Its owner is a source-slug-derived id with no registration row in the
         fork, and the reap cascade only iterates rows that exist — so nothing
-        can ever revert it. That is the reg-B orphan class through another door.
+        can ever revert it — the same orphan class the fold exit path prevents,
+        reached through another door.
         """
         slug = self._source_mid_flight(tmp_path, mock_cli_pid)
         fork = fork_dossier(tmp_path, slug)

@@ -290,15 +290,16 @@ class TestResolveIdentityConvergence:
                 resolve_identity(_AdoptNeverWins(conn), slug, "claude-code")
 
 
-# ── resolve_worker_identity: the worker-role counterpart (reg-A) ─────────
+# ── resolve_worker_identity: the worker-role counterpart ─────────────────
 
 
 class TestResolveWorkerIdentity:
     """Workers get the same connect-time refresh orchestrators already had.
 
     `resolve_identity` establishes and refreshes an orchestrator's row before
-    the reap can consider it. Workers had no equivalent, so their heartbeat
-    never moved and their `cli_pid` stayed NULL — the two halves of reg-A.
+    the reap can consider it. Without an equivalent for workers their heartbeat
+    never moves and their `cli_pid` stays NULL, which is the pair of gaps that
+    lets an active worker be reaped.
     """
 
     def _seed_worker(self, conn, agent_id="claude-code:worker-1:42", cli_pid=None):

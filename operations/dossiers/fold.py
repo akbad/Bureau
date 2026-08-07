@@ -123,10 +123,9 @@ def fold_dossier(
                     # `branch`/`commit_hash` are per-session snapshots: overwrite
                     # with whatever this session observed, including NULL.
                     # `project` is not — it is the stable repo the dossier is
-                    # *about*, and the documented re-fold payload sends it, so it
-                    # was silently dropped here until now. COALESCE refreshes it
-                    # when sent (repos move; worktrees differ) while refusing to
-                    # erase it for an older cached skill that omits the key.
+                    # *about*. COALESCE refreshes it when the payload sends it
+                    # (repos move; worktrees differ) while refusing to erase it
+                    # for an older cached skill that omits the key.
                     conn.execute(
                         "UPDATE metadata SET updated_at = ?, agent = ?, branch = ?, "
                         "commit_hash = ?, project = COALESCE(?, project)",
@@ -195,21 +194,19 @@ def fold_dossier(
                     )
 
                 # ── File-interaction retention (opt-in, destructive) ───────────
-                # This prune used to run on EVERY fold with a hard-coded window of
-                # 5 and no way to disable it, so appending a session silently
-                # destroyed earlier sessions' per-file annotations. That is data
-                # loss the caller never requested and the success line never
-                # mentioned.
+                # THE INVARIANT: a fold only ever APPENDS. This prune is the one
+                # exception and it stays opt-in, because the rows it deletes are
+                # earlier sessions' per-file annotations and nothing can recover
+                # them.
                 #
-                # The invariant now: a fold only ever APPENDS. Keeping injected
-                # context small is a *rendering* concern, and `unfold` enforces it
-                # with a window that hides old rows instead of deleting them, so
-                # the compact view is byte-identical to the old behaviour while
-                # `--full` can still reach the whole history.
+                # Keeping injected context small is a *rendering* concern, and
+                # `unfold` owns it with a window that hides old rows rather than
+                # deleting them — so the compact view stays small while `--full`
+                # still reaches the whole history.
                 #
-                # Rejected: keeping the prune and merely logging it. That still
-                # makes an append destructive by default, and the rows it destroys
-                # are unrecoverable — the treadmill only ever runs one way.
+                # Rejected: pruning by default and merely logging it. That makes
+                # an append destructive by default to solve a problem the reader
+                # already solves non-destructively.
                 pruned_file_rows = 0
                 if max_retained_sessions > 0:
                     cutoff_session = conn.execute(
@@ -241,31 +238,26 @@ def fold_dossier(
                     # live other instance owns it — then leave their state alone).
                     agent_id = resolve_identity(conn, slug, agent)
 
-                    # ONE transaction for both writes, release first (reg-B).
+                    # ONE transaction for both writes, release first.
                     #
-                    # These used to be two commits on two connections:
-                    # `deregister_agent` committed here, then `release_lock`
-                    # opened a fresh connection after the dossier context closed.
-                    # A failure in between left `registrations` empty while
-                    # `metadata.locked_by` still named the deleted agent, and
-                    # that state is UNRECOVERABLE by design: cleanup's cascade
-                    # only iterates registration rows that still exist, so it can
-                    # never find a lock whose holder has no row. `lock release
-                    # --force` was the only way out.
+                    # Splitting these across two commits admits a state with no
+                    # repair path: `registrations` empty while `metadata.locked_by`
+                    # still names the deleted agent. Cleanup's cascade only
+                    # iterates registration rows that still exist, so it can never
+                    # find a lock whose holder has no row, leaving `lock release
+                    # --force` as the only exit.
                     #
-                    # Reordering alone would only narrow the window. Sharing a
-                    # transaction removes it: either both land or neither does.
-                    # Order still matters for the *rollback* direction, though —
-                    # if only one could survive, a stale registration is the
-                    # right residue, because cleanup reaps it on TTL while an
-                    # orphaned lock has no repair path at all.
+                    # Ordering alone would merely narrow that window; sharing a
+                    # transaction removes it — either both land or neither does.
+                    # Order still decides the *rollback* direction: if only one
+                    # could survive it must be the registration, because cleanup
+                    # reaps that on TTL while an orphaned lock is terminal.
                     with conn:
                         # Only release if SOMETHING holds it. `--claim` is opt-in,
-                        # so the common fold runs unlocked, and reporting a
-                        # no-op release logged a warning on essentially every
-                        # fold (r2-F8). Warning noise on the happy path trains
-                        # readers to ignore the channel that real payload
-                        # warnings share.
+                        # so the common fold runs unlocked, and reporting a no-op
+                        # release would warn on essentially every fold. Warning
+                        # noise on the happy path trains readers to ignore the
+                        # channel that real payload warnings share.
                         #
                         # Not a TOCTOU risk: `release_lock_on_conn`'s conditional
                         # UPDATE remains the authority. This read only suppresses

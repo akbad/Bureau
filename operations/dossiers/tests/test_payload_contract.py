@@ -1,9 +1,8 @@
 """Tests for the fold payload contract and its drift detector.
 
-These are the `G5` deliverable: the fold payload schema is declared once in
-`operations.dossiers.payload`, and the tests below diff that declaration
-against `fold-dossier/SKILL.md` **in both directions** so a key added to
-either side without the other fails the suite.
+The fold payload schema is declared once in `operations.dossiers.payload`, and
+the tests below diff that declaration against `fold-dossier/SKILL.md` **in both
+directions**, so a key added to either side without the other fails the suite.
 
 Three of the four drift surfaces are covered here:
 
@@ -210,7 +209,7 @@ def test_should_tolerate_an_element_that_is_not_an_object():
     assert check_fold_payload({"name": "N", "tasks": ["oops"]}, is_refold=False) == []
 
 
-# ── The contract vs the skill (the G5 deliverable) ──────────────────────
+# ── The contract vs the skill ───────────────────────────────────────────
 
 
 def test_field_reference_documents_every_persisted_key(field_reference_keys):
@@ -224,7 +223,7 @@ def test_field_reference_documents_every_persisted_key(field_reference_keys):
 
 
 def test_field_reference_documents_no_key_the_cli_ignores(field_reference_keys):
-    """Documented-but-dropped is `r2-F1`: five fields agents sent into a void."""
+    """Documented-but-dropped means agents send fields into a void."""
     unaccepted = field_reference_keys - FOLD_DOCUMENTED_KEYS
 
     assert not unaccepted, (
@@ -282,7 +281,7 @@ def test_fold_warns_on_an_unrecognized_key_but_still_succeeds(dossiers_dir):
 
 
 def test_fold_emits_no_stderr_for_a_clean_payload(dossiers_dir):
-    """The `r2-F8` lesson: a channel that cries wolf on the happy path is dead."""
+    """A channel that cries wolf on the happy path is a dead channel."""
     result = _fold_cli(
         dossiers_dir,
         {

@@ -412,11 +412,11 @@ class TestListReapLog:
 
 
 class TestWorkerLiveness:
-    """reg-A: a worker doing real work must not be reaped out from under itself.
+    """A worker doing real work must not be reaped out from under itself.
 
-    Before the fix, workers registered with `cli_pid = None` and never refreshed
-    `last_heartbeat`, so Phase B took the `timestamp_only` path and reaped them
-    on age alone against a 2h TTL — reverting in-progress work silently.
+    A worker registered with `cli_pid = None` that never refreshes
+    `last_heartbeat` sends Phase B down the `timestamp_only` path, which reaps
+    on age alone against a 2h TTL and silently reverts in-progress work.
     """
 
     _WORKER = "claude-code:worker-1:1743926400"
@@ -424,9 +424,9 @@ class TestWorkerLiveness:
     def _working_worker_via_claim(self, tmp_path, slug):
         """Register a worker the way a real one does: by claiming its task.
 
-        Deliberately *not* a hand-seeded row. The reg-A defect lives in what
+        Deliberately *not* a hand-seeded row. The hazard lives in what
         `claim_task` writes, so a test that seeds `cli_pid` itself would assert
-        the reap logic (already correct) and never see the bug.
+        the reap logic (already correct) and never exercise the real gap.
         """
         claim_task(tmp_path, slug, task_id=1, owner=self._WORKER)
         self._age_heartbeat(tmp_path, slug)
@@ -455,9 +455,9 @@ class TestWorkerLiveness:
         self, tmp_path, make_dossier, mock_process_alive, mock_cli_pid,
         set_registration_ttl, set_cleanup_check_interval,
     ):
-        # The rank-1 reproduction: a worker mid-task, idle past the TTL, whose
-        # CLI is alive. Before the fix its row carried no pid, so cleanup took
-        # the timestamp_only path and reverted its work.
+        # The case that matters most: a worker mid-task, idle past the TTL,
+        # whose CLI is alive. Without a recorded pid, cleanup takes the
+        # timestamp_only path here and reverts its work.
         slug = make_dossier(tasks=[{"subject": "t1"}])["slug"]
         mock_cli_pid(4242)
         mock_process_alive({4242: True})  # the worker's CLI is alive

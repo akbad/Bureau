@@ -129,7 +129,7 @@ class TestUnfoldDossier:
         fold_dossier(dossiers_dir=tmp_path, slug=result["slug"], agent="b", digest="Latest session digest.")
         output = unfold_dossier(tmp_path, "test")  # default full=False
 
-        # H1: latest session digest always rendered under "Latest session context"
+        # latest session digest always rendered under "Latest session context"
         assert "Latest session context" in output
         assert "Latest session digest." in output
 

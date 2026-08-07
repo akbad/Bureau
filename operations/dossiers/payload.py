@@ -2,13 +2,13 @@
 
 # Design rationale
 
-The payload schema used to exist in two unrelated places — prose in
-`fold-dossier/SKILL.md`, and scattered `input_data.get(...)` calls in
-`cli.cmd_fold` — with no mechanism relating them. They drifted in **both**
-directions: five documented fields the CLI never read, and one accepted field
-(`context_notes`) the skill never mentioned. This module makes the contract a
-single importable declaration, so `cmd_fold` and the contract test read the
-same source.
+The payload schema is documented as prose in `fold-dossier/SKILL.md` and
+consumed as `input_data.get(...)` calls in `cli.cmd_fold`. With no mechanism
+relating the two, they drift in **both** directions — documented fields the CLI
+never reads, and accepted fields the skill never mentions — and the drift is
+invisible, because the consumer is an agent that improvises around gaps rather
+than reporting them. This module makes the contract a single importable
+declaration, so `cmd_fold` and the contract test read the same source.
 
 The pattern is borrowed from `db.py`'s shared DDL constants: fresh-create and
 migration build byte-identical schema from one definition *specifically* so a
@@ -50,9 +50,8 @@ write rather than an incomplete one (a `--slug` flag contradicting a payload
 
 A payload matching the documented shape must produce **zero** warnings. A
 warning that fires on the everyday path trains readers to ignore the channel,
-and the real warnings share it — the `r2-F8` lesson, learned from a lock
-warning that fired on every re-fold. This is why `INERT_ON_REFOLD` holds only
-keys the skill's re-fold guidance already tells agents to omit.
+and the real warnings share it. This is why `INERT_ON_REFOLD` holds only keys
+the skill's re-fold guidance already tells agents to omit.
 """
 from typing import Any
 
@@ -75,9 +74,9 @@ FOLD_PERSISTED_KEYS = frozenset({
 })
 
 # Documented and sent by agents, but with nowhere to land: the schema has no
-# column or table for them, so `fold_dossier` drops them. Tracked as `r2-F1`;
-# the v5 migration moves each of these into `FOLD_PERSISTED_KEYS` and empties
-# this set, which is that work's definition of done.
+# column or table for them, so `fold_dossier` drops them. The next schema
+# migration moves each of these into `FOLD_PERSISTED_KEYS` and empties this
+# set; emptying it is that work's definition of done.
 #
 # They are kept *distinct* from unrecognized keys so the warning can tell an
 # agent the difference between "you sent something meaningless" and "you sent
@@ -111,7 +110,7 @@ ELEMENT_KEYS = {
 #     during the session, so a re-fold's array would fight the live table.
 #   - `name`: renaming is deliberately not a fold operation — the slug is
 #     hashed into `registrations.agent_id`, so the name/slug pair is immutable
-#     storage identity (see the `H` block's alias design).
+#     storage identity. Renaming needs a nullable alias column, not a fold.
 #
 # Both are already absent from the skill's re-fold guidance, which is what
 # keeps this warning off the happy path.

@@ -205,7 +205,8 @@ class ConversationsConfig(TypedDict, total=False):
     save: str                                   # command verb, default "fold-dossier"
     resume: str                                 # command verb, default "unfold-dossier"
     storage_dir: str                            # default "~/.config/bureau/dossiers"
-    stale_dossier_days: int                     # cleanup threshold, default 30
+    # note: dossier retention is declared once, in `retention_period_for.dossiers`
+    # (read by `get_retention`, shared duration grammar: "90d", "2w", "never")
     max_retained_sessions: int                  # prune file_interactions beyond this, default 5
     registration_ttl: str                       # duration string, default "2h"
     cleanup_check_interval: str                 # duration string, default "5min"

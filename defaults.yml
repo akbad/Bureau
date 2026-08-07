@@ -615,7 +615,7 @@ conversations:
   save: fold-dossier
   resume: unfold-dossier
   storage_dir: ~/.config/bureau/dossiers
-  stale_dossier_days: 30
+  # note: retention lives in `retention_period_for.dossiers`, not here
   max_retained_sessions: 5
   # Agent identity registration TTL and cleanup cadence (see docs/dossier-registrations-v2.md).
   # TTL: how old `last_heartbeat` must be for a registration to count as stale.
@@ -662,7 +662,7 @@ retention_period_for:
   serena: 90d        # Serena project memories (.serena/memories/)
   qdrant: 180d       # Qdrant vector database (used by all enabled CLIs)
   memory_mcp: 365d   # Memory MCP JSONL file (used by all enabled CLIs)
-  dossiers: 30d      # Conversation dossiers (matches stale_dossier_days)
+  dossiers: 90d      # Conversation dossiers (fold/unfold snapshots)
 
 # Cleanup interval (for stale memories)
 cleanup:

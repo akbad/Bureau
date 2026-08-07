@@ -776,11 +776,12 @@ class TestCliReapLog:
 
 
 class TestCliWorkerHeartbeat:
-    """reg-A half 2: every worker-reachable CLI path refreshes the heartbeat.
+    """Every worker-reachable CLI path must refresh the heartbeat.
 
-    `_resolve_agent` short-circuits on the ':' in a worker label, so before this
-    fix a worker's row was written once by `claim_task` and never touched again,
-    no matter how many CLI calls it made.
+    `_resolve_agent` special-cases the ':' in a worker label. If that path skips
+    the refresh, a worker's row is written once by `claim_task` and never
+    touched again no matter how many CLI calls it makes, and the reap then
+    takes it on age alone.
     """
 
     _WORKER = "claude-code:worker-1:1743926400"
@@ -856,3 +857,78 @@ class TestCliWorkerHeartbeat:
         result = _run_cli(dossiers_dir, *(a.format(slug=slug) for a in argv))
         assert result.returncode == 0, result.stderr
         assert self._heartbeat(dossiers_dir, slug) > "2020-01-01T00:00:00Z"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# `--dossiers-dir` placement
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# The option is declared once on a shared parent parser attached to the
+# top-level parser *and* every subparser, so it exists at both placements. The
+# risk these tests guard is a subparser's copy overwriting a value the
+# top-level parser already read, which would silently point the CLI at the home
+# dossiers directory while the caller believes they are isolated to a copy.
+# That fails by producing confident wrong output rather than an error, so all
+# three placements are pinned rather than only the interesting one.
+
+
+def _run_cli_argv(*argv: str) -> subprocess.CompletedProcess:
+    """Run the dossiers CLI with a fully caller-supplied argv.
+
+    Distinct from `_run_cli`, which always inserts `--dossiers-dir` *after* the
+    subcommand and therefore cannot express before-subcommand placement.
+
+    Args:
+        argv: arguments after the module name, verbatim and in order.
+    """
+    return subprocess.run(
+        [sys.executable, "-m", "operations.dossiers", *argv],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_should_honor_dossiers_dir_placed_before_the_subcommand(dossiers_dir: Path):
+    # arrange: a dossier that exists only in the temp directory
+    _, slug = _fold_via_cli(dossiers_dir, name="Placement Probe Before")
+
+    # act: pass the directory *before* the subcommand
+    result = _run_cli_argv("--dossiers-dir", str(dossiers_dir), "list")
+
+    # assert: reading the temp dir, not the home default
+    assert result.returncode == 0, result.stderr
+    assert "Placement Probe Before" in result.stdout, (
+        "before-subcommand --dossiers-dir was discarded; the CLI fell back to "
+        f"the default dossiers directory. stdout: {result.stdout!r}"
+    )
+    assert slug
+
+
+def test_should_honor_dossiers_dir_placed_after_the_subcommand(dossiers_dir: Path):
+    # arrange
+    _fold_via_cli(dossiers_dir, name="Placement Probe After")
+
+    # act: the placement that already worked, pinned so the fix cannot regress it
+    result = _run_cli_argv("list", "--dossiers-dir", str(dossiers_dir))
+
+    # assert
+    assert result.returncode == 0, result.stderr
+    assert "Placement Probe After" in result.stdout
+
+
+def test_should_prefer_the_subcommand_placement_when_given_at_both(
+    dossiers_dir: Path, tmp_path: Path
+):
+    # arrange: the dossier lives in the directory named *after* the subcommand
+    _fold_via_cli(dossiers_dir, name="Placement Probe Both")
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+
+    # act: most-specific placement wins, so the subcommand's value is authoritative
+    result = _run_cli_argv(
+        "--dossiers-dir", str(decoy), "list", "--dossiers-dir", str(dossiers_dir)
+    )
+
+    # assert
+    assert result.returncode == 0, result.stderr
+    assert "Placement Probe Both" in result.stdout

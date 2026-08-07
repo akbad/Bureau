@@ -581,10 +581,10 @@ class TestRichCasErrors:
 
 
 class TestWorkerRegistrationPid:
-    """reg-A half 1: a worker's registration must carry a real ancestor pid.
+    """A worker's registration must carry a real ancestor pid.
 
-    `claim_task` inserted workers with `cli_pid = None`, so the reap's liveness
-    filter had nothing to ask and fell through to reaping on age alone.
+    With `cli_pid = None` the reap's liveness filter has nothing to ask and
+    falls through to reaping on age alone, taking active work with it.
     """
 
     def test_claim_registers_worker_with_the_cli_pid(self, tmp_path: Path, mock_cli_pid):
@@ -616,12 +616,12 @@ class TestWorkerRegistrationPid:
 
 
 class TestUpdateTaskCasCoverage:
-    """reg-C: the CAS guard only covered two of the four transitions.
+    """The CAS guard must cover all four transitions out of `in_progress`.
 
-    `cas_guarded = agent is not None and status in ("pending", "blocked")` is
-    the pre-resolution version of the rule. The design resolved that
-    `completed` and `deleted` need the same protection: they are terminal, so
+    `completed` and `deleted` need the protection most: they are terminal, so
     an unguarded write to either is the *least* recoverable of the four.
+    Parametrised across all four statuses in both directions so a narrowing of
+    the guarded set fails here.
     """
 
     def _in_progress_task(self, tmp_path: Path) -> str:
