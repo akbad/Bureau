@@ -16,7 +16,7 @@ test can diff them, because "divergence is the classic silent-migration bug."
 Documentation drifting from implementation is that same bug in a different
 medium.
 
-## Contract drift has four surfaces, and a key diff catches three
+## Contract drift has four surfaces, and a top-level key diff catches one
 
   1. **Key sets** — documented vs accepted at the top level.
      → `FOLD_PERSISTED_KEYS`, `FOLD_PENDING_KEYS`.

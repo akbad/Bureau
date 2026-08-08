@@ -28,7 +28,7 @@ Bureau ships to macOS (BSD userland) and runs in Linux containers (GNU userland)
 
 **Incident.** `bin/reset-protocols:102` used `sed -i '' <script> <file>`, the BSD form. GNU `sed` reads the empty string as a filename and exits 2, so the command failed outright on Linux. It was never noticed because the test that would have caught it had *copied the same broken line*.
 
-**Enforcement.** `bin/lib/tests/test_fs.py` (13 tests). Not enforced against reintroduction: nothing greps for `sed -i`, and CI runs only `operations/cleanup/tests`, so a new occurrence would pass twice over. Catch it in review.
+**Enforcement.** `bin/lib/tests/test_fs.py` (13 tests), run in CI as part of the full suite. Not enforced against reintroduction: nothing greps for `sed -i` anywhere else in the tree, so a new occurrence outside `_sed_inplace`'s call sites would pass. Catch it in review.
 
 `_sed_inplace` is also safer than `sed -i` on either platform, which is why it is the rule rather than a workaround:
 
@@ -225,14 +225,9 @@ One proposed fix was to release before deregistering. Both writes were already o
 
 **Incident.** A status entry claimed "875 tests green across all six test directories". It did not reproduce; 13 were failing at that commit. Any later run would have had to guess whether it caused them.
 
-**Note for this repo:** bare `pytest` collects 598 of the suite's 929 tests, because `pyproject.toml`'s `testpaths` omits `operations/dossiers/tests` and `bin/lib/tests` (331 tests between them). The full run is:
+**Note for this repo:** `pyproject.toml`'s `testpaths` lists all six test directories, so `uv run pytest` with no path argument collects the full 929-test suite; `make test` runs the same command.
 
-```bash
-uv run python -m pytest bin/lib/tests operations/cleanup/tests operations/dossiers/tests \
-    operations/tests protocols/scripts/tests tools/scripts/tests
-```
-
-`python -m pytest` rather than the `pytest` console script on purpose: the script's shebang hard-codes the absolute path of the venv's interpreter, so moving or renaming the checkout makes `uv run pytest` fail with `Failed to spawn: pytest` while the module form keeps working.
+Prefer `uv run python -m pytest` over the `pytest` console script if the checkout might move: the script's shebang hard-codes the absolute path of the venv's interpreter, so moving or renaming the checkout makes `uv run pytest` fail with `Failed to spawn: pytest` while the module form keeps working.
 
 ### DIAG-3: Verify a green test was ever red
 
