@@ -8,6 +8,18 @@
 >     - Where the host environment supplies an output style or voice contract, **that contract governs prose** and wins on any conflict.
 >     - Where it does not, follow the [baseline conventions](#baseline-conventions) at the bottom of this file.
 
+## Order of presentation
+
+> *The ladder is an execution order, not a narrative arc. Run the rungs in order; present the conclusion first.*
+
+- At tiers 2 and 3: the [tier line](#declaring-the-tier), then the **decision in one or two sentences**, then the rung narration that supports it, then the record.
+
+    - Narration read before the decision is the reader paying for your process; read after it, the same text is evidence they can attack one rung at a time.
+
+- **Lead with the uncertainty when the decision is genuinely contingent.** *"This turns on whether X holds; if it does, A, otherwise B"* is an answer; a crisp commitment manufactured to satisfy this rule is not.
+- The decision line is written **after the rungs have run**. If writing the support overturns it, say so plainly and carry the corrected call forward; a headline defended against its own evidence is motivated reasoning wearing a protocol.
+- **One case leads with something else:** when rung 1 surfaces a frame divergence that needs agreement, the divergence leads and no decision is stated yet.
+
 ## Narrating rungs
 
 - **Label rungs only when the label earns its place.**

@@ -27,6 +27,25 @@
 - **Defaults**: changing a default is a two-way door for you and a one-way door for everyone who inherited it silently.
 - **Anything published**: a deleted post, a force-pushed commit, and a retracted claim are all one-way doors, because copies and memory persist.
 - **Naming**: cheap to change inside a module, effectively permanent once it enters a public vocabulary others speak.
+- **Adding an index**: the read it speeds up is local; the write path is not. Every insert now maintains it, the planner may move unrelated queries onto worse plans, and the build blocks writes unless run concurrently. Two-way but **wide**: tier 2.
+- **Hypothetical conversions**: a flag or rollback that could exist but has not been built does not make the door two-way. Classify the door in front of you, not the one rung 5 might construct.
+
+## Doors can be *engineered*
+
+**Reversibility is a design *variable*, not just a reading.** The first question at rung 2 is which door this is; the second, owned by rung 5, is what it would cost to change which door it is.
+
+| Mechanism | Converts | Cost it adds |
+| :--- | :--- | :--- |
+| **Expand and contract** | A destructive schema or interface change into three reversible steps | Two extra deploys; a window where both shapes are live |
+| **Feature flag plus canary** | A global cutover into a per-cohort, revertible one | A branch in the code; a flag someone must retire |
+| **Shadow reads or dual writes** | A blind cutover into a measured one | A doubled write path; a divergence you must then explain |
+| **Versioning** | A breaking change into an additive one | Every version kept alive until the last caller moves |
+| **Strangler fig** | A rewrite into a sequence of two-way doors | A seam, a router, and a migration that outlives its sponsor |
+
+- Outside software the move is the same: a pilot with an end date, a trial period, a draft circulated as a draft, a clause with an exit.
+- **The conversion is a rung-5 candidate, not a rung-2 finding.** The tier declared at rung 2 stands; escalation raises tiers, nothing lowers them mid-flight.
+- **Name who pays**: conversions export cost outward, to the operator who must remember the flag, the caller who must migrate off the version, the maintainer who inherits the shadow path.
+- **Permanent hedging is a way of never deciding.** A flag never removed is debt with a config file; dual writes double the failure surface; optionality nobody exercises was bought for nothing.
 
 ## Axis 2: blast radius
 
@@ -70,6 +89,13 @@
 
     - If they say "just answer it", drop to tier 1 and answer, without relitigating.
     - If they say "go deep", run tier 3 without demanding justification.
+    - Record the override in the tier line *("tier 3 by the axes, run at tier 1 on your call")*, so the output still shows what was skipped.
+
+- **When the clock genuinely forces the call** before the tier's analysis can run, do not silently downgrade.
+
+    - Say which rungs were truncated and why *("tier 3, ran rungs 1-5 only; the site is down")*.
+    - Prefer the most **reversible** viable option; optionality is what the time premium buys.
+    - Name the analysis debt **and the date it comes due**; debt with no repayment date is a downgrade wearing a deadline.
 
 ## Worked classifications
 
@@ -78,7 +104,7 @@
 | Rename a private helper function | Two-way | Local | 1 |
 | Pick a variable name in a script | Two-way | Local | 1 |
 | Choose a retry backoff constant | Two-way | Local | 1 |
-| Add an index to speed one query | Two-way | Local | 1 |
+| Choose between two equivalent stdlib calls | Two-way | Local | 1 |
 | Restructure a module's internals | Two-way | Wide | 2 |
 | Choose a test framework for a new repo | One-way in practice | Local | 2 |
 | Add a field to an internal shared struct | Two-way | Wide | 2 |
