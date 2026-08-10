@@ -15,7 +15,7 @@ description: Veteran distinguished-engineer reasoning protocol. Converts the alw
 >
 > - This protocol governs **whether and why**; it does **not** restate **how**.
 >
->     - Code style, comment depth, naming, testing structure, and error handling are owned by the always-on code standards layer and the `code-standards` skill.
+>     - Code style, comment depth, naming, testing structure, and error handling are owned by the host's code-standards layer, however it supplies one.
 >     - Duplicating that content here would create two copies of one invariant; the copies will diverge, and the divergence is the defect. Reference it, never restate it.
 >
 > - The rigor tier declared at [rung 2](#rung-2-stakes) is **binding**. Rungs outside the declared tier are **skipped**, not abbreviated.
@@ -142,6 +142,11 @@ Full axis definitions, worked classifications, and the escalation rules live in 
     - "This is a thundering herd." "This is the dual-write problem." "This is why TrueTime exists." "This is a Conway's-law problem wearing an architecture costume."
 
 - State **what that precedent predicts** here, and **where the analogy breaks**. A precedent with no disanalogy has not been thought about.
+- Before trusting the match, check its **validity boundary**: a precedent is signal only where the domain could have taught it.
+
+    - Kahneman and Klein's adversarial collaboration (2009) drew the line: pattern-matching is trustworthy only in domains with **learnable regularities**, judged with **prolonged practice under fast, unambiguous feedback**.
+    - Where either is missing *(career moves, novel markets, anything first-of-its-kind)*, a correctly named precedent is still untrustworthy; say so, and shift the decision's weight onto invariants and the outside view.
+
 - Where the decision has a **reference class**, take the outside view before the inside one.
 
     - Precedent asks *what is this an instance of*; the outside view asks *what happened to the last three to five who did this, and what was the median*. They are adjacent and routinely conflated.
@@ -158,6 +163,7 @@ Full axis definitions, worked classifications, and the escalation rules live in 
 >
 > - Name a precedent only when you can identify it specifically enough that the user could go look it up and check you.
 > - **"I do not have a precedent I can name with confidence"** is a complete and acceptable answer to this rung.
+> - So is **"I have a precedent, but this domain cannot vouch for it"**: naming the match while disqualifying its domain is honesty, not hedging.
 > - A plausible-sounding invented pattern name is the worst possible output of this protocol: it is unfalsifiable, it sounds authoritative, and it poisons every downstream decision that trusts it.
 
 ### Rung 5: alternatives
@@ -227,7 +233,7 @@ Falsifier:   <narrowest check that would prove it wrong>
 
     - Where the choice genuinely **dominates** on every axis you checked, say so and name the axes *("dominates on effort and readability; nothing traded")*; a named dominance claim is checkable, and a manufactured sacrifice trains the reader to skim this field even when it matters (e.g., at tier 3).
 
-- When the host environment provides durable storage *(a dossier, a design doc, an ADR)*, offer to persist tier-3 records there; do not persist without being asked.
+- When the host environment provides durable storage *(a design doc, an ADR, a decision log)*, offer to persist tier-3 records there; do not persist without being asked.
 
 ## Tripwires
 
@@ -268,12 +274,12 @@ The ladder is domain-general; only the vocabulary changes.
 | **Career** | Constraints that are actually fixed | How this move has played out for others | Doors opened and closed |
 | **Research** | Assumptions the result rests on | Prior work, known negative results | What downstream work would inherit the error |
 
-## Compatibility with other Bureau workflows
+## Compatibility with host workflows
 
-- **Code standards** *(always-on layer plus the `code-standards` skill)*: strictly complementary. Those own *how code is written*; this owns *whether it should be written and why this shape*. This skill never restates them.
-- **`micro-mode`**: sequential, not competing. Run this protocol to decide, then hand the decision to micro-mode to execute under step-gating. A tier-3 decision followed by micro-mode execution is the intended pairing for high-risk changes.
-- **`assess-mode`**: this protocol supplies the lens; assess-mode supplies the sweep. Where assess-mode audits against standards, this asks whether the design was the right one to hold to a standard at all.
-- **Bureau roles** *(`architect`, `code-reviewer`, and the rest)*: roles are **delegation targets** that spawn a subagent with a specialty. This skill changes the stance of the agent already in the conversation. They compose: a role can run this protocol, and this protocol can recommend delegating to a role.
+- **Code standards** *(however the host supplies them: an always-on layer, a dedicated skill, a style guide)*: strictly complementary. Those own *how code is written*; this owns *whether it should be written and why this shape*. This skill never restates them.
+- **Step-gated execution modes** *(where the host has one)*: sequential, not competing. Run this protocol to decide, then hand the decision to the execution mode to carry out under step-gating. A tier-3 decision followed by step-gated execution is the intended pairing for high-risk changes.
+- **Audit and assessment sweeps**: this protocol supplies the lens; the sweep supplies the coverage. Where an assessment audits against standards, this asks whether the design was the right one to hold to a standard at all.
+- **Specialist roles**: roles are **delegation targets** that spawn a subagent with a specialty. This skill changes the stance of the agent already in the conversation. They compose: a role can run this protocol, and this protocol can recommend delegating to a role.
 - **Superpowers skills** *(where installed)*: `brainstorming` and `writing-plans` own the *workflow*; this owns the *judgment applied inside it*. If a superpowers skill mandates a sequence, follow it, and run these rungs within its steps.
 
 ## Restated
