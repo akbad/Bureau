@@ -67,41 +67,52 @@ FOLD_PERSISTED_KEYS = frozenset({
     "digest",
     "digest_file",
     "files",
+    "last_exchange",
+    "memory_queries",
+    "mood",
     "name",
+    "next_words",
+    "pinned_findings",
     "project",
     "slug",
     "tasks",
 })
 
-# Documented and sent by agents, but with nowhere to land: the schema has no
-# column or table for them, so `fold_dossier` drops them. The next schema
-# migration moves each of these into `FOLD_PERSISTED_KEYS` and empties this
-# set; emptying it is that work's definition of done.
+# Documented and sent by agents, but with nowhere to land: no column or table
+# exists for them, so `fold_dossier` would drop them. Keeping them *distinct*
+# from unrecognized keys is what lets the warning tell an agent the difference
+# between "you sent something meaningless" and "you sent something this
+# version cannot store yet".
 #
-# They are kept *distinct* from unrecognized keys so the warning can tell an
-# agent the difference between "you sent something meaningless" and "you sent
-# something this version cannot store yet".
-FOLD_PENDING_KEYS = frozenset({
-    "last_exchange",
-    "memory_queries",
-    "mood",
-    "next_words",
-    "pinned_findings",
-})
+# **Empty since the v5 migration**, which was scoped by exactly this set: the
+# five fields it used to hold (`last_exchange`, `memory_queries`, `mood`,
+# `next_words`, `pinned_findings`) now have storage. It stays declared, and
+# tested, because the next field documented ahead of its schema belongs here
+# rather than in a silence.
+FOLD_PENDING_KEYS: frozenset[str] = frozenset()
 
 # The full documented contract: everything an agent may legitimately send.
 FOLD_DOCUMENTED_KEYS = FOLD_PERSISTED_KEYS | FOLD_PENDING_KEYS
 
-# Element schemas for the array-valued persisted keys (surface 4). Only
-# persisted arrays appear here, so pending arrays are skipped for free —
-# there is no accepted schema to diff a `pinned_findings[]` element against
-# until v5 lands.
+# Element schemas for the array-valued persisted keys (surface 4). Every
+# persisted array belongs here: a key whose *elements* nobody diffs is how
+# `context_notes` stayed undocumented for months.
+#
+# `pinned_findings` splits into two halves that are worth telling apart. The
+# semantic four (`finding`, `dead_end`, `why_abandoned`, `retry`) are hashed
+# into the finding's identity; `kind` and `supersedes` describe the row's
+# lifecycle and are deliberately excluded from that hash. Both halves are
+# accepted here, because both are things an agent legitimately sends.
 ELEMENT_KEYS = {
     "tasks": frozenset({
         "blocked_by", "context_notes", "description", "owner", "status", "subject",
     }),
     "decisions": frozenset({"alternatives", "decided_by", "what", "why"}),
     "files": frozenset({"action", "annotation", "path"}),
+    "pinned_findings": frozenset({
+        "dead_end", "finding", "kind", "retry", "supersedes", "why_abandoned",
+    }),
+    "memory_queries": frozenset({"query", "result_summary", "tool", "used_for"}),
 }
 
 # Keys a re-fold reads from the payload and then ignores (surface 3).

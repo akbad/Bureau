@@ -184,6 +184,11 @@ def cmd_fold(args: argparse.Namespace) -> int:
         tasks=tasks,
         decisions=decisions,
         files=files,
+        last_exchange=input_data.get("last_exchange"),
+        next_words=input_data.get("next_words"),
+        mood=input_data.get("mood"),
+        pinned_findings=input_data.get("pinned_findings"),
+        memory_queries=input_data.get("memory_queries"),
         max_retained_sessions=args.max_retained_sessions,
     )
     summary = (

@@ -13,11 +13,16 @@ from operations.config_loader import (
     get_registration_ttl_seconds,
 )
 
-# Schema 4 (v3 design): single-store identity. The `registrations` row IS the
-# identity (no session marker files); `cli_pid` + `last_heartbeat` drive the
-# PID-liveness-aware cleanup; `reap_log` records every reap for forensics and
-# identity-reset detection.
-SCHEMA_VERSION = 4
+# Schema 5: the five documented payload fields the CLI used to accept and drop
+# get storage. `sessions` gains three per-session scalars; `decisions` gains
+# provenance; `pinned_findings` + `finding_supersessions` give findings a
+# content-addressed identity and an append-only lifecycle; `memory_queries`
+# is session-scoped and append-only. Purely additive over schema 4 (v3
+# design): single-store identity, where the `registrations` row IS the
+# identity (no session marker files), `cli_pid` + `last_heartbeat` drive the
+# PID-liveness-aware cleanup, and `reap_log` records every reap for forensics
+# and identity-reset detection.
+SCHEMA_VERSION = 5
 
 # busy_timeout for every connection. Single-user contention windows are
 # sub-second; 30s is ample headroom for the migration's BEGIN IMMEDIATE and
@@ -240,15 +245,113 @@ CREATE INDEX IF NOT EXISTS idx_decisions_session
     ON decisions(session_id);
 """
 
-_SCHEMA_SQL = _BASE_SCHEMA_SQL + "\n" + ";\n".join(_V4_REBUILD_STATEMENTS) + ";\n"
+_V4_SCHEMA_SQL = _BASE_SCHEMA_SQL + "\n" + ";\n".join(_V4_REBUILD_STATEMENTS) + ";\n"
+
+# ── v5 DDL ──────────────────────────────────────────────────────────────
+# Purely additive over v4: three per-session scalars, two provenance columns
+# on `decisions`, and three new tables. Nothing is dropped, rewritten, or
+# invalidated, which is why this migration needs neither a backup nor an
+# orphan report (contrast `migrate_v3_to_v4`).
+#
+# `ALTER TABLE ADD COLUMN` rewrites the *stored text* of a table's CREATE
+# statement, appending the column definition verbatim before the closing
+# paren. So the only way fresh-create and migrate can produce byte-identical
+# schema (MIGR-2, asserted by a sqlite_master diff) is for **both** paths to
+# apply these same ALTERs: hand-writing the columns inline in
+# `_BASE_SCHEMA_SQL` would differ from the migrated text by whitespace alone
+# and fail the diff. Fresh-create therefore builds v4 and migrates itself
+# forward, exactly as an existing database does.
+_V5_ADD_COLUMNS = (
+    # Per-session scalars, one value per fold. Nullable with no default: a
+    # session folded before v5 (or by an agent that omits the key) genuinely
+    # has no value, and NULL is how the render knows to skip the line.
+    "ALTER TABLE sessions ADD COLUMN last_exchange TEXT",
+    "ALTER TABLE sessions ADD COLUMN next_words TEXT",
+    "ALTER TABLE sessions ADD COLUMN mood TEXT",
+    # Decision provenance (r2-F7). `session_id` says which fold *wrote* the
+    # row; `origin_session` says which session the decision was first recorded
+    # in, so a later re-send carrying richer fields does not reset its age.
+    # `source` says how the row entered this dossier ('fold' today; a `merge`
+    # primitive, if r2-F5 ever lands, is the reason this is a string).
+    "ALTER TABLE decisions ADD COLUMN source TEXT",
+    "ALTER TABLE decisions ADD COLUMN origin_session INTEGER REFERENCES sessions(id)",
+)
+
+# Identity is the content hash itself (D1): primary key, dedupe key, and the
+# handle rendered to agents as an 8-hex prefix, all one value. Rows are
+# IMMUTABLE — every lifecycle operation (amendment, consolidation, retraction)
+# appends a row and an edge, because a content hash naming mutable content is
+# a lie. `origin_session` is provenance and is deliberately NOT hashed: two
+# sessions discovering one fact must mint one identity.
+_CREATE_PINNED_FINDINGS = """CREATE TABLE pinned_findings (
+    hash            TEXT PRIMARY KEY,
+    kind            TEXT NOT NULL,
+    text            TEXT NOT NULL,
+    why_abandoned   TEXT,
+    retry           TEXT,
+    origin_session  INTEGER NOT NULL REFERENCES sessions(id),
+    created_at      TEXT NOT NULL
+)"""
+
+# One row per supersession arrow, so a single well-worded finding can retire N
+# near-duplicates (a `supersedes` column could retire exactly one, leaving
+# consolidation inexpressible). No CHECK enforces acyclicity: edges are only
+# ever written in the transaction that creates their `new_hash` row, and every
+# `old_hash` must already exist, so an arrow always points backwards in time.
+_CREATE_FINDING_SUPERSESSIONS = """CREATE TABLE finding_supersessions (
+    new_hash TEXT NOT NULL REFERENCES pinned_findings(hash),
+    old_hash TEXT NOT NULL REFERENCES pinned_findings(hash),
+    PRIMARY KEY (new_hash, old_hash)
+)"""
+
+# Liveness gets ONE definition (IDENT-4): a finding is live iff nothing
+# supersedes it and it is not itself a tombstone. `unfold` filters the compact
+# render with this predicate and `fold` negates it to detect a re-send of
+# retired content; two copies of it would diverge, and a diverged liveness
+# rule silently hides a constraint an agent then walks into. Written as a bare
+# SQL fragment (not a view) so both a set filter and a single-row check can
+# interpolate it.
+LIVE_FINDING_PREDICATE = (
+    "hash NOT IN (SELECT old_hash FROM finding_supersessions) "
+    "AND kind != 'retraction'"
+)
+
+# Session-scoped and append-only. Windowed at *render* time like
+# `file_interactions`: "don't re-run this query" decays in usefulness, and a
+# decay argument justifies a window, never a deletion.
+_CREATE_MEMORY_QUERIES = """CREATE TABLE memory_queries (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id     INTEGER NOT NULL REFERENCES sessions(id),
+    tool           TEXT,
+    query          TEXT NOT NULL,
+    result_summary TEXT,
+    used_for       TEXT
+)"""
+
+_CREATE_MEMORY_QUERIES_INDEX = (
+    "CREATE INDEX idx_memory_queries_session ON memory_queries(session_id)"
+)
+
+# The one ordered definition of v5, shared by fresh-create and migration.
+_V5_STATEMENTS = (
+    *_V5_ADD_COLUMNS,
+    _CREATE_PINNED_FINDINGS,
+    _CREATE_FINDING_SUPERSESSIONS,
+    _CREATE_MEMORY_QUERIES,
+    _CREATE_MEMORY_QUERIES_INDEX,
+)
 
 
 def create_dossier_db(path: Path) -> None:
-    """Create a new dossier database with the full v4 schema."""
+    """Create a new dossier database with the full v5 schema."""
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     conn = sqlite3.connect(path)
     try:
-        conn.executescript(_SCHEMA_SQL)
+        conn.executescript(_V4_SCHEMA_SQL)
+        # same statements the migration applies, for the reason in the v5 DDL
+        # comment: identical schema from one definition, not two
+        for stmt in _V5_STATEMENTS:
+            conn.execute(stmt)
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         conn.commit()
     finally:
@@ -351,6 +454,69 @@ def migrate_v3_to_v4(conn: sqlite3.Connection, path: Path) -> None:
         conn.isolation_level = prev_isolation
 
     _report_orphans(conn, path, backup)
+
+
+# Fixed literal gate, per MIGR-1 and the same reasoning as
+# `_V4_TARGET_VERSION`: `SCHEMA_VERSION` moves, so gating on it makes every
+# already-migrated database re-run this migration at the next bump — and
+# re-running an `ALTER TABLE ADD COLUMN` raises `duplicate column name`.
+_V5_TARGET_VERSION = 5
+
+
+def migrate_v4_to_v5(conn: sqlite3.Connection) -> None:
+    """Migrate a v4 dossier to v5: add the v5 columns and tables.
+
+    Called on every connect from `connect_dossier_db`, after
+    `migrate_v3_to_v4`, so a v3 database walks both steps in one open.
+
+    ## Why this one is so much smaller than v3->v4
+
+    It is purely additive. Nothing is dropped, rewritten, or invalidated, so:
+
+      - **No backup.** `migrate_v3_to_v4` takes a `.pre-v4.bak` because it
+        destroys a table. Here the transaction is a sufficient safety net —
+        there is no state a rollback could fail to restore.
+      - **No orphan report.** Nothing is stranded: no existing row's meaning
+        changes, and the added columns are NULL on rows that predate them.
+
+    ## Crash safety
+
+    The `ALTER`s, `CREATE`s, and the `user_version` bump share one
+    `BEGIN IMMEDIATE`. SQLite DDL is transactional and `PRAGMA user_version`
+    participates in the transaction, so a crash mid-migration rolls back to v4
+    and the migration re-runs cleanly. The bump is the last write, so even if
+    that property regressed, a crash before COMMIT still leaves v4.
+
+    ## Concurrency
+
+    `BEGIN IMMEDIATE` takes the write lock (bounded by busy_timeout); a racing
+    second connection re-reads `user_version >= 5` under the lock and no-ops.
+    That re-read matters more here than it did for v4: re-applying an
+    `ALTER TABLE ADD COLUMN` is an error, not an idempotent no-op.
+    """
+    if _user_version(conn) >= _V5_TARGET_VERSION:
+        return  # fast path: already migrated (or fresh-created at v5)
+
+    # Explicit transaction control: switch to autocommit so our manual
+    # BEGIN IMMEDIATE governs atomicity (Python's implicit-transaction
+    # handling would otherwise interfere with DDL ordering across versions).
+    prev_isolation = conn.isolation_level
+    conn.isolation_level = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if _user_version(conn) >= _V5_TARGET_VERSION:
+            # Race loser: another connection migrated while we took the lock.
+            conn.execute("ROLLBACK")
+            return
+        for stmt in _V5_STATEMENTS:
+            conn.execute(stmt)
+        conn.execute(f"PRAGMA user_version = {_V5_TARGET_VERSION}")  # LAST write
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.isolation_level = prev_isolation
 
 
 def _report_orphans(conn: sqlite3.Connection, path: Path, backup: Path) -> None:
@@ -618,7 +784,10 @@ def connect_dossier_db(
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
+        # migrations run oldest-first, each gated on its own fixed version, so
+        # a v3 database walks the whole chain in one connect
         migrate_v3_to_v4(conn, path)
+        migrate_v4_to_v5(conn)
 
         protect_agent_id = None
         if agent_type is not None and slug is not None:

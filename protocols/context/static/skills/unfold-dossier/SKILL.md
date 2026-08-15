@@ -144,13 +144,13 @@ Run the unfold command with the appropriate flags based on the user's request:
 bureau-dossiers unfold <hash-or-name>
 ```
 
-The default unfold returns compact output: metadata, tasks, and decisions — session digests are omitted to save context tokens. If you need to reconstruct full reasoning chains from prior sessions, add `--full`:
+The default unfold returns **compact** output: what a resumption needs, with older provenance windowed out to save context tokens. Pinned findings are the exception and are never windowed — the live set is always rendered in full, because a hidden constraint is a dead end you would re-explore. Add `--full` when you need the windowed material as well:
 
 ```bash
 bureau-dossiers unfold <hash-or-name> --full
 ```
 
-Only use `--full` when the compact output is insufficient to pick up the work. By default, the last 5 session digests are rendered; use `--max-sessions N` to adjust.
+**Nothing is hidden silently.** Every windowed section ends with a line stating how much it omitted and which flag reveals it: `--full` widens most of them, `--max-sessions N` raises the cap on session digests. Read those lines instead of guessing, and only widen when the compact output is genuinely insufficient to pick up the work.
 
 **With `--claim` (exclusive access):**
 
@@ -180,7 +180,7 @@ No dossier found matching "<input>". Run /unfold-dossier to list all saved dossi
 
 ### Step 2: Load and inject context
 
-The CLI outputs the dossier state as markdown. In compact mode (default), this includes metadata, task list, and decisions — session digests are omitted. Use `--full` if you need the full narrative. Read and internalize this output.
+The CLI outputs the dossier state as markdown. Read and internalize all of it. Where a section's accounting line says material was omitted and you need that material, re-run with the flag that line names.
 
 If the unfold was a default (no `--claim`, no `--fork`):
 - **Read-only unfold** — no lock is acquired
@@ -365,7 +365,19 @@ Then execute. Still respect locks, dead ends, and decisions.
 
 When the dossier includes a `last_exchange` field, read it **before** the digest. This is the verbatim final moment of the prior conversation — it anchors your memory in a concrete exchange rather than an abstract summary. After reading it, the digest will feel like context you already have rather than new information.
 
-When the dossier includes `pinned_findings`, treat them as **hard constraints** that override any conflicting information in the digest. Dead ends marked `[DO NOT RETRY]` are absolute prohibitions. Dead ends marked `[CONDITIONAL]` may be revisited only if the stated condition has changed.
+When the dossier lists **pinned findings**, treat them as **hard constraints** that override any conflicting information in the digest. Each one starts with its id, then any tags from a fixed set, then the finding's text verbatim to the end of the line; free-text detail follows on indented `key: value` lines:
+
+```
+- a3f91c2e [dead end: CONDITIONAL] port 8780 is owned by another app
+    why abandoned: [inferred] concurrent writes corrupted data
+    retry: CONDITIONAL: only after [issue 26] lands
+```
+
+The tags are exactly `[dead end]`, `[dead end: DO NOT RETRY]`, `[dead end: CONDITIONAL]`, `[retraction]` and `[superseded]`; any other bracket you see is part of the finding's own text. `[dead end: DO NOT RETRY]` is an absolute prohibition; `[dead end: CONDITIONAL]` may be revisited only once the condition on the `retry:` line has changed. Compact output lists the findings still in force; `--full` also shows retired ones and the reasons they were retracted.
+
+When you quote a finding back into a fold payload, copy the text after the tags exactly as it stands, and the `key: value` lines into the matching fields. Do not add or strip punctuation — the text is stored verbatim, and an altered copy is stored as a second finding rather than recognized as the one you meant.
+
+If you establish that a pinned finding is wrong or has expired, do not merely argue with it in prose — record the correction at the next fold by superseding it with its id (the fold skill covers the payload shape).
 
 When the dossier includes `memory_queries`, treat them as a **cache**: do not re-query the same memory systems with the same queries unless you have reason to believe the results have changed (e.g., significant time has passed, new data has been stored).
 

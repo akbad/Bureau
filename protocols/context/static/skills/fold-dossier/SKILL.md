@@ -246,7 +246,7 @@ This was an intense debugging session — the user was visibly frustrated after 
 
 #### Mandatory Aspect 7: Pinned findings and dead ends
 
-This aspect contains two categories of information that **must survive every re-fold** verbatim. On re-fold, carry all existing entries forward and add any new ones from the current session.
+Two categories of information that **must survive every re-fold**. They do survive it: findings accumulate in the dossier for its whole lifetime, so **send only what is new in this session.** Re-sending something already pinned changes nothing, and carrying inherited entries forward is wasted payload.
 
 ##### Pinned findings
 
@@ -263,7 +263,7 @@ Facts, discoveries, or constraints that are critical to the project but easy to 
 
 ##### Dead ends
 
-For every approach explored but **not adopted** during this or any prior session, record:
+For every approach explored but **not adopted** during this session, record:
 
 - **What** was tried
 - **How far** it got
@@ -279,6 +279,22 @@ For every approach explored but **not adopted** during this or any prior session
   Why abandoned: user directive — "too much infrastructure for this use case"
   [CONDITIONAL — retry if Bureau adds a daemon process]
 ```
+
+##### Amending, consolidating, and retracting
+
+Every stored finding has an id, which `unfold` and `context` render as an 8-hex prefix at the start of its line (`- a3f91c2e [dead end: DO NOT RETRY] port 8780 is owned...`, with any free-text `why abandoned:` / `retry:` detail on indented lines beneath it). Findings are never edited or deleted in place — to change what the dossier holds, send a **new** finding whose `supersedes` array names the ids it replaces:
+
+| Situation | What to send |
+|:---|:---|
+| **Amend** — better wording, or the constraint changed | One new finding, `supersedes` naming the one it replaces |
+| **Consolidate** — several entries say one thing | One well-worded finding, `supersedes` naming every entry it retires (no limit) |
+| **Retract** — a finding became false and has no successor | A finding with `"kind": "retraction"` whose text is the *reason*, `supersedes` naming the finding it retires |
+
+Two things the CLI will tell you about on stderr, both of which need action from you:
+
+- **A retracted or superseded finding cannot be revived verbatim.** To re-assert one, send it in **new words** — the re-wording is what carries the justification ("port 8780 is owned again as of the 08-20 reinstall"), and re-sending the original text carries none.
+- **An id that matches nothing, or matches two findings**, leaves the new finding stored and the retirement undone. Re-send with a corrected or longer id — an ambiguity report prints each candidate's full id, so copy the one you meant from there. Nothing was lost in the meantime.
+- **Every value in a finding is text**, apart from the `true`/`false` `dead_end` flag. A number, list, or object in `finding`, `why_abandoned`, or `retry` is reported and that finding is skipped; the rest of the fold still lands.
 
 #### Mandatory Aspect 8: Memory query log
 
@@ -326,8 +342,9 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
   "next_words": "<the first 1-2 sentences of what you were about to say or do next, as if completing a thought mid-sentence>",
   "mood": "<3-5 sentences capturing the session's emotional register, pace, and tone — from Mandatory Aspect 6>",
   "pinned_findings": [
-    {"finding": "Description of the pinned finding", "source_session": "current or inherited"},
-    {"finding": "Description of a dead end", "source_session": "current", "dead_end": true, "why_abandoned": "reason", "retry": "DO NOT RETRY"}
+    {"finding": "Self-contained statement of a finding new in this session"},
+    {"finding": "Description of a dead end", "dead_end": true, "why_abandoned": "reason", "retry": "DO NOT RETRY"},
+    {"finding": "Why the entry it replaces is no longer true", "kind": "retraction", "supersedes": ["a3f91c2e"]}
   ],
   "memory_queries": [
     {"tool": "qdrant-find", "query": "bureau dossier schema", "result_summary": "found 3 entries, all pre-2024", "used_for": "confirmed no existing schema docs"}
@@ -339,7 +356,7 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
 > **Re-fold vs. new fold behavior:**
 >
 > - **Which keys change by mode** is specified once, in [Step 7](#step-7-run-the-cli). Do not duplicate that decision here; a re-fold is selected by including the `slug` key, never by a flag.
-> - **Pinned findings on re-fold**: carry forward **all** existing `pinned_findings` from the prior fold and append any new findings or dead ends from the current session. Never drop inherited pinned findings — they accumulate across the dossier's lifetime.
+> - **Pinned findings on re-fold**: send only findings and dead ends that are **new in this session**. They accumulate in the dossier for its whole lifetime, so inherited ones need no carrying forward; to change one that is already there, supersede it (see [Amending, consolidating, and retracting](#amending-consolidating-and-retracting)).
 
 **Field reference:**
 
@@ -359,7 +376,7 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
 | `last_exchange` | Verbatim last 2-3 conversational turns (final user messages and agent responses). Captures the exact moment of folding for continuity anchoring. |
 | `next_words` | The first 1-2 sentences the agent was about to say or the next action it was about to take. Used by unfold to continue mid-thought. |
 | `mood` | 3-5 sentences describing the session's emotional register, pace, and tone (Mandatory Aspect 6). |
-| `pinned_findings` | Array of critical findings and dead ends that must survive every re-fold. Dead ends include `dead_end: true`, `why_abandoned`, and `retry` fields. |
+| `pinned_findings` | Array of findings and dead ends **new in this session** — they accumulate across the dossier's lifetime, so never re-send inherited ones. Dead ends add `dead_end: true`, `why_abandoned` and `retry`. To replace or retire existing entries, add `supersedes`: an array of the 8-hex ids `unfold` renders, with `kind: "retraction"` when the entry became false and has no successor. See [Mandatory Aspect 7](#mandatory-aspect-7-pinned-findings-and-dead-ends). |
 | `memory_queries` | Array of memory system queries made during this session, with tool, query, result summary, and how the result was used. |
 
 ### Step 7: Run the CLI
@@ -380,8 +397,9 @@ ENDJSON
 | `name` | **required** | **omit** — a fold cannot rename a dossier |
 | `tasks` | include the full array | **omit** — task state lives in the database and is managed with `tasks add` / `claim` / `complete` |
 | `decisions` | every decision from the session | only decisions made in **this** session, never inherited ones |
+| `pinned_findings` | every finding and dead end from the session | only findings new in **this** session; supersede an existing one rather than re-sending it |
 
-Everything else (`agent`, `project`, `branch`, `commit`, `digest`, `files`) is sent identically in both modes.
+Everything else (`agent`, `project`, `branch`, `commit`, `digest`, `files`, `last_exchange`, `next_words`, `mood`, `memory_queries`) is sent identically in both modes.
 
 > [!IMPORTANT]
 >
@@ -415,7 +433,7 @@ If the CLI exits non-zero, report the error clearly and do not retry without cha
 - **Do NOT** prompt the user for additional information unless absolutely necessary — use the conversation history and tool outputs to fill in all fields
 - **Do NOT** run raw `sqlite3` commands or write YAML frontmatter manually — all database and file operations go through the CLI
 - **Do NOT** run `openssl rand` for hash generation — the CLI generates hashes automatically
-- **Do NOT** include inherited decisions from prior sessions in the `decisions` array when re-folding — only include decisions made during the current session
+- **Do NOT** include inherited decisions or already-pinned findings from prior sessions when re-folding — `decisions` and `pinned_findings` carry only what the current session produced
 
 ## Task state management during sessions
 

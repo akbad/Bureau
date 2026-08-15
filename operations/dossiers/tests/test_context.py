@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from operations.dossiers.context import extract_task_context
+from operations.dossiers.findings import finding_hash
 from operations.dossiers.fold import fold_dossier
 from operations.dossiers.tasks import add_task, update_task, claim_task
 
@@ -349,3 +350,92 @@ class TestContextNotes:
         )
         output = extract_task_context(tmp_path, result["slug"], task_id=1)
         assert "**Context notes:**" not in output
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Pinned findings reach the worker
+# ─────────────────────────────────────────────────────────────────────
+
+class TestPinnedFindingsInTaskContext:
+    """A worker that gets every decision and no constraints is the bug.
+
+    Task context already carries 100% of the decisions; omitting findings
+    hands a worker the record of what was chosen and none of the dead ends it
+    must not re-walk.
+    """
+
+    @staticmethod
+    def _dossier_with(tmp_path: Path, findings: list[dict]) -> str:
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            tasks=[{"subject": "Do the work"}],
+            pinned_findings=findings,
+        )
+        return result["slug"]
+
+    def test_a_live_finding_reaches_the_worker(self, tmp_path: Path):
+        element = {"finding": "qdrant must be up before searxng starts"}
+        slug = self._dossier_with(tmp_path, [element])
+
+        output = extract_task_context(tmp_path, slug, task_id=1)
+
+        assert "## Pinned findings" in output
+        assert f"- {finding_hash(element)[:8]} qdrant must be up before searxng starts" in output
+
+    def test_a_dead_end_reaches_the_worker_with_its_retry_rule(self, tmp_path: Path):
+        element = {"finding": "port 8780 is owned", "dead_end": True,
+                   "retry": "DO NOT RETRY", "why_abandoned": "the owner is pinned"}
+        slug = self._dossier_with(tmp_path, [element])
+
+        output = extract_task_context(tmp_path, slug, task_id=1)
+
+        assert "[dead end: DO NOT RETRY]" in output
+        assert "    why abandoned: the owner is pinned" in output
+
+    def test_a_superseded_finding_does_not_reach_the_worker(self, tmp_path: Path):
+        old = {"finding": "the first phrasing"}
+        slug = self._dossier_with(tmp_path, [old])
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+            pinned_findings=[{"finding": "the better phrasing",
+                              "supersedes": [finding_hash(old)[:8]]}],
+        )
+
+        output = extract_task_context(tmp_path, slug, task_id=1)
+
+        assert "the better phrasing" in output
+        assert "the first phrasing" not in output
+
+    def test_a_retracted_finding_and_its_tombstone_do_not_reach_the_worker(
+        self, tmp_path: Path
+    ):
+        dead_end = {"finding": "port 8780 is owned", "dead_end": True}
+        slug = self._dossier_with(tmp_path, [dead_end])
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+            pinned_findings=[{"finding": "the port was freed on 08-12",
+                              "kind": "retraction",
+                              "supersedes": [finding_hash(dead_end)[:8]]}],
+        )
+
+        output = extract_task_context(tmp_path, slug, task_id=1)
+
+        assert "## Pinned findings" not in output
+        assert "port 8780 is owned" not in output
+        assert "the port was freed on 08-12" not in output
+
+    def test_findings_are_never_windowed_out_of_task_context(self, tmp_path: Path):
+        """Unlike file interactions, constraints are not scoped to a session."""
+        element = {"finding": "the oldest constraint of all"}
+        slug = self._dossier_with(tmp_path, [element])
+        for i in range(2, 8):
+            fold_dossier(dossiers_dir=tmp_path, slug=slug, agent="a", digest=f"D{i}.")
+
+        output = extract_task_context(tmp_path, slug, task_id=1)
+
+        assert "the oldest constraint of all" in output
+
+    def test_a_dossier_without_findings_renders_no_section(self, tmp_path: Path):
+        slug = self._dossier_with(tmp_path, [])
+
+        assert "## Pinned findings" not in extract_task_context(tmp_path, slug, task_id=1)

@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from operations.dossiers import payload
 from operations.dossiers.db import open_dossier_db, safe_db_path
 from operations.dossiers.fold import fold_dossier
 from operations.dossiers.payload import (
@@ -117,15 +118,33 @@ def test_should_stay_silent_when_every_key_is_persisted():
     assert check_fold_payload(payload, is_refold=False) == []
 
 
-def test_should_warn_that_pending_keys_are_not_persisted():
-    warnings = check_fold_payload({"agent": "a", "mood": "calm"}, is_refold=False)
+def test_no_documented_key_is_still_waiting_for_storage():
+    """The v5 migration's definition of done, pinned so it stays done."""
+    assert FOLD_PENDING_KEYS == frozenset()
+
+
+def test_should_warn_that_a_pending_key_is_not_persisted(monkeypatch):
+    """The mechanism outlives the fields it was built for.
+
+    `FOLD_PENDING_KEYS` is empty today, but the next field documented ahead of
+    its schema must warn as "cannot store this yet" rather than as a typo — so
+    the branch is exercised against a stand-in rather than deleted.
+    """
+    monkeypatch.setattr(payload, "FOLD_PENDING_KEYS", frozenset({"telemetry"}))
+    monkeypatch.setattr(
+        payload, "FOLD_DOCUMENTED_KEYS", FOLD_DOCUMENTED_KEYS | {"telemetry"}
+    )
+
+    warnings = payload.check_fold_payload(
+        {"agent": "a", "telemetry": {}}, is_refold=False
+    )
 
     assert len(warnings) == 1, warnings
-    assert "mood" in warnings[0]
+    assert "telemetry" in warnings[0]
     assert "not yet persisted" in warnings[0]
 
 
-def test_should_not_report_pending_keys_as_unrecognized():
+def test_should_not_report_a_persisted_array_key_as_unrecognized():
     warnings = check_fold_payload({"pinned_findings": []}, is_refold=False)
 
     assert not any("unrecognized" in w for w in warnings), warnings
@@ -193,12 +212,37 @@ def test_should_not_inspect_elements_of_a_key_that_is_inert_on_refold():
     assert "re-fold" in warnings[0]
 
 
-def test_should_not_inspect_elements_of_pending_keys():
-    payload = {"agent": "a", "pinned_findings": [{"finding": "f", "dead_end": True}]}
+def test_should_accept_the_documented_pinned_finding_element_keys():
+    """Both halves: the four hashed into identity, plus the two lifecycle keys."""
+    element = {
+        "finding": "f", "dead_end": True, "why_abandoned": "w", "retry": "DO NOT RETRY",
+        "kind": "dead_end", "supersedes": ["a3f91c2e"],
+    }
 
-    warnings = check_fold_payload(payload, is_refold=False)
+    assert check_fold_payload({"agent": "a", "pinned_findings": [element]},
+                              is_refold=False) == []
 
-    assert not any("pinned_findings[" in w for w in warnings), warnings
+
+def test_should_warn_when_a_pinned_finding_element_key_is_unrecognized():
+    """`source_session` left the payload with v5: provenance is the CLI's job."""
+    fold_payload = {
+        "agent": "a",
+        "pinned_findings": [{"finding": "f", "source_session": "inherited"}],
+    }
+
+    warnings = check_fold_payload(fold_payload, is_refold=False)
+
+    assert any(
+        "pinned_findings[0]" in w and "source_session" in w for w in warnings
+    ), warnings
+
+
+def test_should_warn_when_a_memory_query_element_key_is_unrecognized():
+    fold_payload = {"agent": "a", "memory_queries": [{"query": "q", "latency": 3}]}
+
+    warnings = check_fold_payload(fold_payload, is_refold=False)
+
+    assert any("memory_queries[0]" in w and "latency" in w for w in warnings), warnings
 
 
 def test_should_tolerate_an_array_key_that_is_not_a_list():
@@ -280,21 +324,46 @@ def test_fold_warns_on_an_unrecognized_key_but_still_succeeds(dossiers_dir):
     assert "Dossier saved" in result.stdout
 
 
+_COMPLETE_PAYLOAD = {
+    "name": "N", "agent": "claude-code", "digest": "d", "project": "/p",
+    "branch": "main", "commit": "abc1234",
+    "tasks": [{"subject": "t", "context_notes": "hint"}],
+    "decisions": [{"what": "w", "why": "y"}],
+    "files": [{"path": "/p/f.py", "action": "modified"}],
+    "last_exchange": "user: ship it",
+    "next_words": "Right, the migration first.",
+    "mood": "Focused and fast.",
+    "pinned_findings": [{"finding": "qdrant must be up before searxng"}],
+    "memory_queries": [{"tool": "qdrant-find", "query": "dossier schema"}],
+}
+
+
 def test_fold_emits_no_stderr_for_a_clean_payload(dossiers_dir):
     """A channel that cries wolf on the happy path is a dead channel."""
-    result = _fold_cli(
-        dossiers_dir,
-        {
-            "name": "N", "agent": "claude-code", "digest": "d", "project": "/p",
-            "branch": "main", "commit": "abc1234",
-            "tasks": [{"subject": "t", "context_notes": "hint"}],
-            "decisions": [{"what": "w", "why": "y"}],
-            "files": [{"path": "/p/f.py", "action": "modified"}],
-        },
-    )
+    result = _fold_cli(dossiers_dir, _COMPLETE_PAYLOAD)
 
     assert result.returncode == 0, result.stderr
     assert result.stderr == ""
+
+
+def test_fold_persists_every_documented_key(dossiers_dir):
+    """`FOLD_PENDING_KEYS` is empty; this is that claim proven end to end."""
+    result = _fold_cli(dossiers_dir, _COMPLETE_PAYLOAD)
+    slug = re.search(r"`([^`]+)`", result.stdout).group(1)
+
+    with open_dossier_db(safe_db_path(dossiers_dir, slug)) as conn:
+        session = conn.execute("SELECT * FROM sessions").fetchone()
+        stored = {
+            table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            for table in ("pinned_findings", "memory_queries", "decisions", "tasks")
+        }
+
+    assert session["last_exchange"] == "user: ship it"
+    assert session["next_words"] == "Right, the migration first."
+    assert session["mood"] == "Focused and fast."
+    assert stored == {
+        "pinned_findings": 1, "memory_queries": 1, "decisions": 1, "tasks": 1,
+    }
 
 
 def test_refold_warns_that_the_tasks_array_is_ignored(dossiers_dir):

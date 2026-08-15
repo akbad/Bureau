@@ -15,7 +15,10 @@ from operations.dossiers.db import (
     MAX_SUBJECT_LENGTH,
     MAX_TASKS_PER_DOSSIER,
     connect_dossier_db,
+    open_dossier_db,
+    safe_db_path,
 )
+from operations.dossiers.findings import finding_hash
 from operations.dossiers.fold import fold_dossier
 
 
@@ -785,3 +788,820 @@ class TestRefoldExitAtomicity:
         fold_dossier(dossiers_dir=tmp_path, slug=slug, agent="claude-code", digest="s2")
 
         assert get_lock_status(tmp_path, slug)["locked_by"] == "somebody-else"
+
+
+# ── v5: the five payload keys that used to be dropped ───────────────────
+
+
+def _rows(tmp_path: Path, slug: str, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
+    """Return rows from a dossier, read outside the fold's own connection."""
+    with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+        return conn.execute(sql, params).fetchall()
+
+
+def _findings(tmp_path: Path, slug: str) -> list[sqlite3.Row]:
+    return _rows(tmp_path, slug, "SELECT * FROM pinned_findings ORDER BY created_at, hash")
+
+
+def _edges(tmp_path: Path, slug: str) -> list[tuple[str, str]]:
+    return [
+        (r["new_hash"], r["old_hash"])
+        for r in _rows(
+            tmp_path, slug,
+            "SELECT new_hash, old_hash FROM finding_supersessions ORDER BY new_hash, old_hash",
+        )
+    ]
+
+
+@contextmanager
+def _fold_log(caplog):
+    """Capture the fold module's warnings and errors around a fold."""
+    with caplog.at_level(logging.WARNING, logger="operations.dossiers.fold"):
+        yield caplog
+
+
+def _messages(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records]
+
+
+class TestFoldSessionScalars:
+    """`last_exchange`, `next_words` and `mood` are per-session, one row each."""
+
+    def test_stores_the_three_scalars_on_the_session_row(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            last_exchange="user: ship it\nme: on it",
+            next_words="Right, the migration first.",
+            mood="Focused, fast, and slightly punchy.",
+        )
+
+        row = _rows(tmp_path, result["slug"], "SELECT * FROM sessions")[0]
+
+        assert row["last_exchange"] == "user: ship it\nme: on it"
+        assert row["next_words"] == "Right, the migration first."
+        assert row["mood"] == "Focused, fast, and slightly punchy."
+
+    def test_leaves_them_null_when_the_payload_omits_them(self, tmp_path: Path):
+        """An older cached skill sends none of these; NULL is how render skips."""
+        result = fold_dossier(dossiers_dir=tmp_path, name="Test", agent="a", digest="D.")
+
+        row = _rows(tmp_path, result["slug"], "SELECT * FROM sessions")[0]
+
+        assert (row["last_exchange"], row["next_words"], row["mood"]) == (None, None, None)
+
+    def test_each_session_keeps_its_own_scalars(self, tmp_path: Path):
+        """Per-session, not per-dossier: a re-fold never overwrites session 1's."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.", mood="tense",
+        )
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            mood="relieved",
+        )
+
+        moods = [
+            r["mood"]
+            for r in _rows(tmp_path, result["slug"], "SELECT mood FROM sessions ORDER BY id")
+        ]
+
+        assert moods == ["tense", "relieved"]
+
+
+class TestFoldMemoryQueries:
+    """Session-scoped, append-only, never pruned at write time."""
+
+    def test_stores_a_memory_query_against_its_session(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            memory_queries=[{
+                "tool": "qdrant-find", "query": "bureau dossier schema",
+                "result_summary": "3 entries, all stale", "used_for": "skipped a re-read",
+            }],
+        )
+
+        row = _rows(tmp_path, result["slug"], "SELECT * FROM memory_queries")[0]
+
+        assert row["tool"] == "qdrant-find"
+        assert row["query"] == "bureau dossier schema"
+        assert row["result_summary"] == "3 entries, all stale"
+        assert row["used_for"] == "skipped a re-read"
+        assert row["session_id"] == 1
+
+    def test_accumulates_across_folds(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            memory_queries=[{"query": "q1"}],
+        )
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            memory_queries=[{"query": "q2"}],
+        )
+
+        queries = [
+            r["query"]
+            for r in _rows(tmp_path, result["slug"], "SELECT query FROM memory_queries ORDER BY id")
+        ]
+
+        assert queries == ["q1", "q2"]
+
+    def test_retention_never_deletes_memory_queries(self, tmp_path: Path):
+        """`--max-retained-sessions` is scoped to file interactions, and stays so."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            memory_queries=[{"query": "q1"}],
+        )
+        for i in range(2, 5):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest=f"D{i}.",
+                memory_queries=[{"query": f"q{i}"}], max_retained_sessions=1,
+            )
+
+        rows = _rows(tmp_path, result["slug"], "SELECT id FROM memory_queries")
+
+        assert len(rows) == 4
+
+    def test_skips_an_element_with_no_query_text(self, tmp_path: Path, caplog):
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                memory_queries=[{"tool": "qdrant-find"}],
+            )
+
+        assert _rows(tmp_path, result["slug"], "SELECT id FROM memory_queries") == []
+        assert any("memory_queries[0]" in m for m in _messages(caplog))
+
+
+class TestPinnedFindingIdentity:
+    """D1/D5: the content hash is the primary key, so dedupe is the PK itself."""
+
+    def test_stores_a_finding_under_its_content_hash(self, tmp_path: Path):
+        element = {"finding": "qdrant must be up before searxng starts"}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            pinned_findings=[element],
+        )
+
+        row = _findings(tmp_path, result["slug"])[0]
+
+        assert row["hash"] == finding_hash(element)
+        assert row["kind"] == "finding"
+        assert row["text"] == "qdrant must be up before searxng starts"
+        assert row["origin_session"] == 1
+        assert row["created_at"]
+
+    def test_stores_a_dead_end_with_its_metadata(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            pinned_findings=[{
+                "finding": "port 8780 is owned by another app",
+                "dead_end": True,
+                "why_abandoned": "the owning app cannot be uninstalled",
+                "retry": "DO NOT RETRY",
+            }],
+        )
+
+        row = _findings(tmp_path, result["slug"])[0]
+
+        assert row["kind"] == "dead_end"
+        assert row["why_abandoned"] == "the owning app cannot be uninstalled"
+        assert row["retry"] == "DO NOT RETRY"
+
+    def test_stores_the_canonicalized_text(self, tmp_path: Path):
+        """Storing the normalized form is what keeps the rendered line single-line."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+            pinned_findings=[{"finding": "  qdrant   must be up\nbefore searxng "}],
+        )
+
+        assert _findings(tmp_path, result["slug"])[0]["text"] == (
+            "qdrant must be up before searxng"
+        )
+
+    def test_provenance_is_recorded_by_the_cli_not_the_payload(self, tmp_path: Path):
+        """Two sessions discovering one fact must mint one identity."""
+        element = {"finding": "the same fact, learned twice"}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=[element],
+        )
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="b", digest="D2.",
+            pinned_findings=[element],
+        )
+
+        rows = _findings(tmp_path, result["slug"])
+
+        assert len(rows) == 1
+        assert rows[0]["origin_session"] == 1
+
+    def test_refolding_the_same_finding_is_idempotent(self, tmp_path: Path):
+        """D5: the misbehaving sender is the threat model, not an edge case."""
+        elements = [{"finding": "A"}, {"finding": "B"}, {"finding": "C"}]
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=elements,
+        )
+        for i in range(2, 5):
+            # a stale-skill agent carrying everything forward every time
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest=f"D{i}.",
+                pinned_findings=elements,
+            )
+
+        assert len(_findings(tmp_path, result["slug"])) == 3
+
+    def test_resending_live_content_warns_about_nothing(self, tmp_path: Path, caplog):
+        """A guaranteed no-op must also be a silent one, or the channel dies."""
+        element = {"finding": "qdrant must be up"}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=[element],
+        )
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+                pinned_findings=[element],
+            )
+
+        assert _messages(caplog) == []
+
+    def test_a_richer_resend_is_stored_as_new_content(self, tmp_path: Path):
+        """The r2-F7 class on the new table: nothing richer is silently dropped."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=[{
+                "finding": "port 8780 is owned", "dead_end": True,
+                "retry": "CONDITIONAL: the owner is uninstalled",
+            }],
+        )
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            pinned_findings=[{
+                "finding": "port 8780 is owned", "dead_end": True,
+                "retry": "DO NOT RETRY",
+            }],
+        )
+
+        retries = {r["retry"] for r in _findings(tmp_path, result["slug"])}
+
+        assert retries == {"CONDITIONAL: the owner is uninstalled", "DO NOT RETRY"}
+
+    def test_concurrent_folds_of_one_finding_store_one_row(self, tmp_path: Path):
+        """The PK is atomic, so there is no check-then-act window to lose."""
+        import threading
+
+        element = {"finding": "two agents discovered this at once"}
+        result = fold_dossier(dossiers_dir=tmp_path, name="Test", agent="a", digest="D0.")
+        slug = result["slug"]
+        barrier = threading.Barrier(2)
+        errors: list[BaseException] = []
+
+        def _fold(tag: str) -> None:
+            try:
+                barrier.wait(timeout=10)
+                fold_dossier(
+                    dossiers_dir=tmp_path, slug=slug, agent=tag, digest=f"D-{tag}.",
+                    pinned_findings=[element],
+                )
+            except BaseException as exc:  # noqa: BLE001 - re-raised by the assertion
+                errors.append(exc)
+
+        threads = [threading.Thread(target=_fold, args=(t,)) for t in ("one", "two")]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+
+        assert errors == []
+        assert len(_findings(tmp_path, slug)) == 1
+
+    def test_skips_an_element_with_no_finding_text(self, tmp_path: Path, caplog):
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                pinned_findings=[{"dead_end": True, "why_abandoned": "orphaned"}],
+            )
+
+        assert _findings(tmp_path, result["slug"]) == []
+        assert any("pinned_findings[0]" in m for m in _messages(caplog))
+
+    def test_stores_an_unrecognized_kind_as_a_plain_finding(self, tmp_path: Path, caplog):
+        """Warn, never reject: an odd `kind` must not cost the agent its finding."""
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                pinned_findings=[{"finding": "still worth keeping", "kind": "musing"}],
+            )
+
+        assert _findings(tmp_path, result["slug"])[0]["kind"] == "finding"
+        assert any("musing" in m for m in _messages(caplog))
+
+
+class TestPinnedFindingSupersession:
+    """D3/D8: one edge per arrow, resolved from 8-hex prefixes at fold time."""
+
+    @staticmethod
+    def _seed(tmp_path: Path, *findings: dict) -> tuple[str, list[str]]:
+        """Fold `findings` into a new dossier; return its slug and their hashes."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=list(findings),
+        )
+        return result["slug"], [finding_hash(f) for f in findings]
+
+    def test_an_unambiguous_prefix_writes_the_edge(self, tmp_path: Path):
+        slug, [old] = self._seed(tmp_path, {"finding": "qdrant must be started first"})
+        new = {"finding": "qdrant must be up before searxng; shared readiness dep",
+               "supersedes": [old[:8]]}
+
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+            pinned_findings=[new],
+        )
+
+        assert _edges(tmp_path, slug) == [(finding_hash(new), old)]
+
+    def test_one_finding_can_retire_many_predecessors(self, tmp_path: Path):
+        """Consolidation is the remedy D6's health warning tells agents to use."""
+        slug, olds = self._seed(
+            tmp_path,
+            {"finding": "qdrant must be started before searxng"},
+            {"finding": "searxng fails unless qdrant is already up"},
+            {"finding": "start order: qdrant first, then searxng"},
+        )
+        new = {"finding": "qdrant must be up before searxng starts",
+               "supersedes": [h[:8] for h in olds]}
+
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+            pinned_findings=[new],
+        )
+
+        assert sorted(o for _, o in _edges(tmp_path, slug)) == sorted(olds)
+
+    def test_a_dangling_prefix_keeps_the_finding_and_warns(self, tmp_path: Path, caplog):
+        """Rejecting would discard new content over a typo in its metadata."""
+        slug, _ = self._seed(tmp_path, {"finding": "an existing finding"})
+        new = {"finding": "brand new content", "supersedes": ["deadbeef"]}
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+                pinned_findings=[new],
+            )
+
+        assert finding_hash(new) in {r["hash"] for r in _findings(tmp_path, slug)}
+        assert _edges(tmp_path, slug) == []
+        assert any("deadbeef" in m for m in _messages(caplog))
+
+    def test_an_ambiguous_prefix_keeps_the_finding_and_names_every_candidate(
+        self, tmp_path: Path, caplog
+    ):
+        """Guessing would coin-flip a live constraint into retirement."""
+        slug, [existing] = self._seed(tmp_path, {"finding": "an existing finding"})
+        ambiguous = existing[:2]  # two hex chars: the seed plus whatever we add
+        sibling = {"finding": "a sibling that shares the prefix"}
+        # find a second finding whose hash starts with the same two characters
+        counter = 0
+        while not finding_hash(sibling).startswith(ambiguous):
+            counter += 1
+            sibling = {"finding": f"a sibling that shares the prefix {counter}"}
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+            pinned_findings=[sibling],
+        )
+        new = {"finding": "consolidating text", "supersedes": [ambiguous]}
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=slug, agent="a", digest="D3.",
+                pinned_findings=[new],
+            )
+
+        messages = _messages(caplog)
+        assert finding_hash(new) in {r["hash"] for r in _findings(tmp_path, slug)}
+        assert _edges(tmp_path, slug) == []
+        assert any("ambiguous" in m.lower() for m in messages), messages
+        # full digests, not the rendered 8-hex: on a real prefix collision the
+        # 8-hex handles are identical, so a "use a longer prefix" remedy needs
+        # this message to be the surface that supplies the longer prefix
+        assert any(
+            existing in m and finding_hash(sibling) in m for m in messages
+        ), messages
+
+    def test_an_ambiguous_resolution_is_reported_at_error_grade(
+        self, tmp_path: Path, caplog
+    ):
+        """Error-grade wording, but the fold still succeeds (warn, never reject)."""
+        slug, [existing] = self._seed(tmp_path, {"finding": "an existing finding"})
+        sibling = {"finding": "a sibling"}
+        counter = 0
+        while not finding_hash(sibling).startswith(existing[:2]):
+            counter += 1
+            sibling = {"finding": f"a sibling {counter}"}
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+            pinned_findings=[sibling],
+        )
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=slug, agent="a", digest="D3.",
+                pinned_findings=[{"finding": "consolidating", "supersedes": [existing[:2]]}],
+            )
+
+        assert [r.levelname for r in caplog.records] == ["ERROR"]
+
+    def test_an_edge_is_refused_when_its_new_hash_already_exists(
+        self, tmp_path: Path, caplog
+    ):
+        """D3: edges live only in the transaction that creates their row.
+
+        Accepting one against a pre-existing row is the only way an arrow could
+        ever point forward in time, so it is the one place cycles could enter.
+        """
+        slug, [old] = self._seed(tmp_path, {"finding": "the older finding"})
+        new = {"finding": "the newer finding"}
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+            pinned_findings=[new],
+        )
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=slug, agent="a", digest="D3.",
+                pinned_findings=[{**new, "supersedes": [old[:8]]}],
+            )
+
+        assert _edges(tmp_path, slug) == []
+        assert any(finding_hash(new)[:8] in m for m in _messages(caplog))
+
+    def test_a_finding_can_supersede_one_folded_in_the_same_payload(self, tmp_path: Path):
+        """The target must pre-exist the edge, not the transaction."""
+        first = {"finding": "the first phrasing"}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=[
+                first,
+                {"finding": "the better phrasing", "supersedes": [finding_hash(first)[:8]]},
+            ],
+        )
+
+        assert _edges(tmp_path, result["slug"]) == [
+            (finding_hash({"finding": "the better phrasing"}), finding_hash(first))
+        ]
+
+    def test_a_prefix_matching_only_the_new_finding_writes_no_self_edge(
+        self, tmp_path: Path, caplog
+    ):
+        """A self-edge would retire the finding at birth — silently too little.
+
+        Reachable without a collision: a short prefix aimed at a target that
+        does not exist can still match the row being written.
+        """
+        element = {"finding": "a fact that retires nothing"}
+        own = finding_hash(element)
+
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                pinned_findings=[{**element, "supersedes": [own[:2]]}],
+            )
+
+        assert _edges(tmp_path, result["slug"]) == []
+        assert [r["hash"] for r in _findings(tmp_path, result["slug"])] == [own]
+        assert any("no other stored finding" in m for m in _messages(caplog))
+
+    def test_a_non_list_supersedes_is_ignored_with_a_warning(self, tmp_path: Path, caplog):
+        slug, [old] = self._seed(tmp_path, {"finding": "the older finding"})
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+                pinned_findings=[{"finding": "newer", "supersedes": old[:8]}],
+            )
+
+        assert _edges(tmp_path, slug) == []
+        assert any("supersedes" in m for m in _messages(caplog))
+
+
+class TestPinnedFindingRetraction:
+    """D4: a tombstone is an ordinary row; revival requires re-wording."""
+
+    def test_a_retraction_is_a_row_plus_an_ordinary_edge(self, tmp_path: Path):
+        dead_end = {"finding": "port 8780 is permanently owned", "dead_end": True,
+                    "retry": "DO NOT RETRY"}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=[dead_end],
+        )
+        tombstone = {
+            "finding": "the app owning port 8780 was uninstalled 08-12; the port is free",
+            "kind": "retraction",
+            "supersedes": [finding_hash(dead_end)[:8]],
+        }
+
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            pinned_findings=[tombstone],
+        )
+
+        kinds = {r["hash"]: r["kind"] for r in _findings(tmp_path, result["slug"])}
+        assert kinds[finding_hash(tombstone)] == "retraction"
+        assert _edges(tmp_path, result["slug"]) == [
+            (finding_hash(tombstone), finding_hash(dead_end))
+        ]
+
+    def test_resending_a_superseded_finding_warns_instead_of_no_opping(
+        self, tmp_path: Path, caplog
+    ):
+        """Silent loss of exactly what this table exists to never lose."""
+        old = {"finding": "the first phrasing"}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=[old],
+        )
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            pinned_findings=[{"finding": "the better phrasing",
+                              "supersedes": [finding_hash(old)[:8]]}],
+        )
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D3.",
+                pinned_findings=[old],
+            )
+
+        messages = _messages(caplog)
+        assert any(finding_hash(old)[:8] in m for m in messages), messages
+        assert any("re-worded" in m for m in messages), messages
+
+    def test_resending_a_retracted_finding_warns(self, tmp_path: Path, caplog):
+        dead_end = {"finding": "port 8780 is owned", "dead_end": True}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=[dead_end],
+        )
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            pinned_findings=[{"finding": "port 8780 was freed on 08-12",
+                              "kind": "retraction",
+                              "supersedes": [finding_hash(dead_end)[:8]]}],
+        )
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D3.",
+                pinned_findings=[dead_end],
+            )
+
+        assert any("re-worded" in m for m in _messages(caplog))
+
+    def test_resending_a_tombstone_warns(self, tmp_path: Path, caplog):
+        """A tombstone is retired too: it never renders as a live constraint."""
+        dead_end = {"finding": "port 8780 is owned", "dead_end": True}
+        tombstone = {"finding": "port 8780 was freed on 08-12", "kind": "retraction",
+                     "supersedes": [finding_hash(dead_end)[:8]]}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=[dead_end],
+        )
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            pinned_findings=[tombstone],
+        )
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D3.",
+                pinned_findings=[{"finding": tombstone["finding"], "kind": "retraction"}],
+            )
+
+        assert any("re-worded" in m for m in _messages(caplog))
+
+    def test_reworded_revival_lands_as_a_new_live_finding(self, tmp_path: Path):
+        """The remedy the warning names must actually work."""
+        dead_end = {"finding": "port 8780 is owned", "dead_end": True}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            pinned_findings=[dead_end],
+        )
+        tombstone = {"finding": "port 8780 was freed on 08-12", "kind": "retraction",
+                     "supersedes": [finding_hash(dead_end)[:8]]}
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            pinned_findings=[tombstone],
+        )
+        revival = {"finding": "port 8780 is owned again as of the 08-20 reinstall",
+                   "dead_end": True, "supersedes": [finding_hash(tombstone)[:8]]}
+
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D3.",
+            pinned_findings=[revival],
+        )
+
+        assert (finding_hash(revival), finding_hash(tombstone)) in _edges(
+            tmp_path, result["slug"]
+        )
+
+
+class TestDecisionProvenance:
+    """r2-F7: a duplicate is a duplicate only when nothing about it is richer."""
+
+    def test_an_identical_decision_is_still_deduped(self, tmp_path: Path):
+        decision = {"what": "Use SQLite", "why": "ACID", "decided_by": "user"}
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            decisions=[decision],
+        )
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            decisions=[decision],
+        )
+
+        assert len(_rows(tmp_path, result["slug"], "SELECT id FROM decisions")) == 1
+
+    def test_a_richer_duplicate_is_not_discarded(self, tmp_path: Path):
+        """The defect: `decided_by` and `alternatives` vanished on the re-send."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            decisions=[{"what": "Use SQLite", "why": "ACID"}],
+        )
+
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.",
+            decisions=[{"what": "Use SQLite", "why": "ACID", "decided_by": "user",
+                        "alternatives": ["JSON files", "YAML"]}],
+        )
+
+        rows = _rows(tmp_path, result["slug"], "SELECT * FROM decisions ORDER BY id")
+        assert len(rows) == 2
+        assert rows[1]["decided_by"] == "user"
+        assert json.loads(rows[1]["alternatives"]) == ["JSON files", "YAML"]
+
+    def test_a_richer_duplicate_inherits_the_original_provenance(self, tmp_path: Path):
+        """An inherited decision keeps its age, whichever fold rewrote it."""
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            decisions=[{"what": "Use SQLite", "why": "ACID"}],
+        )
+        fold_dossier(dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D2.")
+
+        fold_dossier(
+            dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="D3.",
+            decisions=[{"what": "Use SQLite", "why": "ACID", "decided_by": "user"}],
+        )
+
+        rows = _rows(tmp_path, result["slug"], "SELECT * FROM decisions ORDER BY id")
+        assert rows[1]["session_id"] == 3, "the row was written by the third fold"
+        assert rows[1]["origin_session"] == 1, "but the decision dates from the first"
+
+    def test_records_how_the_row_entered_the_dossier(self, tmp_path: Path):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="D1.",
+            decisions=[{"what": "Use SQLite", "why": "ACID"}],
+        )
+
+        row = _rows(tmp_path, result["slug"], "SELECT * FROM decisions")[0]
+
+        assert row["source"] == "fold"
+        assert row["origin_session"] == 1
+
+
+class TestMalformedPayloadValuesNeverKillTheFold:
+    """A bad value in one element must never cost the session its fold.
+
+    Before v5 these keys were dropped wholesale, so a malformed one was
+    harmless. Persisting them made a non-string value reach SQLite's binder,
+    which raises inside the fold transaction and takes the *session row* down
+    with it — strictly worse than the world this migration replaced.
+    """
+
+    def test_a_non_string_finding_skips_the_element_and_keeps_the_session(
+        self, tmp_path: Path, caplog
+    ):
+        result = fold_dossier(
+            dossiers_dir=tmp_path, name="Test", agent="a", digest="S1.",
+        )
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=result["slug"], agent="a", digest="S2.",
+                pinned_findings=[{"finding": ["multi", "part"]}],
+            )
+
+        sessions = _rows(tmp_path, result["slug"], "SELECT digest FROM sessions ORDER BY id")
+        assert [s["digest"] for s in sessions] == ["S1.", "S2."]
+        assert _findings(tmp_path, result["slug"]) == []
+        [message] = _messages(caplog)
+        assert "pinned_findings[0]" in message
+        assert "finding" in message and "multi" in message
+        assert "string" in message
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("finding", ["a", "b"]),
+            ("finding", {"text": "a"}),
+            ("finding", 8780),
+            ("finding", True),
+            ("why_abandoned", 42),
+            ("retry", ["DO NOT RETRY"]),
+        ],
+        ids=["list", "dict", "int", "bool", "why-int", "retry-list"],
+    )
+    def test_a_non_string_semantic_field_skips_the_element(
+        self, tmp_path: Path, caplog, field: str, value: object
+    ):
+        element = {"finding": "a valid finding", field: value}
+
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                pinned_findings=[element],
+            )
+
+        assert _findings(tmp_path, result["slug"]) == []
+        assert any(field in m for m in _messages(caplog))
+
+    def test_a_numeric_finding_never_reaches_storage(self, tmp_path: Path, caplog):
+        """Stored as TEXT but hashed as a number: one value, two identities."""
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                pinned_findings=[{"finding": 8780}, {"finding": "8780"}],
+            )
+
+        assert [r["text"] for r in _findings(tmp_path, result["slug"])] == ["8780"]
+
+    def test_a_non_boolean_dead_end_skips_the_element(self, tmp_path: Path, caplog):
+        """`dead_end` participates in identity, so a near-miss type is not a guess."""
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                pinned_findings=[{"finding": "f", "dead_end": "true"}],
+            )
+
+        assert _findings(tmp_path, result["slug"]) == []
+        assert any("dead_end" in m for m in _messages(caplog))
+
+    def test_a_valid_element_still_lands_beside_a_malformed_one(self, tmp_path: Path, caplog):
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                pinned_findings=[{"finding": 1}, {"finding": "the good one"}],
+            )
+
+        assert [r["text"] for r in _findings(tmp_path, result["slug"])] == ["the good one"]
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("query", ["q"]), ("tool", 3), ("result_summary", {}), ("used_for", False)],
+        ids=["query-list", "tool-int", "summary-dict", "used-for-bool"],
+    )
+    def test_a_non_string_memory_query_field_skips_the_element(
+        self, tmp_path: Path, caplog, field: str, value: object
+    ):
+        entry = {"query": "a valid query", field: value}
+
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                memory_queries=[entry],
+            )
+
+        assert _rows(tmp_path, result["slug"], "SELECT id FROM memory_queries") == []
+        assert any(field in m and "memory_queries[0]" in m for m in _messages(caplog))
+
+    @pytest.mark.parametrize(
+        "scalar", ["last_exchange", "next_words", "mood"],
+    )
+    def test_a_non_string_session_scalar_is_dropped_not_fatal(
+        self, tmp_path: Path, caplog, scalar: str
+    ):
+        with _fold_log(caplog):
+            result = fold_dossier(
+                dossiers_dir=tmp_path, name="Test", agent="a", digest="D.",
+                **{scalar: {"not": "a string"}},
+            )
+
+        row = _rows(tmp_path, result["slug"], "SELECT * FROM sessions")[0]
+        assert row[scalar] is None
+        assert row["digest"] == "D."
+        assert any(scalar in m for m in _messages(caplog))
+
+    def test_a_non_string_supersedes_prefix_is_skipped(self, tmp_path: Path, caplog):
+        slug, [old] = TestPinnedFindingSupersession._seed(
+            tmp_path, {"finding": "the older finding"}
+        )
+
+        with _fold_log(caplog):
+            fold_dossier(
+                dossiers_dir=tmp_path, slug=slug, agent="a", digest="D2.",
+                pinned_findings=[{"finding": "newer", "supersedes": [{"hash": old}]}],
+            )
+
+        assert _edges(tmp_path, slug) == []
+        assert any("supersedes" in m for m in _messages(caplog))
