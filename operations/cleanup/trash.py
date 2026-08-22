@@ -2,9 +2,9 @@
 import json
 import logging
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from ..config_loader import parse_duration, get_trash_dir as get_base_trash_dir
 from .state import now_as_iso
@@ -127,7 +127,10 @@ def write_manifest(trash_path: Path, storage_name: str, item_count: int,
         "source": storage_name,
         "item_count": item_count,
         "original_retention": retention,
-        "auto_purge_after": purge_after.isoformat() + "Z",
+        # isoformat() already carries the +00:00 offset; appending "Z" as well
+        # produced a value no ISO parser accepts, which is how the field went
+        # unnoticed for as long as nothing read it
+        "auto_purge_after": purge_after.isoformat(),
         "files": [relativize_to_storage(f, trash_path) for f in files] if files else [],
     }
 
@@ -168,17 +171,61 @@ def move_to_trash(source_path: Path,
     return trash_dest
 
 
+def _as_utc(raw: str) -> Optional[datetime]:
+    """Parse an ISO-8601 timestamp from a manifest, assuming UTC if naive.
+
+    Args:
+        `raw`: the timestamp string as recorded.
+
+    Returns:
+        A timezone-aware datetime, or `None` if `raw` is absent or malformed.
+        Historical entries carry an unparseable `+00:00Z` double suffix and
+        land here as `None`, which callers treat as "fall back", not "expired".
+    """
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except (ValueError, TypeError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def entry_due_at(entry: dict[str, Any], grace_delta: timedelta) -> Optional[datetime]:
+    """Determine when a manifest entry becomes eligible for purging.
+
+    The entry's own `auto_purge_after` wins when present and parseable: it is
+    the promise made when the items were trashed, and honouring it keeps a
+    later change to the grace period from retroactively re-dating items
+    already in the trash. `trashed_at` plus the current grace period is the
+    fallback for entries written before the field, or with a malformed one.
+
+    Args:
+        `entry`: one manifest record.
+        `grace_delta`: the currently configured grace period.
+
+    Returns:
+        The purge-eligible instant, or `None` when neither timestamp can be
+        read — in which case the entry is left alone rather than guessed at.
+    """
+    recorded = _as_utc(entry.get("auto_purge_after", ""))
+    if recorded is not None:
+        return recorded
+
+    trashed_at = _as_utc(entry.get("trashed_at", ""))
+    return trashed_at + grace_delta if trashed_at is not None else None
+
+
 def empty_expired_trash(grace_period: str) -> int:
-    """Remove items in the trash that are older than the grace period, 
+    """Remove items in the trash that are past their purge date,
         returning the count of items removed."""
     if not BASE_TRASH_DIR.exists():
         return 0
 
     grace_delta = parse_duration(grace_period)
     removed_count = 0
-    
-    # delete everything moved to trash before this date
-    cutoff = datetime.now(timezone.utc) - grace_delta
+
+    now = datetime.now(timezone.utc)
 
     for storage_dir in BASE_TRASH_DIR.iterdir():
         if not storage_dir.is_dir():
@@ -199,19 +246,25 @@ def empty_expired_trash(grace_period: str) -> int:
         remaining = []
         for entry in manifests:
             # check each trash entry for expiration
-            trashed_at = entry.get("trashed_at", "")
             recorded_files = entry.get("files", [])
-            try:
-                trashed_dt = datetime.fromisoformat(trashed_at)
-                # Ensure timezone-aware comparison (assume UTC for naive datetimes)
-                if trashed_dt.tzinfo is None:
-                    trashed_dt = trashed_dt.replace(tzinfo=timezone.utc)
-                expired = trashed_dt < cutoff
-            except (ValueError, TypeError):
-                expired = False
+            due_at = entry_due_at(entry, grace_delta)
+            # an entry whose dates are unreadable is never purged: the only
+            # safe reading of "we cannot tell when this expires" is "not yet"
+            expired = due_at is not None and due_at < now
 
             if expired:
-                # delete listed files; if files list is absent, skip silently
+                if not recorded_files:
+                    # an entry that names nothing authorizes nothing. the former
+                    # fallback swept the storage dir by content mtime, which is
+                    # neither the right clock (shutil.move preserves it, so a
+                    # long-written file arrives already "stale") nor the right
+                    # scope (it ranged over files belonging to other, unexpired
+                    # entries). no record of ownership means no deletion.
+                    logger.warning(
+                        "trash manifest entry is past due but lists no files; "
+                        "nothing deleted (trashed_at=%s, storage_dir=%s)",
+                        entry.get("trashed_at", "<unknown>"), storage_dir,
+                    )
                 for stored in recorded_files:
                     full_path = resolve_manifest_path(stored, storage_dir)
                     if full_path is None:
@@ -233,19 +286,6 @@ def empty_expired_trash(grace_period: str) -> int:
                             shutil.rmtree(full_path)
                     except FileNotFoundError:
                         pass  # Already deleted, continue
-                
-                # if files list is absent, fall back to deleting all non-manifest 
-                #   files whose last edited time is older than the cutoff
-                if not recorded_files:
-                    for candidate in storage_dir.rglob("*"):
-                        if candidate.name == MANIFEST_FILENAME:
-                            continue
-                        try:
-                            if candidate.stat().st_mtime < cutoff.timestamp() and candidate.is_file():
-                                candidate.unlink()
-                                removed_count += 1
-                        except FileNotFoundError:
-                            continue
             else:
                 remaining.append(entry)
 
