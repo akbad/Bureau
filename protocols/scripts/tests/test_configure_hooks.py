@@ -1749,3 +1749,74 @@ class TestGeminiSessionStartRemoval:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         _remove_gemini_session_start(dry_run=False)
         # should not crash (no settings file)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Grok Build hooks
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+_configure_grok = _mod._configure_grok
+_remove_grok = _mod._remove_grok
+
+
+class TestGrokHooks:
+    """Tests for Grok Build bureau-ops.json hooks."""
+
+    def test_writes_session_and_prompt_hooks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        ops_hub = tmp_path / "protocols" / "ops-hub.md"
+        ops_hub.parent.mkdir(parents=True)
+        ops_hub.touch()
+        output_style = tmp_path / "protocols" / "output-style.md"
+        output_style.touch()
+        code_standards = tmp_path / "protocols" / "code-standards.md"
+        code_standards.touch()
+
+        _configure_grok(
+            ops_hub,
+            output_style_path=output_style,
+            code_standards_path=code_standards,
+            dry_run=False,
+        )
+
+        hooks_path = tmp_path / ".grok" / "hooks" / "bureau-ops.json"
+        data = json.loads(hooks_path.read_text(encoding="utf-8"))
+        session_cmd = data["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+        assert "output-style.md" in session_cmd
+        assert "code-standards.md" in session_cmd
+        assert "ops-hub.md" in session_cmd
+        reminder = data["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+        assert "bureau-reminder" in reminder
+
+    def test_idempotent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        ops_hub = tmp_path / "protocols" / "ops-hub.md"
+        ops_hub.parent.mkdir(parents=True)
+        ops_hub.touch()
+
+        _configure_grok(ops_hub, dry_run=False)
+        first = (tmp_path / ".grok" / "hooks" / "bureau-ops.json").read_text()
+        _configure_grok(ops_hub, dry_run=False)
+        second = (tmp_path / ".grok" / "hooks" / "bureau-ops.json").read_text()
+        assert first == second
+
+    def test_remove(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        ops_hub = tmp_path / "protocols" / "ops-hub.md"
+        ops_hub.parent.mkdir(parents=True)
+        ops_hub.touch()
+
+        _configure_grok(ops_hub, dry_run=False)
+        hooks_path = tmp_path / ".grok" / "hooks" / "bureau-ops.json"
+        assert hooks_path.exists()
+        _remove_grok(dry_run=False)
+        assert not hooks_path.exists()
+
+    def test_remove_noop_when_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        _remove_grok(dry_run=False)  # should not crash

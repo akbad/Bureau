@@ -1,11 +1,11 @@
 ---
 name: unfold-dossier
-description: Pick up a previously saved Bureau dossier or list all saved dossiers. Activate when user says "unfold", "pick up where I left off", "resume", "my dossiers", or invokes /unfold-dossier. Supports hash lookup, fuzzy name matching, fork/claim collaboration, and CLI-managed task lists for multi-agent coordination.
+description: Pick up a previously saved Bureau dossier or list all saved dossiers. Activate when user says "unfold", "pick up where I left off", "resume", "my dossiers", or invokes /unfold-dossier. Supports hash lookup, fuzzy name matching, fork/claim collaboration, and CLI-managed task lists for multi-agent coordination. Default resume opens a ready-work board and waits for a pick — never unilaterally starts work.
 ---
 
 # Bureau Unfold: pick up or list saved dossiers
 
-> **Goal:** pick up a conversation exactly where it was left off — with your own memory, decisions, reasoning, and task state intact — so seamlessly that neither you nor the user notice the seam. Alternatively, list all saved dossiers for selection.
+> **Goal:** restore conversation memory — decisions, reasoning, and task state — so fully that you can continue without re-establishing context; then present what is ready next and wait for the user to choose. Alternatively, list all saved dossiers for selection.
 
 > [!IMPORTANT]
 >
@@ -36,10 +36,24 @@ When the user says anything like:
 
 ### Flags
 
+**CLI flags** — pass these to `bureau-dossiers` when applicable:
+
 | Flag | Effect |
 |------|--------|
 | `--claim` | Lock the dossier for exclusive access during this session |
 | `--fork` | Create a copy of the dossier (always safe, no coordination needed) |
+
+**Skill-only flags** — interpret from the `/unfold-dossier` invocation or user text. **Do not** pass them to `bureau-dossiers` (the CLI will reject them).
+
+| Flag | Effect |
+|------|--------|
+| `--continue` | **Opt-in mid-thought resume.** Skip the ready-work board; open from `next_words` / pending state and begin that work (legacy auto-start path) |
+| `--announce` | Alias of the default ready-work board (kept for muscle memory) |
+
+Wrong: `bureau-dossiers unfold <hash> --continue`  
+Right: interpret `--continue` in-session, then run plain `bureau-dossiers unfold <hash>` (plus real CLI flags only).
+
+Natural-language equivalents of continue (same message as the unfold trigger, or as a post-board reply): `"continue"`, `"keep going"`, `"just keep going"`, `"pick up mid-thought"`, `"continue from next_words"`, `"don't show the board"`.
 
 ---
 
@@ -130,13 +144,13 @@ Run the unfold command with the appropriate flags based on the user's request:
 bureau-dossiers unfold <hash-or-name>
 ```
 
-The default unfold returns compact output: metadata, tasks, and decisions — session digests are omitted to save context tokens. If you need to reconstruct full reasoning chains from prior sessions, add `--full`:
+The default unfold returns **compact** output: what a resumption needs, with older provenance windowed out to save context tokens. Pinned findings are the exception and are never windowed — the live set is always rendered in full, because a hidden constraint is a dead end you would re-explore. Add `--full` when you need the windowed material as well:
 
 ```bash
 bureau-dossiers unfold <hash-or-name> --full
 ```
 
-Only use `--full` when the compact output is insufficient to pick up the work. By default, the last 5 session digests are rendered; use `--max-sessions N` to adjust.
+**Nothing is hidden silently.** Every windowed section ends with a line stating how much it omitted and which flag reveals it: `--full` widens most of them, `--max-sessions N` raises the cap on session digests. Read those lines instead of guessing, and only widen when the compact output is genuinely insufficient to pick up the work.
 
 **With `--claim` (exclusive access):**
 
@@ -166,7 +180,7 @@ No dossier found matching "<input>". Run /unfold-dossier to list all saved dossi
 
 ### Step 2: Load and inject context
 
-The CLI outputs the dossier state as markdown. In compact mode (default), this includes metadata, task list, and decisions — session digests are omitted. Use `--full` if you need the full narrative. Read and internalize this output.
+The CLI outputs the dossier state as markdown. Read and internalize all of it. Where a section's accounting line says material was omitted and you need that material, re-run with the flag that line names.
 
 If the unfold was a default (no `--claim`, no `--fork`):
 - **Read-only unfold** — no lock is acquired
@@ -182,7 +196,8 @@ After loading the dossier, follow this directive strictly:
 > - Do **NOT** say "according to the dossier", "I see that previously", or "the previous session" — speak from your memory naturally, as you would from your own recollection
 > - Do **NOT** re-ask any question that has a decision recorded in the decisions section
 > - Do **NOT** re-explore or re-read files listed in file interactions unless you specifically need to verify something has changed
-> - Pick up from the **EXACT** point described in the pending state
+> - **Know** the **EXACT** pending point and prefer it as the top ready item — **do not execute it** until the user selects it (unless [Continue path](#continue-path-opt-in-only) or same-message work direction)
+> - **No unilateral start:** unfold authorizes *recall*, not *execution*. First response = ready-work board unless Continue path or an already-selected task
 > - Treat pinned findings and dead ends as hard constraints — do not re-explore dead ends marked `[DO NOT RETRY]`
 > - If memory queries were logged, do not repeat them unless you need fresher results
 > - Your task list is managed via the CLI — use Bureau task CLI (`tasks claim`, `tasks complete`, `tasks add`) for ALL task operations
@@ -191,34 +206,178 @@ After loading the dossier, follow this directive strictly:
 
 **Confidence check (silent, before your first response):** After reading the dossier, verify internally:
 
-1. Can you name the **next concrete action** you need to take?
+1. Can you name the **next concrete action** implied by pending state (for ranking the board)?
 2. Do you know which **files are relevant** and roughly what state they are in?
 3. Can you identify all **dead ends** you must not re-explore?
 
 If any answer is uncertain, silently re-run `bureau-dossiers unfold <slug> --full` and re-read the complete digests before producing any response. Do not tell the user you are doing this — it is invisible self-correction. The cost of one extra tool call is negligible compared to the cost of confidently re-exploring a dead end or asking a settled question.
 
-**Default behavior: continue mid-thought.** Do not announce your return. If `next_words` is present in the dossier, use it as the literal opening of your first response — complete the thought, then proceed. If there is a pending action, start doing it. The user knows they unfolded; they do not need a status report.
+**Default behavior: ready-work board, then wait.**
 
-If `next_words` is absent or the pending state is unclear, fall back to a **minimal orientation** (not a full status dump):
+After loading the dossier (and the silent confidence check), your **first user-visible response** MUST be a **ready-work board**. Do **not**:
+
+- open with `next_words` as if the session never stopped
+- start implementing, claiming tasks, editing files, or running mutating commands
+- treat unfold itself as authorization to act
+
+Internalize memory fully. Externalize a menu. Wait for an explicit pick.
+
+**Opt-in continue (only):** If the user used a skill-only `--continue` (or a natural-language continue phrase — see [Flags](#flags)) in the same message that triggered unfold, use the [Continue path](#continue-path-opt-in-only) instead of the board. Never pass skill-only flags to the CLI.
+
+**Same-message work direction counts as a pick:** If the unfold message already names a task, outcome, or next step (e.g. "unfold d90a44 and fix D1", "resume 7bbcbf task 6"), treat that as selection: skip the full board (or show a one-item confirm), then proceed on that item only.
+
+#### Ready-work board (default first response)
+
+**Step A — Classify every non-deleted task**
+
+Primary status classes:
+
+| Class | Rule |
+|-------|------|
+| **Ready** | `status` is `pending` or `in_progress`, **and** deps are satisfied (see `blocked_by` rules below) |
+| **Blocked** | `pending`/`in_progress` with unsatisfied deps |
+| **Done** | `completed` (do not brief unless the user asks) |
+
+**`blocked_by` resolution** (column is free TEXT; often prose, not an id):
+
+1. Empty / `—` → deps satisfied.
+2. Value parses as a single integer task id (optionally with a leading `#`) → satisfied **only if** that task's status is `completed`. Match CLI reality: single-id hop only; do not invent multi-id graphs.
+3. Free text / unparseable → **not Ready** by default. List under Blocked as `(waiting on: <verbatim text>)`. Promote to Ready only if you can *confidently* map the text to completed work already in the task list; otherwise leave blocked.
+4. Do not invent numeric ids from prose.
+
+**Stale claim** is an **annotation**, not a class that bypasses deps: `in_progress` with an owner that is not you / this session.
+
+- Deps satisfied → Ready with a **stale-claim** warning (resume **or** reassign; do not silently steal).
+- Deps unsatisfied → Blocked with owner + waiting-on line (blocked-stale).
+
+If the dossier has **no tasks**, build **one synthetic ready item** from the latest session's in-flight state / `next_words` / pending question. Still wait for a pick.
+
+**Step B — Load brief feedstock (read-only)**
+
+**Classify from the compact `unfold` task table** (it already has ID, subject, status, owner, `blocked_by`). That is enough for Ready/Blocked without extra calls.
+
+Optional enrichment for fuller 3-7 bullet briefs (still no mutation):
+
+```bash
+bureau-dossiers tasks <slug> list -v
+# descriptions only — list -v does not print blocked_by or context_notes
+bureau-dossiers context <slug> --task <id>
+# when a ready item needs worker-grade hints / context_notes
+```
+
+Prefer structured fields over free invention: `subject`, `description`, `context_notes`, `blocked_by`, owner, plus (from unfold) latest pending state, relevant decisions, and key files.
+
+**Step C — Render**
 
 ```
-Back on it. I was [one-line pending state] — picking up there.
+<name> (<hash>) | <branch> | <lock status> | updated <relative-time>
+
+Left off: <one line from pending state / last_exchange — orientation only, not a start>
+
+Ready (N):
+
+a) #<id>: <plain-language title>
+   - <bullet 1>
+   - ...
+   - <bullet 3-7>
+
+b) ...
+
+Blocked (N) — one line each: #<id> subject (waiting on: <dep id or verbatim>)
+Done this arc: <count> completed (omit list unless ≤3 and useful)
+
+Pick a letter or task id to start. Say "continue" for mid-thought resume, or "more" for additional ready briefs.
+Bare "ok" / "yes" / "go" is not a pick — name a letter or id.
 ```
 
-**Structured greeting (opt-in only):** The full status block is available when the user passes `--announce` or explicitly asks "where are we?":
+**Display caps**
+
+- Fully brief **at most 7** ready items (3-7 bullets each).
+- Prefer order: (1) item matching pending state / `next_words`, (2) `in_progress` / stale claims (deps already satisfied), (3) unblocked `pending` in id order (or priority cues in the subject if present).
+- Remaining ready items: **one-line subjects only**, plus "say `more` / `brief #N` for full context."
+- Blocked/done: counts + short lines, never 3-7-bullet treatment by default.
+
+**Tone:** Match the session `mood`. First person is fine ("I left us with..."). Still **do not** say "according to the dossier."
+
+#### Per-item brief: 3-7 bullets (unfamiliar-reader contract)
+
+Each **ready** item's bullets must let a cold reader decide whether to pick it. Use **3-7** bullets. Stop early when facts run out; do **not** pad.
+
+Fill slots from available evidence, in this priority order (skip a slot if unknown rather than inventing):
+
+| # | Slot | Question answered |
+|---|------|-------------------|
+| 1 | **What** | What is this work, in plain language? |
+| 2 | **Why now** | Why does it matter / why is it next (stakes, ordering, user directive)? |
+| 3 | **Where** | Entry point: file, command, doc, or first probe |
+| 4 | **Done when** | Concrete acceptance signal |
+| 5 | **Watch-outs** | Gotchas, dead ends, prior attempts (`context_notes`, pinned findings) |
+| 6 | **Links** | Unblocks / blocked-by / related decision (one line) |
+| 7 | **State** | Partial progress, owner, stale claim, or open question for the user |
+
+**Rules for briefs**
+
+- Lead with human meaning; put codenames (B1, r2-F1, D1) in parentheses if useful.
+- Prefer dossier fields verbatim when they already answer a slot; rewrite only for clarity.
+- If feedstock is thin, say so honestly in one bullet ("No handoff notes; first step is to re-read X") rather than inventing a plan.
+- Do not re-open decided alternatives listed in Decisions.
+
+#### What counts as a pick (after the board)
+
+Valid picks:
+
+- A letter from the board (`a`, `b`, ...) or a task id (`#6`, `6`)
+- An explicit top-item phrase: `"do a"`, `"first one"`, `"the pending one"`, `"top item"`
+- A continue phrase (see [Flags](#flags)) → Continue path
+- `"more"` / `"brief #N"` → expand briefs; still no work start
+
+**Not a pick:** bare affirmatives (`ok`, `yes`, `y`, `go`, `sounds good`, `lgtm`, `sure`). Re-prompt for a letter or task id. Do **not** treat these as authorization to start the top ranked item.
+
+#### After the user picks
+
+Only then, for a **task** pick:
+
+1. **Claim / ownership by status:**
+   - `pending` → `tasks claim --id <id> --agent <you>`
+   - `in_progress` and owner is you → proceed; **do not** re-claim (claim is CAS on `pending` only and will fail)
+   - `in_progress` and owner is someone else → do **not** silent-steal. Ask whether to reassign (`tasks update --id <id> --owner <you>`) or pick another item; only mutate ownership after explicit user confirmation
+2. Proceed under normal session rules (decisions, dead ends, mood, CLI-only tasks)
+3. Update task state as work happens
+
+If they pick **continue**: use the Continue path.
+
+#### Continue path (opt-in only)
 
 ```
-<name> (<hash>) | <branch> | updated <relative-time>
-
-Pending: <one-line summary from latest session digest>
-Tasks: <N> total — <X> pending, <Y> in progress, <Z> completed
+If next_words is present: use it as the literal opening, then proceed.
+Else: "Back on it. I was [one-line pending state] — picking up there."
 ```
+
+Then execute. Still respect locks, dead ends, and decisions.
+
+#### Empty / all-blocked boards
+
+- **All blocked:** list blocked items with dependency status; recommend the smallest unblock (often a decision or a dep task). Do not start blocked work.
+- **All done:** one short "board clear" note + any residual pending state as a single synthetic proposal; wait.
+- **No match / corrupt state:** show what you can classify; ask which thread to resume — still no unilateral work.
 
 ### Context anchoring
 
 When the dossier includes a `last_exchange` field, read it **before** the digest. This is the verbatim final moment of the prior conversation — it anchors your memory in a concrete exchange rather than an abstract summary. After reading it, the digest will feel like context you already have rather than new information.
 
-When the dossier includes `pinned_findings`, treat them as **hard constraints** that override any conflicting information in the digest. Dead ends marked `[DO NOT RETRY]` are absolute prohibitions. Dead ends marked `[CONDITIONAL]` may be revisited only if the stated condition has changed.
+When the dossier lists **pinned findings**, treat them as **hard constraints** that override any conflicting information in the digest. Each one starts with its id, then any tags from a fixed set, then the finding's text verbatim to the end of the line; free-text detail follows on indented `key: value` lines:
+
+```
+- a3f91c2e [dead end: CONDITIONAL] port 8780 is owned by another app
+    why abandoned: [inferred] concurrent writes corrupted data
+    retry: CONDITIONAL: only after [issue 26] lands
+```
+
+The tags are exactly `[dead end]`, `[dead end: DO NOT RETRY]`, `[dead end: CONDITIONAL]`, `[retraction]` and `[superseded]`; any other bracket you see is part of the finding's own text. `[dead end: DO NOT RETRY]` is an absolute prohibition; `[dead end: CONDITIONAL]` may be revisited only once the condition on the `retry:` line has changed. Compact output lists the findings still in force; `--full` also shows retired ones and the reasons they were retracted.
+
+When you quote a finding back into a fold payload, copy the text after the tags exactly as it stands, and the `key: value` lines into the matching fields. Do not add or strip punctuation — the text is stored verbatim, and an altered copy is stored as a second finding rather than recognized as the one you meant.
+
+If you establish that a pinned finding is wrong or has expired, do not merely argue with it in prose — record the correction at the next fold by superseding it with its id (the fold skill covers the payload shape).
 
 When the dossier includes `memory_queries`, treat them as a **cache**: do not re-query the same memory systems with the same queries unless you have reason to believe the results have changed (e.g., significant time has passed, new data has been stored).
 
@@ -263,6 +422,8 @@ The CLI atomically claims the task and returns task-scoped context with worker f
 Read and internalize the worker context output. Follow the worker directive strictly: complete only the assigned task, follow all decisions, do not orchestrate.
 
 ### Step 3: Greet the user
+
+Worker mode is **already a pick** (task id was supplied). Do **not** re-run the multi-item ready-work board. Optional one-line orientation (deps/status) is fine; then execute only the assigned task.
 
 ```
 Task #<id>: <subject>
@@ -390,8 +551,20 @@ These rules apply at all times during an unfold session:
 
 4. **Lock integrity** — never modify a locked dossier's content or task list unless you are the agent that holds the lock (i.e., `locked_by` matches your identifier). Read access is always permitted.
 
-5. **No re-confirmation** — after unfolding, do not ask the user to re-confirm decisions, preferences, or context that is already recorded in the dossier. The entire point of dossiers is to avoid re-establishing context.
+5. **No re-confirmation** — after unfolding, do not ask the user to re-confirm decisions, preferences, or context that is already recorded in the dossier. The entire point of dossiers is to avoid re-establishing context. Selecting *which ready item to work next* is not re-confirmation of a decision.
 
 6. **Identifier stability** — when using `--claim`, use a consistent agent identifier across the session. If your agent framework provides a session ID, use it. Otherwise, use your agent type (e.g., `claude-code`, `codex`, `gemini-cli`, `opencode`).
 
 7. **CLI only** — never run raw `sqlite3` commands, write YAML frontmatter, or directly manipulate `.db` files. All dossier operations go through `bureau-dossiers`.
+
+8. **Ready-work board is the default first response** on resume (not list mode, not already-selected worker/task). No mutating tool use before a pick. Read-only feedstock loads (`tasks list -v`, `context --task`) are allowed. Bare affirmatives after the board are not picks.
+
+9. **Ready is dependency-aware** — empty `blocked_by` or a single completed task id → eligible; free-text / unparseable `blocked_by` → Blocked with verbatim waiting-on (unless confidently mapped to completed work). Stale claim is an annotation on Ready/Blocked, never a deps bypass; no silent ownership steal.
+
+10. **Brief quality** — each fully shown ready item gets 3-7 bullets that pass the unfamiliar-reader test (what / why now / where / done when / watch-outs as available). No padding; no invented facts. Classify from the unfold task table; use `list -v` / `context` only to enrich briefs.
+
+11. **Board cap** — fully brief at most 7 ready items; remainder one-lined with expansion (`more` / `brief #N`).
+
+12. **Continue is opt-in** — skill-only `--continue` (never a CLI argv) or an explicit continue phrase including bare `"continue"` / `"keep going"`. `next_words` feeds board ranking and orientation; it is not an auto-start trigger unless Continue path is active.
+
+13. **Post-pick claim matches status** — `pending` → `tasks claim`; own `in_progress` → proceed without re-claim; other-owner `in_progress` → explicit reassign confirmation only.

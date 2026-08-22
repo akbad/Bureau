@@ -1,4 +1,4 @@
-"""Tests for dossier database creation, schema, and v3->v4 migration."""
+"""Tests for dossier database creation, schema, and the v3->v4->v5 migrations."""
 import sqlite3
 from pathlib import Path
 
@@ -8,6 +8,8 @@ from operations.dossiers.db import (
     SCHEMA_VERSION,
     _BASE_SCHEMA_SQL,
     _V4_REBUILD_STATEMENTS,
+    _V4_SCHEMA_SQL,
+    _V5_STATEMENTS,
     _now_iso,
     _user_version,
     connect_dossier_db,
@@ -59,6 +61,50 @@ def _make_v3_db(path: Path, *, with_orphans: bool = False) -> None:
     conn.close()
 
 
+def _make_v4_db(path: Path, *, populated: bool = False) -> None:
+    """Build a v4-shaped dossier DB: the pre-v5 fresh-create output, stamped 4.
+
+    `_V4_SCHEMA_SQL` is exactly what `create_dossier_db` wrote before v5, so a
+    database built this way is indistinguishable from one an older Bureau left
+    on disk. `populated` seeds a row in every table the migration touches, so
+    the additive-migration tests observe real data rather than empty tables.
+    """
+    conn = sqlite3.connect(path)
+    conn.executescript(_V4_SCHEMA_SQL)
+    now = _now_iso()
+    conn.execute(
+        "INSERT INTO metadata (id, hash, name, slug, created_at, updated_at) "
+        "VALUES (1, 'h', 'n', ?, ?, ?)",
+        (path.stem, now, now),
+    )
+    if populated:
+        conn.execute(
+            "INSERT INTO sessions (folded_at, agent, digest) VALUES (?, 'a', 'D.')",
+            (now,),
+        )
+        conn.execute("INSERT INTO tasks (subject) VALUES ('t1')")
+        conn.execute(
+            "INSERT INTO decisions (session_id, what, why) VALUES (1, 'w', 'y')"
+        )
+        conn.execute(
+            "INSERT INTO file_interactions (session_id, file_path, action) "
+            "VALUES (1, '/f.py', 'read')"
+        )
+        conn.execute(
+            "INSERT INTO registrations "
+            "(agent_id, agent_type, role, cli_pid, registered_at, last_heartbeat) "
+            "VALUES ('orch-claude-code-abc', 'claude-code', 'orchestrator', 1, ?, ?)",
+            (now, now),
+        )
+    conn.execute("PRAGMA user_version = 4")
+    conn.commit()
+    conn.close()
+
+
+def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
 def _schema_objects(path: Path) -> list[tuple]:
     conn = sqlite3.connect(path)
     rows = conn.execute(
@@ -88,7 +134,7 @@ class TestCreateDossierDb:
         assert mode == "wal"
 
     def test_all_tables_created(self, tmp_path: Path):
-        """All 5 tables exist after creation."""
+        """Every durable table exists after creation."""
         db_path = tmp_path / "test.db"
         create_dossier_db(db_path)
         conn = sqlite3.connect(db_path)
@@ -96,7 +142,10 @@ class TestCreateDossierDb:
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()}
         conn.close()
-        expected = {"metadata", "sessions", "tasks", "decisions", "file_interactions"}
+        expected = {
+            "metadata", "sessions", "tasks", "decisions", "file_interactions",
+            "pinned_findings", "finding_supersessions", "memory_queries",
+        }
         assert expected.issubset(tables)
 
     def test_schema_version_stored(self, tmp_path: Path):
@@ -234,7 +283,7 @@ class TestMigrateV3ToV4:
             )}
             assert "reap_log" in objs
             assert "idx_registrations_orchestrator_slot" in objs
-            assert "idx_registrations_type" not in objs  # Q7: dropped for free
+            assert "idx_registrations_type" not in objs  # dead v2/v3 index
         finally:
             conn.close()
 
@@ -310,3 +359,198 @@ class TestMigrateV3ToV4:
         _make_v3_db(db, with_orphans=False)
         connect_dossier_db(db).close()
         assert capsys.readouterr().err == ""
+
+
+class TestMigrateV4ToV5:
+    """v4 -> v5: purely additive columns and tables, nothing dropped.
+
+    The v3->v4 migration rebuilt a table, so it needed a backup and an orphan
+    report. This one only ever adds, which is what lets every test below assert
+    that pre-existing data is bit-for-bit untouched.
+    """
+
+    def test_connect_adds_the_session_scalars(self, tmp_path: Path):
+        db = tmp_path / "d.db"
+        _make_v4_db(db)
+        conn = connect_dossier_db(db)
+        try:
+            assert {"last_exchange", "next_words", "mood"} <= _columns(conn, "sessions")
+        finally:
+            conn.close()
+
+    def test_connect_adds_the_decision_provenance_columns(self, tmp_path: Path):
+        db = tmp_path / "d.db"
+        _make_v4_db(db)
+        conn = connect_dossier_db(db)
+        try:
+            assert {"source", "origin_session"} <= _columns(conn, "decisions")
+        finally:
+            conn.close()
+
+    def test_connect_creates_the_v5_tables(self, tmp_path: Path):
+        db = tmp_path / "d.db"
+        _make_v4_db(db)
+        conn = connect_dossier_db(db)
+        try:
+            tables = {
+                r[0] for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            assert {"pinned_findings", "finding_supersessions", "memory_queries"} <= tables
+        finally:
+            conn.close()
+
+    def test_stamps_the_new_schema_version(self, tmp_path: Path):
+        db = tmp_path / "d.db"
+        _make_v4_db(db)
+        conn = connect_dossier_db(db)
+        try:
+            assert _user_version(conn) == SCHEMA_VERSION == 5
+        finally:
+            conn.close()
+
+    def test_preserves_every_row_the_v4_database_held(self, tmp_path: Path):
+        """Additive means additive: no rebuild, so nothing is invalidated."""
+        db = tmp_path / "d.db"
+        _make_v4_db(db, populated=True)
+        conn = connect_dossier_db(db)
+        try:
+            counts = {
+                table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                for table in (
+                    "sessions", "tasks", "decisions", "file_interactions",
+                    "registrations",
+                )
+            }
+        finally:
+            conn.close()
+
+        assert counts == {
+            "sessions": 1, "tasks": 1, "decisions": 1, "file_interactions": 1,
+            "registrations": 1,
+        }
+
+    def test_added_columns_are_null_on_pre_existing_rows(self, tmp_path: Path):
+        """No DEFAULT: an old session simply never recorded these fields."""
+        db = tmp_path / "d.db"
+        _make_v4_db(db, populated=True)
+        conn = connect_dossier_db(db)
+        try:
+            row = conn.execute("SELECT * FROM sessions").fetchone()
+        finally:
+            conn.close()
+
+        assert (row["last_exchange"], row["next_words"], row["mood"]) == (None, None, None)
+
+    def test_fresh_and_migrated_schema_converge(self, tmp_path: Path):
+        """MIGR-2 for v5: one set of DDL constants drives both paths."""
+        fresh = tmp_path / "fresh.db"
+        create_dossier_db(fresh)
+
+        migrated = tmp_path / "migrated.db"
+        _make_v4_db(migrated)
+        connect_dossier_db(migrated).close()
+
+        assert _schema_objects(fresh) == _schema_objects(migrated)
+
+    def test_a_v3_database_migrates_all_the_way_to_v5(self, tmp_path: Path):
+        """Both migrations run on one connect, in order, without interfering."""
+        fresh = tmp_path / "fresh.db"
+        create_dossier_db(fresh)
+
+        migrated = tmp_path / "migrated.db"
+        _make_v3_db(migrated)
+        conn = connect_dossier_db(migrated)
+        try:
+            assert _user_version(conn) == SCHEMA_VERSION
+        finally:
+            conn.close()
+
+        assert _schema_objects(fresh) == _schema_objects(migrated)
+
+    def test_second_connect_is_noop(self, tmp_path: Path):
+        """Re-running the ALTERs would raise `duplicate column name`."""
+        db = tmp_path / "d.db"
+        _make_v4_db(db)
+        connect_dossier_db(db).close()
+
+        conn = connect_dossier_db(db)
+        try:
+            assert _user_version(conn) == SCHEMA_VERSION
+        finally:
+            conn.close()
+
+    def test_writes_no_backup_file(self, tmp_path: Path):
+        """v3->v4 backed up because it dropped a table; this one destroys nothing."""
+        db = tmp_path / "d.db"
+        _make_v4_db(db)
+        connect_dossier_db(db).close()
+
+        assert list(tmp_path.glob("*.bak")) == []
+
+    def test_crash_mid_migration_rolls_back_to_v4(self, tmp_path: Path, monkeypatch):
+        """A half-applied migration must leave v4 intact and re-runnable."""
+        db = tmp_path / "d.db"
+        _make_v4_db(db, populated=True)
+        monkeypatch.setattr(
+            "operations.dossiers.db._V5_STATEMENTS",
+            (_V5_STATEMENTS[0], "THIS IS NOT VALID SQL"),
+        )
+        with pytest.raises(sqlite3.OperationalError):
+            connect_dossier_db(db)
+
+        raw = sqlite3.connect(db)
+        try:
+            assert raw.execute("PRAGMA user_version").fetchone()[0] == 4
+            cols = {r[1] for r in raw.execute("PRAGMA table_info(sessions)")}
+            assert "last_exchange" not in cols, "a partial ALTER survived the rollback"
+        finally:
+            raw.close()
+
+
+class TestMigrationVersionGating:
+    """A migration must target a FIXED version, never the moving constant.
+
+    `migrate_v3_to_v4` gated on `SCHEMA_VERSION`, so advancing that constant
+    for a later migration would make every v4 database fail the gate, fall
+    into the destructive `DROP TABLE registrations` rebuild, and then be
+    stamped with the new version without the new migration ever running.
+    """
+
+    def test_current_database_is_untouched_when_schema_version_advances(
+        self, tmp_path, monkeypatch
+    ):
+        """Simulate a future version bump; no earlier migration may re-fire."""
+        import operations.dossiers.db as db_module
+
+        current_version = db_module.SCHEMA_VERSION
+        path = tmp_path / "gated.db"
+        db_module.create_dossier_db(path)
+
+        # a live registration is exactly what the destructive rebuild drops
+        conn = sqlite3.connect(path)
+        conn.execute(
+            "INSERT INTO registrations "
+            "(agent_id, agent_type, role, cli_pid, registered_at, last_heartbeat) "
+            "VALUES ('orch-claude-code-abc', 'claude-code', 'orchestrator', 1, 'T', 'T')"
+        )
+        conn.commit()
+        conn.close()
+
+        # a later migration lands and advances the constant
+        monkeypatch.setattr(db_module, "SCHEMA_VERSION", db_module.SCHEMA_VERSION + 1)
+
+        conn = db_module.connect_dossier_db(path)
+        try:
+            survivors = conn.execute(
+                "SELECT COUNT(*) FROM registrations"
+            ).fetchone()[0]
+            stamped = conn.execute("PRAGMA user_version").fetchone()[0]
+        finally:
+            conn.close()
+
+        assert survivors == 1, "v3->v4 rebuild fired on a current database and dropped rows"
+        assert stamped == current_version, (
+            f"database mis-stamped as v{stamped} without a v{stamped} migration"
+        )

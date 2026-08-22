@@ -60,7 +60,7 @@ All CLI commands that take a dossier identifier accept **two formats**:
 | **Hash** (bare ID) | `1caea7` | The 6-character hex hash shown in the dossier title |
 | **Full slug** (name + hash) | `reverb-threats-1caea7` | The complete slug shown in the `**Slug:**` metadata field |
 
-Use **one of these two formats** whenever a CLI command requires a dossier identifier (e.g., `--slug` on re-fold, or the positional `slug` argument for `tasks`). Do **not** use the bare name (e.g., `reverb-threats`) without the hash suffix.
+Use **one of these two formats** whenever a CLI command requires a dossier identifier (e.g., the `slug` payload key on re-fold, or the positional `slug` argument for `tasks`). Do **not** use the bare name (e.g., `reverb-threats`) without the hash suffix.
 
 ## Collection protocol
 
@@ -102,6 +102,8 @@ Gather the current task state using **exactly one** of the following strategies,
    Scan the conversation for any tasks, action items, or TODOs that were discussed. Record each one with a `pending` status and the best-guess owner.
 
 Record the full list for later insertion into the dossier's task database (new folds) or for reporting (re-folds).
+
+For every task, also record **`context_notes`**: the hints a worker agent picking up that task in a fresh session would need and cannot reconstruct from the subject alone. Which file to start in, the approach already ruled out, the test that reproduces the bug. This is the field that makes a task handoff-ready rather than merely named, and it is surfaced verbatim by `bureau-dossiers context --task <id>`.
 
 ### Step 3: Identify key files
 
@@ -244,7 +246,7 @@ This was an intense debugging session — the user was visibly frustrated after 
 
 #### Mandatory Aspect 7: Pinned findings and dead ends
 
-This aspect contains two categories of information that **must survive every re-fold** verbatim. On re-fold, carry all existing entries forward and add any new ones from the current session.
+Two categories of information that **must survive every re-fold**. They do survive it: findings accumulate in the dossier for its whole lifetime, so **send only what is new in this session.** Re-sending something already pinned changes nothing, and carrying inherited entries forward is wasted payload.
 
 ##### Pinned findings
 
@@ -261,7 +263,7 @@ Facts, discoveries, or constraints that are critical to the project but easy to 
 
 ##### Dead ends
 
-For every approach explored but **not adopted** during this or any prior session, record:
+For every approach explored but **not adopted** during this session, record:
 
 - **What** was tried
 - **How far** it got
@@ -277,6 +279,22 @@ For every approach explored but **not adopted** during this or any prior session
   Why abandoned: user directive — "too much infrastructure for this use case"
   [CONDITIONAL — retry if Bureau adds a daemon process]
 ```
+
+##### Amending, consolidating, and retracting
+
+Every stored finding has an id, which `unfold` and `context` render as an 8-hex prefix at the start of its line (`- a3f91c2e [dead end: DO NOT RETRY] port 8780 is owned...`, with any free-text `why abandoned:` / `retry:` detail on indented lines beneath it). Findings are never edited or deleted in place — to change what the dossier holds, send a **new** finding whose `supersedes` array names the ids it replaces:
+
+| Situation | What to send |
+|:---|:---|
+| **Amend** — better wording, or the constraint changed | One new finding, `supersedes` naming the one it replaces |
+| **Consolidate** — several entries say one thing | One well-worded finding, `supersedes` naming every entry it retires (no limit) |
+| **Retract** — a finding became false and has no successor | A finding with `"kind": "retraction"` whose text is the *reason*, `supersedes` naming the finding it retires |
+
+Two things the CLI will tell you about on stderr, both of which need action from you:
+
+- **A retracted or superseded finding cannot be revived verbatim.** To re-assert one, send it in **new words** — the re-wording is what carries the justification ("port 8780 is owned again as of the 08-20 reinstall"), and re-sending the original text carries none.
+- **An id that matches nothing, or matches two findings**, leaves the new finding stored and the retirement undone. Re-send with a corrected or longer id — an ambiguity report prints each candidate's full id, so copy the one you meant from there. Nothing was lost in the meantime.
+- **Every value in a finding is text**, apart from the `true`/`false` `dead_end` flag. A number, list, or object in `finding`, `why_abandoned`, or `retry` is reported and that finding is skipped; the rest of the fold still lands.
 
 #### Mandatory Aspect 8: Memory query log
 
@@ -312,7 +330,7 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
   "commit": "<short HEAD>",
   "digest": "<the exhaustive brain dump covering ALL EIGHT mandatory aspects>",
   "tasks": [
-    {"subject": "Task subject", "status": "pending", "owner": null, "description": "Task description", "blocked_by": null}
+    {"subject": "Task subject", "status": "pending", "owner": null, "description": "Task description", "blocked_by": null, "context_notes": "Where a worker should start, gotchas, what was already tried"}
   ],
   "decisions": [
     {"what": "What was decided", "why": "Why this option was chosen", "alternatives": "JSON-encoded array of rejected alternatives", "decided_by": "user directive"}
@@ -324,8 +342,9 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
   "next_words": "<the first 1-2 sentences of what you were about to say or do next, as if completing a thought mid-sentence>",
   "mood": "<3-5 sentences capturing the session's emotional register, pace, and tone — from Mandatory Aspect 6>",
   "pinned_findings": [
-    {"finding": "Description of the pinned finding", "source_session": "current or inherited"},
-    {"finding": "Description of a dead end", "source_session": "current", "dead_end": true, "why_abandoned": "reason", "retry": "DO NOT RETRY"}
+    {"finding": "Self-contained statement of a finding new in this session"},
+    {"finding": "Description of a dead end", "dead_end": true, "why_abandoned": "reason", "retry": "DO NOT RETRY"},
+    {"finding": "Why the entry it replaces is no longer true", "kind": "retraction", "supersedes": ["a3f91c2e"]}
   ],
   "memory_queries": [
     {"tool": "qdrant-find", "query": "bureau dossier schema", "result_summary": "found 3 entries, all pre-2024", "used_for": "confirmed no existing schema docs"}
@@ -336,94 +355,73 @@ You will pass this payload directly to the CLI via stdin. This avoids shared tem
 > [!IMPORTANT]
 > **Re-fold vs. new fold behavior:**
 >
-> - **New fold** (no `--slug`): include the full `tasks` and `decisions` arrays. The CLI uses them for initial population.
-> - **Re-fold** (`--slug` provided): **omit the `tasks` array** (or pass `[]`). The CLI ignores tasks on re-fold — task state is managed via `tasks claim`/`tasks complete`/`tasks add` throughout the session. For `decisions`, include only decisions made in the **current** session, not inherited decisions from prior sessions.
-> - **Pinned findings on re-fold**: carry forward **all** existing `pinned_findings` from the prior fold and append any new findings or dead ends from the current session. Never drop inherited pinned findings — they accumulate across the dossier's lifetime.
+> - **Which keys change by mode** is specified once, in [Step 7](#step-7-run-the-cli). Do not duplicate that decision here; a re-fold is selected by including the `slug` key, never by a flag.
+> - **Pinned findings on re-fold**: send only findings and dead ends that are **new in this session**. They accumulate in the dossier for its whole lifetime, so inherited ones need no carrying forward; to change one that is already there, supersede it (see [Amending, consolidating, and retracting](#amending-consolidating-and-retracting)).
 
 **Field reference:**
 
 | Field | Value |
 |---|---|
-| `name` | User-provided name from `/fold-dossier "name"`, or auto-generated from conversation topic. Required for new dossiers; omit when re-folding with `--slug`. |
+| `name` | User-provided name from `/fold-dossier "name"`, or auto-generated from conversation topic. Required for new dossiers; **omit when re-folding** — a fold cannot rename a dossier. |
+| `slug` | Slug of the dossier to append to. Its presence is what selects re-fold mode; omit it entirely to create a new dossier. |
 | `agent` | Identifier of the agent performing the fold: `claude-code`, `codex`, `gemini-cli`, `opencode`, or similar |
 | `project` | Absolute path to the git repository root (from `git rev-parse --show-toplevel`) |
 | `branch` | Current git branch name |
 | `commit` | Short HEAD hash |
 | `digest` | The full conversation digest covering all eight mandatory aspects (inlined as a string) |
+| `digest_file` | Alternative to `digest`: a path to read the digest from, used only when the digest approaches the 500 KB ceiling. The path **must** resolve inside the dossiers directory (`~/.config/bureau/dossiers/`) or the fold exits 1. Ignored when `digest` is non-empty. |
 | `tasks` | Array of task objects from Step 2 |
 | `decisions` | Array of decision objects from the conversation (Mandatory Aspect 1) |
 | `files` | Array of file interaction objects from Step 3 |
 | `last_exchange` | Verbatim last 2-3 conversational turns (final user messages and agent responses). Captures the exact moment of folding for continuity anchoring. |
 | `next_words` | The first 1-2 sentences the agent was about to say or the next action it was about to take. Used by unfold to continue mid-thought. |
 | `mood` | 3-5 sentences describing the session's emotional register, pace, and tone (Mandatory Aspect 6). |
-| `pinned_findings` | Array of critical findings and dead ends that must survive every re-fold. Dead ends include `dead_end: true`, `why_abandoned`, and `retry` fields. |
+| `pinned_findings` | Array of findings and dead ends **new in this session** — they accumulate across the dossier's lifetime, so never re-send inherited ones. Dead ends add `dead_end: true`, `why_abandoned` and `retry`. To replace or retire existing entries, add `supersedes`: an array of the 8-hex ids `unfold` renders, with `kind: "retraction"` when the entry became false and has no successor. See [Mandatory Aspect 7](#mandatory-aspect-7-pinned-findings-and-dead-ends). |
 | `memory_queries` | Array of memory system queries made during this session, with tool, query, result summary, and how the result was used. |
 
 ### Step 7: Run the CLI
 
-Run **one** command to create or update the dossier by piping the JSON payload to stdin:
-
-**For a new dossier:**
+Run **one** command, piping the Step 6 payload to stdin. There is a single payload shape; the mode is selected by which keys you include, **not** by a flag.
 
 ```bash
 bureau-dossiers fold --input-file - << 'ENDJSON'
-{
-  "name": "<user-provided name or auto-generated>",
-  "agent": "<agent-identifier>",
-  "project": "<git repo root path>",
-  "branch": "<current branch>",
-  "commit": "<short HEAD>",
-  "digest": "<the exhaustive brain dump covering ALL EIGHT mandatory aspects>",
-  "tasks": [
-    {"subject": "Task subject", "status": "pending", "owner": null, "description": "Task description", "blocked_by": null}
-  ],
-  "decisions": [
-    {"what": "What was decided", "why": "Why this option was chosen", "alternatives": "JSON-encoded array of rejected alternatives", "decided_by": "user directive"}
-  ],
-  "files": [
-    {"path": "/absolute/path/to/file.py", "action": "modified", "annotation": "edited lines 40-60"}
-  ]
-}
+{ ...the payload assembled in Step 6... }
 ENDJSON
 ```
 
-**For re-folding an existing dossier** (when a prior slug is known):
+**Which keys to include, by mode:**
 
-```bash
-bureau-dossiers fold --slug <existing-slug> --input-file - << 'ENDJSON'
-{
-  "agent": "<agent-identifier>",
-  "project": "<git repo root path>",
-  "branch": "<current branch>",
-  "commit": "<short HEAD>",
-  "digest": "<the exhaustive brain dump covering ALL EIGHT mandatory aspects>",
-  "decisions": [
-    {"what": "What was decided", "why": "Why this option was chosen", "alternatives": "JSON-encoded array of rejected alternatives", "decided_by": "user directive"}
-  ],
-  "files": [
-    {"path": "/absolute/path/to/file.py", "action": "modified", "annotation": "edited lines 40-60"}
-  ]
-}
-ENDJSON
-```
+| Key | New dossier | Re-fold |
+| :--- | :--- | :--- |
+| `slug` | omit | **required** — its presence is what selects re-fold mode |
+| `name` | **required** | **omit** — a fold cannot rename a dossier |
+| `tasks` | include the full array | **omit** — task state lives in the database and is managed with `tasks add` / `claim` / `complete` |
+| `decisions` | every decision from the session | only decisions made in **this** session, never inherited ones |
+| `pinned_findings` | every finding and dead end from the session | only findings new in **this** session; supersede an existing one rather than re-sending it |
 
-The CLI automatically:
-- Generates the 6-character hex hash and slug (new dossiers)
-- Creates the SQLite database with the full schema (WAL mode)
-- Inserts metadata, session digest, tasks, decisions, and file interactions
-- Prunes old file interactions beyond the retention window
-- Updates `metadata.updated_at` on re-folds
+Everything else (`agent`, `project`, `branch`, `commit`, `digest`, `files`, `last_exchange`, `next_words`, `mood`, `memory_queries`) is sent identically in both modes.
+
+> [!IMPORTANT]
+>
+> **Read stderr.** Sending a key that this mode ignores, or one the CLI does not recognize, is never fatal — the fold proceeds and warns. A warning on stderr means part of your payload did not land, and it is the only signal you will get.
+
+**What the CLI guarantees**, so you never do any of it yourself:
+
+- **A fold only ever appends.** Re-folding never deletes an earlier session's digest, decisions, or file interactions, so you can fold as often as you like without losing prior context.
+- **Identity and storage are the CLI's job.** Hashes, slugs, database creation, and timestamps are all handled for you. See [Explicit prohibitions](#explicit-prohibitions).
+- **A failed fold leaves nothing behind.** A non-zero exit does not create a partial dossier and does not modify an existing one, so it is always safe to fix the payload and retry.
 
 ### Step 8: Confirm output
 
-The CLI prints a confirmation line on success. Relay it to the user in this format:
+On success, relay the CLI's confirmation output **verbatim**, then add the resume line:
 
 ```
-Dossier saved: `<slug>` (<N> tasks, <M> decisions)
 Resume with `/unfold-dossier <hash>` or `/unfold-dossier <name>`
 ```
 
-If the CLI exits with a non-zero status, report the error clearly. The CLI is atomic — a failed fold leaves no partial state.
+Relay it verbatim rather than reformatting it: the CLI reports what it actually did, and that can include lines this skill does not describe.
+
+If the CLI exits non-zero, report the error clearly and do not retry without changing the payload.
 
 ## Explicit prohibitions
 
@@ -435,7 +433,7 @@ If the CLI exits with a non-zero status, report the error clearly. The CLI is at
 - **Do NOT** prompt the user for additional information unless absolutely necessary — use the conversation history and tool outputs to fill in all fields
 - **Do NOT** run raw `sqlite3` commands or write YAML frontmatter manually — all database and file operations go through the CLI
 - **Do NOT** run `openssl rand` for hash generation — the CLI generates hashes automatically
-- **Do NOT** include inherited decisions from prior sessions in the `decisions` array when re-folding — only include decisions made during the current session
+- **Do NOT** include inherited decisions or already-pinned findings from prior sessions when re-folding — `decisions` and `pinned_findings` carry only what the current session produced
 
 ## Task state management during sessions
 

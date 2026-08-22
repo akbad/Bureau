@@ -1,9 +1,9 @@
 .PHONY: test typecheck ci
 
 test:
-	uv run pytest operations/cleanup/tests/ -v
+	uv run pytest
 
 typecheck:
-	uv run mypy operations --ignore-missing-imports
+	uv run mypy
 
 ci: test typecheck

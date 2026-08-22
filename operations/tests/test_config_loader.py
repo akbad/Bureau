@@ -275,10 +275,10 @@ class TestMergePrecedence:
         tmp_path,
         monkeypatch,
     ):
-        """BUREAU_WORKSPACE should override the canonical workspace path."""
+        """BUREAU_WORKSPACE should override the top-level workspace anchor."""
         self._write_yaml(tmp_path / "defaults.yml", {
+            "workspace": "~/code",
             "path_to": {
-                "workspace": "~/code",
                 "mcp_clones": "/tmp/mcp-clones",
             },
         })
@@ -296,7 +296,9 @@ class TestMergePrecedence:
 
         config = get_config()
 
-        assert config["path_to"]["workspace"] == "/tmp/bureau-workspace"
+        # the override now targets the top-level workspace, and serena_memories_root
+        # is derived from it (still kept under path_to for get_path consumers)
+        assert config["workspace"] == "/tmp/bureau-workspace"
         assert config["path_to"]["serena_memories_root"] == "/tmp/bureau-workspace"
 
     def test_relative_bureau_repo_resolves_from_active_repo_root(self, tmp_path, monkeypatch):
@@ -329,3 +331,77 @@ class TestMergePrecedence:
 
         assert config["path_to"]["bureau_repo"] == str(tmp_path)
         assert config["path_to"]["mcp_clones"] == str(main_repo_root / ".mcp-servers")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# workspace promotion + agent_access parsing
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestWorkspacePromotionAndAgentAccess:
+    """Top-level workspace anchor, derivation, the back-compat shim, agent_access."""
+
+    def _write_yaml(self, path: Path, data: dict) -> None:
+        path.write_text(yaml.dump(data, default_flow_style=False))
+
+    def _load(self, tmp_path, monkeypatch, data: dict):
+        """Write data as defaults.yml, isolate discovery, return the merged config."""
+        self._write_yaml(tmp_path / "defaults.yml", data)
+        monkeypatch.setattr(
+            "operations.config_loader.find_repo_root",
+            lambda *_a, **_kw: tmp_path,
+        )
+        monkeypatch.setattr(
+            "operations.config_loader.find_project_config",
+            lambda: None,
+        )
+        monkeypatch.chdir(tmp_path)
+        clear_config_cache()
+        return get_config()
+
+    def test_top_level_workspace_round_trips(self, tmp_path, monkeypatch):
+        """A top-level workspace key should survive the load as-is."""
+        config = self._load(tmp_path, monkeypatch, {"workspace": "/srv/code"})
+
+        assert config["workspace"] == "/srv/code"
+
+    def test_serena_memories_root_derived_from_workspace_when_unset(self, tmp_path, monkeypatch):
+        """serena_memories_root should be derived from the top-level workspace when absent."""
+        config = self._load(tmp_path, monkeypatch, {"workspace": "/srv/code"})
+
+        assert config["path_to"]["serena_memories_root"] == "/srv/code"
+
+    def test_explicit_serena_memories_root_is_not_overridden(self, tmp_path, monkeypatch):
+        """An explicitly-configured serena_memories_root must not be clobbered by derivation."""
+        config = self._load(tmp_path, monkeypatch, {
+            "workspace": "/srv/code",
+            "path_to": {"serena_memories_root": "/custom/serena"},
+        })
+
+        assert config["path_to"]["serena_memories_root"] == "/custom/serena"
+
+    def test_back_compat_shim_mirrors_workspace_into_path_to(self, tmp_path, monkeypatch):
+        """The temporary shim should mirror the top-level workspace into path_to.workspace.
+
+        Keeps ${path_to.workspace} (the Filesystem MCP whitelist) resolving until
+        Step 2 removes that block. Remove this test when the shim is deleted.
+        """
+        config = self._load(tmp_path, monkeypatch, {"workspace": "/srv/code"})
+
+        assert config["path_to"]["workspace"] == "/srv/code"
+
+    def test_agent_access_paths_parsed(self, tmp_path, monkeypatch):
+        """agent_access.paths entries should load with their enabled/path shape intact."""
+        config = self._load(tmp_path, monkeypatch, {
+            "workspace": "/srv/code",
+            "agent_access": {
+                "paths": {
+                    "bureau_config": {"enabled": True, "path": "~/.config/bureau"},
+                    "workspace": {"enabled": False, "path": "${workspace}"},
+                },
+            },
+        })
+
+        paths = config["agent_access"]["paths"]
+        assert paths["bureau_config"] == {"enabled": True, "path": "~/.config/bureau"}
+        assert paths["workspace"] == {"enabled": False, "path": "${workspace}"}

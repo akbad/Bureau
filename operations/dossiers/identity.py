@@ -39,6 +39,17 @@ NOTHING`, whose `was_insert` result drives a post-SQL dispatch on liveness.
 no portable, side-effect-free liveness primitive, so a transaction depending on
 one would be non-deterministic and untestable. As an injectable Python
 function, every branch (alive / dead / raises) is unit-testable by stubbing it.
+
+## Binding invariants
+
+Two rules govern every change in this module, both recorded with the defects
+that earned them in `docs/ENGINEERING.md`, "Agent identity and liveness":
+
+  1. Identity is resolved *before* the reap, on the same connection, for
+     **every** role — `resolve_identity` and `resolve_worker_identity` are
+     counterparts, not parallel mechanisms.
+  2. Liveness is the pid oracle, never idleness. Every registration row carries
+     a real ancestor `cli_pid`; elapsed time alone never justifies a reap.
 """
 import hashlib
 import logging
@@ -190,6 +201,58 @@ def _maybe_warn_identity_reset(
         recent["reap_reason"], recent["stale_by_sec"],
         recent["tasks_reverted"], new_agent_id,
     )
+
+
+def resolve_worker_identity(conn: sqlite3.Connection, agent_id: str) -> str:
+    """Refresh a worker's registration on connect and return its id.
+
+    The worker-role counterpart to `resolve_identity`, and it exists for the
+    same reason: identity must be established *before* the reap preamble runs
+    on the same connection, or an agent's own connect can reap it.
+
+    Workers had no such path. Their id is an explicit label rather than a
+    computed hash, so `cli._resolve_agent` returned it without touching the
+    database at all, which left two gaps that combined into silent work loss:
+
+      - `last_heartbeat` never moved after `claim_task` wrote the row, so a
+        worker aged past the TTL no matter how active it was.
+      - `cli_pid` was NULL, so `_process_alive` had nothing to ask and the reap
+        fell through to `timestamp_only` — age alone, against a 2h TTL.
+
+    Both are closed here. The `cli_pid` write is an adoption, not just an
+    insert-time value: it heals rows registered before this fix, and it
+    re-points a label at whichever CLI is running it now.
+
+    ## What this deliberately does not do
+
+    A worker abandoned by a *live* CLI is protected indefinitely rather than
+    reverting on TTL. That is deliberate, and it is the orchestrator's existing
+    semantics rather than a special rule: liveness is owned by the pid oracle,
+    never by idleness. The trade is favourable because the alternative failure
+    is silent and destructive (active work reverted mid-flight), whereas an
+    abandoned claim is visible in `tasks list` and repairable with
+    `tasks update --status pending`.
+
+    Args:
+        conn: open dossier DB connection.
+        agent_id: the worker's explicit label (``<type>:worker-<n>:<ts>``).
+
+    Returns:
+        `agent_id` unchanged, so callers can pass it straight to
+        `_maybe_reap_stale_registrations` as `protect_agent_id`. A label with no
+        row yet (``unfold --worker`` resolves before `claim_task` inserts) is a
+        no-op UPDATE; protecting an absent row is harmless.
+    """
+    conn.execute(
+        # `role = 'worker'` is a safety guard, not a filter: routing an
+        # orchestrator id through this path must never overwrite its cli_pid,
+        # which would bypass `resolve_identity`'s concurrent-instance check.
+        "UPDATE registrations SET last_heartbeat = ?, cli_pid = ? "
+        "WHERE agent_id = ? AND role = 'worker'",
+        (_now_iso(), _get_cli_process_pid(), agent_id),
+    )
+    conn.commit()
+    return agent_id
 
 
 def resolve_identity(

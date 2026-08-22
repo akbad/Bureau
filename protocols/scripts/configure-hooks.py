@@ -836,6 +836,104 @@ def _remove_gemini(*, dry_run: bool) -> None:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Grok Build
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def _grok_hooks_path() -> Path:
+    """Bureau-owned hook file under Grok's global hooks directory."""
+    return Path.home() / ".grok" / "hooks" / "bureau-ops.json"
+
+
+def _build_grok_hooks_payload(
+    ops_hub_path: Path,
+    *,
+    output_style_path: Path | None = None,
+    code_standards_path: Path | None = None,
+) -> dict[str, Any]:
+    """Build the JSON payload written to ~/.grok/hooks/bureau-ops.json.
+
+    Grok loads Claude-compatible hook JSON from ~/.grok/hooks/*.json. Using a
+    Bureau-owned filename keeps merge/remove simple without editing user hooks.
+    SessionStart injects output-style (when provided) the same way Codex/Gemini do.
+    """
+    return {
+        "hooks": {
+            "SessionStart": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _session_start_command(
+                                ops_hub_path,
+                                output_style_path=output_style_path,
+                                code_standards_path=code_standards_path,
+                            ),
+                            "timeout": HOOK_TIMEOUT_MS,
+                        }
+                    ]
+                }
+            ],
+            "UserPromptSubmit": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _reminder_command(ops_hub_path),
+                            "timeout": HOOK_TIMEOUT_MS,
+                        }
+                    ]
+                }
+            ],
+        }
+    }
+
+
+def _configure_grok(
+    ops_hub_path: Path,
+    *,
+    output_style_path: Path | None = None,
+    code_standards_path: Path | None = None,
+    dry_run: bool,
+) -> None:
+    """Write Bureau SessionStart + UserPromptSubmit hooks for Grok Build."""
+    hooks_path = _grok_hooks_path()
+    payload = _build_grok_hooks_payload(
+        ops_hub_path,
+        output_style_path=output_style_path,
+        code_standards_path=code_standards_path,
+    )
+
+    if hooks_path.exists():
+        existing = _load_json_config(hooks_path)
+        if existing == payload:
+            LOG.info("grok: bureau-ops hooks already configured, nothing to do")
+            return
+        LOG.info("grok: updating bureau-ops hooks at %s", hooks_path)
+    else:
+        LOG.info("grok: writing bureau-ops hooks to %s", hooks_path)
+
+    if dry_run:
+        LOG.info("grok: dry-run — would write %s", hooks_path)
+        return
+
+    hooks_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json_config(hooks_path, payload, dry_run=False)
+
+
+def _remove_grok(*, dry_run: bool) -> None:
+    """Remove Bureau-owned Grok hooks file if present."""
+    hooks_path = _grok_hooks_path()
+    if not hooks_path.exists():
+        LOG.info("grok: no bureau-ops hooks file found, nothing to remove")
+        return
+    LOG.info("grok: removing %s", hooks_path)
+    if dry_run:
+        return
+    hooks_path.unlink()
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Dispatch tables
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -843,12 +941,14 @@ AGENT_HANDLERS: dict[str, Any] = {
     "claude": _configure_claude,
     "codex": _configure_codex,
     "gemini": _configure_gemini,
+    "grok": _configure_grok,
 }
 
 REMOVE_HANDLERS: dict[str, Any] = {
     "claude": _remove_claude,
     "codex": _remove_codex,
     "gemini": _remove_gemini,
+    "grok": _remove_grok,
 }
 
 VALID_AGENTS = sorted(AGENT_HANDLERS)

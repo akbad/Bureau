@@ -130,6 +130,56 @@ def test_reconciles_bureau_managed_agent_entries(tmp_path: Path) -> None:
     }
 
 
+def test_newly_written_mcp_ids_reports_only_new_entries() -> None:
+    # merge_missing preserves a pre-existing id (only overwriting its command), so
+    # only ids absent from the user's config beforehand count as Bureau-written;
+    # reporting a pre-existing (possibly user-owned) id would let a later prune
+    # delete the user's entry (issue C6)
+    original_mcp = {"foo": {"type": "local", "command": ["user-foo"]}}
+    generated_mcp = {
+        "foo": {"type": "local", "command": ["bureau-foo"]},
+        "bar": {"type": "local", "command": ["bureau-bar"]},
+    }
+    assert module.newly_written_mcp_ids(original_mcp, generated_mcp) == ["bar"]
+
+
+def test_newly_written_mcp_ids_treats_null_placeholder_as_writable() -> None:
+    # merge_missing writes when base[k] is None, so a null placeholder is a write
+    assert module.newly_written_mcp_ids(
+        {"foo": None}, {"foo": {"type": "local", "command": ["bureau-foo"]}}
+    ) == ["foo"]
+
+
+def test_main_reports_newly_written_mcp_ids_on_last_stdout_line(tmp_path: Path, capsys) -> None:
+    target = tmp_path / "opencode.json"
+    generated = tmp_path / "generated.json"
+    target.write_text(
+        json.dumps({"mcp": {"foo": {"type": "local", "command": ["user-foo"]}}}),
+        encoding="utf-8",
+    )
+    generated.write_text(
+        json.dumps(
+            {
+                "mcp": {
+                    "foo": {"type": "local", "command": ["bureau-foo"]},
+                    "bar": {"type": "local", "command": ["bureau-bar"]},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert _run_main(["--target", str(target), "--generated", str(generated)]) == 0
+
+    # the last stdout line is the marker + CSV of newly-written ids — only "bar";
+    # the user's pre-existing "foo" is preserved (command refreshed) but NOT written
+    last_line = capsys.readouterr().out.strip().splitlines()[-1]
+    assert last_line == f"{module.OC_WRITTEN_MARKER}bar"
+    merged = json.loads(target.read_text(encoding="utf-8"))
+    assert set(merged["mcp"]) == {"foo", "bar"}
+    assert merged["mcp"]["foo"]["command"] == ["bureau-foo"]
+
+
 def test_bare_mode_removes_only_bureau_managed_agent_entries(tmp_path: Path) -> None:
     target = tmp_path / "opencode.json"
     generated = tmp_path / "generated.json"

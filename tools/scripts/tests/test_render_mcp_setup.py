@@ -46,7 +46,7 @@ def test_warns_when_server_skipped_for_missing_requires_env(capsys, monkeypatch)
 
 def test_renders_servers_for_all_clis():
     config = {
-        "agents": ["claude", "gemini", "codex", "opencode"],
+        "agents": ["claude", "gemini", "codex", "opencode", "grok"],
         "mcp": {
             "client_configs": {
                 "tavily": {
@@ -67,6 +67,8 @@ def test_renders_servers_for_all_clis():
     assert "tavily" in plan["client_configs"]["claude"]
     assert "tavily" in plan["client_configs"]["codex"]
     assert "tavily" in plan["client_configs"]["opencode"]
+    assert "tavily" in plan["client_configs"]["grok"]
+    assert plan["auto_approved"]["mcp_servers"]["grok"] == ["tavily"]
 
 
 def test_default_qdrant_healthchecks_use_resolved_ports():
@@ -95,7 +97,7 @@ def test_default_browsing_fallbacks_render_for_all_clis():
 
     plan = render_setup_plan(config)
 
-    for cli in ["claude", "gemini", "codex", "opencode"]:
+    for cli in ["claude", "gemini", "codex", "opencode", "grok"]:
         assert "open-websearch" in plan["client_configs"][cli]
         assert "crawl4ai-mcp-server" in plan["client_configs"][cli]
 
@@ -158,7 +160,7 @@ def test_default_managed_searxng_and_bureau_search_render_for_all_clis():
         }
     ]
 
-    for cli in ["claude", "gemini", "codex", "opencode"]:
+    for cli in ["claude", "gemini", "codex", "opencode", "grok"]:
         assert "bureau-search" in plan["client_configs"][cli]
         client = plan["client_configs"][cli]["bureau-search"]
         assert client["transport"] == "stdio"

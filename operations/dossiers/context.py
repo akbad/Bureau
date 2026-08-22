@@ -1,9 +1,9 @@
 """Task-scoped context extraction for worker agents.
 
 Assembles the subset of a dossier relevant to a specific task: dossier
-header, target task details, transitive dependency chain, all decisions,
-latest-session file interactions, sibling task summaries, and (optionally)
-the latest session digest.
+header, target task details, transitive dependency chain, live pinned
+findings, all decisions, latest-session file interactions, sibling task
+summaries, and (optionally) the latest session digest.
 
 Design choice: fixed context slice with optional annotations (Approach C
 from the spec).  Decisions and file interactions are included
@@ -16,8 +16,9 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from .db import escape_md, open_dossier_db, safe_db_path
+from .db import LIVE_FINDING_PREDICATE, escape_md, open_dossier_db, safe_db_path
 from .errors import DossierNotFoundError
+from .findings import render_findings
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -167,6 +168,15 @@ def extract_task_context(
         # resolve transitive dependency chain
         deps, dep_warnings = _resolve_dependency_chain(conn, task)
 
+        # Live pinned findings. Never windowed and never session-scoped: a
+        # worker inherits every decision already, so withholding the dead ends
+        # would hand it the record of what was chosen and none of the walls.
+        findings = conn.execute(
+            "SELECT hash, kind, text, why_abandoned, retry, 1 AS is_live "
+            f"FROM pinned_findings WHERE {LIVE_FINDING_PREDICATE} "
+            "ORDER BY created_at, rowid"
+        ).fetchall()
+
         # all decisions (durable constraints)
         decisions = conn.execute(
             "SELECT * FROM decisions ORDER BY id"
@@ -196,6 +206,7 @@ def extract_task_context(
         task=task,
         deps=deps,
         dep_warnings=dep_warnings,
+        findings=findings,
         decisions=decisions,
         file_interactions=file_interactions,
         siblings=siblings,
@@ -209,6 +220,7 @@ def _render_task_context(
     task: sqlite3.Row,
     deps: list[dict[str, Any]],
     dep_warnings: list[str],
+    findings: list[sqlite3.Row],
     decisions: list[sqlite3.Row],
     file_interactions: list[sqlite3.Row],
     siblings: list[sqlite3.Row],
@@ -277,6 +289,14 @@ def _render_task_context(
         if not dep_warnings:
             lines.append("This task has no dependencies.")
     lines.append("")
+
+    # ── Pinned findings ──
+    # Rendered through the same grammar `unfold` uses, so a worker and an
+    # orchestrator read a constraint in exactly one shape — and so a finding
+    # quoted back from either surface re-hashes to the same identity. Silent
+    # when there are none: unlike decisions, an absent constraint set is not
+    # a fact worth a line.
+    lines.extend(render_findings(findings))
 
     # ── Decisions ──
     lines.append("## Decisions")

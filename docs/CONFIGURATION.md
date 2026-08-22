@@ -90,9 +90,10 @@ agents:
   - gemini    # Gemini CLI
   - codex     # OpenAI Codex CLI
   - opencode  # OpenCode
+  - grok      # Grok Build
 ```
 
-Remove an agent from the list to skip configuring it. Note that the CLI's config directory must also exist (e.g., `~/.claude/` for Claude Code).
+Remove an agent from the list to skip configuring it. Note that the CLI's config directory must also exist (e.g., `~/.claude/` for Claude Code, `~/.grok/` for Grok Build).
 
 ### `auto_approved`
 
@@ -320,7 +321,7 @@ Defines MCP servers exposed to CLIs, including per‑CLI client overrides. Serve
   - `dependencies` (list\<string\>): Dependency IDs that must be enabled/resolved for the server to be included.
 - `clients` (`map<string, Client>`, required): Per‑CLI client configs.
   - `clients.default` (Client, optional but strongly recommended): Used by all CLIs unless a CLI override exists.
-  - `clients.<cli>` (Client, optional): Overrides for `claude`, `gemini`, `codex`, `opencode`.
+  - `clients.<cli>` (Client, optional): Overrides for `claude`, `gemini`, `codex`, `opencode`, `grok`.
   - `clients.disabled_for` (`list<string>`, optional): Agent names to exclude from this server. Values should match entries in the top-level `agents` list. When listed, the agent does not receive this server, even if a `clients.<cli>` override exists.
 - `npm_runtime` (object, optional): Opts a Node-based stdio MCP into Bureau's shared local npm runtime.
   - `packages` (`list<string>`, required when present): npm package specs installed into `${path_to.mcp_clones}/npm-tools` during setup.
@@ -502,6 +503,7 @@ roles:
 | Codex | Launcher scripts | `agents/scripts/set-up-codex-role-launchers.sh` | Creates `~/.local/bin/codex-*` executables |
 | Gemini CLI | Launcher scripts | `agents/scripts/set-up-gemini-role-launchers.sh` | Creates `~/.local/bin/gemini-*` executables |
 | OpenCode | Auto-discovery | `agents/scripts/set-up-agents.sh` | Creates filtered symlinks in `~/.config/opencode/agent/bureau-agents/` |
+| Grok Build | Agents + slash commands | `agents/scripts/set-up-grok-roles.sh` | Creates `~/.grok/agents/bureau-*.md` and `~/.grok/commands/*-bureau.md` |
 
 **Default enabled agents:**
 
@@ -672,7 +674,7 @@ Some configuration values can be overridden via environment variables:
 
 | Environment Variable | Overrides | Description |
 |:---------------------|:----------|:------------|
-| `BUREAU_WORKSPACE` | `path_to.workspace` | Base workspace directory |
+| `BUREAU_WORKSPACE` | `workspace` | Base workspace directory (top-level anchor) |
 | `BUREAU_TELEGRAM_TOKEN` | — | Telegram bot token (required to start the Concierge bot; never stored in config files) |
 | `BUREAU_TELEGRAM_USER_ID` | — | Telegram user ID (fallback when no wizard config exists) |
 

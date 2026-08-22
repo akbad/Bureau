@@ -47,6 +47,8 @@ source "$REPO_ROOT/bin/lib/logging.sh"
 CLAUDE="Claude Code"
 CODEX="Codex"
 GEMINI="Gemini CLI"
+OPENCODE="OpenCode"
+GROK="Grok Build"
 
 # User-level config locations for supported coding CLIs
 GEMINI_CONFIG="$HOME/.gemini/settings.json"
@@ -54,6 +56,7 @@ CODEX_CONFIG="$HOME/.codex/config.toml"
 CLAUDE_CONFIG="$HOME/.claude/settings.json"
 CLAUDE_CLI_STATE="$HOME/.claude.json"
 OPENCODE_CONFIG="$HOME/.config/opencode/opencode.json"
+GROK_CONFIG="$HOME/.grok/config.toml"
 
 # Contains the list of agents to be configured by this script to use Bureau and its tools
 # Populated later by discover_agents() based on the YML configs
@@ -190,10 +193,62 @@ remove_managed_servers() {
         opencode)
             remove_opencode_servers "$OPENCODE_CONFIG" "${servers[@]}"
             ;;
+        grok)
+            for server_id in "${servers[@]}"; do
+                uv run "$SCRIPT_DIR/add-mcp-to-grok.py" remove \
+                    --config "$GROK_CONFIG" \
+                    --name "$server_id" || true
+            done
+            ;;
         *)
             log_warning "Unknown CLI for managed MCP cleanup: $cli"
             ;;
     esac
+}
+
+# Upsert an MCP server into Grok Build's ~/.grok/config.toml.
+# Exit codes mirror other add helpers: 0=written, 1=already equivalent, 2=error.
+add_mcp_to_grok() {
+    local server_name=$1
+    local transport=$2
+    shift 2
+
+    mkdir -p "$HOME/.grok"
+    [[ ! -f "$GROK_CONFIG" ]] && touch "$GROK_CONFIG"
+
+    local -a cmd=(
+        uv run "$SCRIPT_DIR/add-mcp-to-grok.py" upsert
+        --config "$GROK_CONFIG"
+        --name "$server_name"
+        --transport "$transport"
+    )
+
+    if [[ "$transport" == "http" ]]; then
+        local url=$1
+        shift
+        local headers=("$@")
+        cmd+=(--url "$url")
+        for header in "${headers[@]}"; do
+            cmd+=(--header "$header")
+        done
+    else
+        parse_stdio_mcp_args "$@"
+        for env_pair in "${_STDIO_ENV_PAIRS[@]}"; do
+            cmd+=(--env "$env_pair")
+        done
+        if [[ -n "${_STDIO_STARTUP_TIMEOUT:-}" ]]; then
+            cmd+=(--startup-timeout-sec "$_STDIO_STARTUP_TIMEOUT")
+        fi
+        if [[ -n "${_STDIO_TOOL_TIMEOUT:-}" ]]; then
+            cmd+=(--tool-timeout-sec "$_STDIO_TOOL_TIMEOUT")
+        fi
+        for token in "${_STDIO_CMD_ARGS[@]}"; do
+            cmd+=(--arg "$token")
+        done
+    fi
+
+    "${cmd[@]}"
+    return $?
 }
 
 managed_registry_reconcile() {
@@ -235,15 +290,28 @@ managed_registry_reconcile() {
 managed_registry_record() {
     local cli=$1
     local config_path=$2
+    # comma-separated ids Bureau actually WROTE to this CLI's config during the
+    # per-agent add loop this run (see WRITTEN_IDS_BY_CLI below); optional so
+    # callers with nothing to report (e.g. OpenCode, which is configured via a
+    # separate full-config merge rather than the per-agent add loop) can omit it
+    local written_ids_csv=${3:-}
     local registry_path
     registry_path="$(managed_registry_path "$cli")"
+
+    # only pass --written when we have ids, so the python side's default
+    # (empty set) applies cleanly rather than us forwarding an empty string
+    local -a written_flag=()
+    if [[ -n "$written_ids_csv" ]]; then
+        written_flag=(--written "$written_ids_csv")
+    fi
 
     uv run python "$REPO_ROOT/tools/scripts/managed-mcp-registry.py" \
         --mode record \
         --cli "$cli" \
         --plan "$SETUP_PLAN_FILE" \
         --registry "$registry_path" \
-        --config "$config_path" >/dev/null
+        --config "$config_path" \
+        "${written_flag[@]}" >/dev/null
 }
 
 # Check if a port is already in use 
@@ -970,6 +1038,10 @@ add_http_mcp_to_agent() {
             fi
             add_mcp_to_codex "$server" "http" "$url" "$bearer_env"
             ;;
+        "$GROK")
+            # Grok HTTP supports headers natively in config.toml.
+            add_mcp_to_grok "$server" "http" "$url" "${headers[@]}"
+            ;;
     esac
 }
 
@@ -1020,6 +1092,19 @@ add_stdio_mcp_to_agent() {
                 codex_args+=("--tool-timeout-sec" "$_STDIO_TOOL_TIMEOUT")
             fi
             add_mcp_to_codex "$server" "stdio" "${codex_args[@]}" -- "${_STDIO_CMD_ARGS[@]}"
+            ;;
+        "$GROK")
+            local grok_args=()
+            for env_pair in "${_STDIO_ENV_PAIRS[@]}"; do
+                grok_args+=(--env "$env_pair")
+            done
+            if [[ -n "$_STDIO_STARTUP_TIMEOUT" ]]; then
+                grok_args+=(--startup-timeout-sec "$_STDIO_STARTUP_TIMEOUT")
+            fi
+            if [[ -n "$_STDIO_TOOL_TIMEOUT" ]]; then
+                grok_args+=(--tool-timeout-sec "$_STDIO_TOOL_TIMEOUT")
+            fi
+            add_mcp_to_grok "$server" "stdio" "${grok_args[@]}" -- "${_STDIO_CMD_ARGS[@]}"
             ;;
     esac
 }
@@ -1239,6 +1324,11 @@ configure_auto_approve() {
             "$GEMINI")
                 uv run "$SCRIPT_DIR/add-gemini-auto-approvals.py" "$GEMINI_CONFIG" "${gemini_auto_approve[@]}"
                 ;;
+            "$GROK")
+                # Full Grok permission rewrite (MCP + optional bash + access paths)
+                # so bash and MCP setup never clobber each other.
+                configure_grok_approvals
+                ;;
             *)
                 log_warning "  Unknown agent: $agent (skipping)"
                 ;;
@@ -1248,6 +1338,41 @@ configure_auto_approve() {
     log_empty_line
     log_success "Agent auto-approvals successfully configured."
     log_info "MCP tools will now be auto-approved without permission prompts"
+}
+
+# Single writer for Grok permissions: always includes MCP (if auto-approve on),
+# bash allow/deny (if enabled), and agent_access paths. Called from both
+# configure_auto_approve and configure_bash_approvals to keep one managed set.
+configure_grok_approvals() {
+    local -a args=()
+    local approvals_enabled
+    approvals_enabled="$(plan_jq '.auto_approved.bash.enabled // false')"
+
+    if [[ "$AUTO_APPROVE_MCP" == true ]]; then
+        while IFS= read -r server_id; do
+            [[ -n "$server_id" ]] || continue
+            args+=(--mcp-server "$server_id")
+        done < <(plan_jq '.auto_approved.mcp_servers.grok // [] | .[]')
+    fi
+
+    if [[ "$approvals_enabled" == "true" ]]; then
+        while IFS= read -r prefix; do
+            [[ -n "$prefix" ]] || continue
+            args+=(--bash-allow "$prefix")
+        done < <(plan_jq '.auto_approved.bash.ruleset.allow[]?')
+        while IFS= read -r prefix; do
+            [[ -n "$prefix" ]] || continue
+            args+=(--bash-deny "$prefix")
+        done < <(plan_jq '.auto_approved.bash.ruleset.deny[]?')
+    fi
+
+    while IFS= read -r access_path; do
+        [[ -n "$access_path" ]] || continue
+        args+=(--access-path "$access_path")
+    done < <(uv run get-config --list access-paths 2>/dev/null || true)
+    args+=(--access-path "~/.config/bureau/protocols")
+
+    uv run "$SCRIPT_DIR/add-grok-auto-approvals.py" "$GROK_CONFIG" "${args[@]}"
 }
 
 configure_bash_approvals() {
@@ -1300,6 +1425,15 @@ configure_bash_approvals() {
                     codex_bash_args+=(--deny "$prefix")
                 done
                 uv run "$SCRIPT_DIR/write-codex-exec-policy.py" "${codex_bash_args[@]}"
+                ;;
+            "$GROK")
+                # If MCP auto-approve will also run, skip here — that path
+                # rewrites the full Grok managed permission set.
+                if [[ "$AUTO_APPROVE_MCP" == true ]]; then
+                    log_info "  Grok bash approvals deferred to MCP auto-approve pass"
+                else
+                    configure_grok_approvals
+                fi
                 ;;
             *)
                 log_warning "  Unknown agent: $agent (skipping)"
@@ -1420,6 +1554,9 @@ fi
 if agent_enabled "$OPENCODE"; then
     managed_registry_reconcile "opencode" "$OPENCODE_CONFIG" "$AUTO_CLEAN_MCP"
 fi
+if agent_enabled "$GROK"; then
+    managed_registry_reconcile "grok" "$GROK_CONFIG" "$AUTO_CLEAN_MCP"
+fi
 
 apply_claude_post_config() {
     local server_id=$1
@@ -1439,6 +1576,23 @@ apply_claude_post_config() {
 }
 
 already_exists_count=0
+
+# ids Bureau actually WROTE to each CLI's config this run, keyed by CLI
+# (agent_key, e.g. "claude"/"gemini"/"codex"), fed to managed_registry_record
+# below.
+#
+# why this exists (issue C6): an "already exists" return from
+# add_http_mcp_to_agent / add_stdio_mcp_to_agent means the add step did NOT
+# touch the live config — the id was already there. That pre-existing entry
+# might be a Bureau entry from a prior run, but it might just as easily be a
+# user's own hand-added entry that happens to collide with a Bureau catalog
+# id. Recording a fingerprint for every *desired* id present in the config
+# (the old behaviour) could not tell those two cases apart, so it silently
+# adopted the user's entry as Bureau-owned; once the id later left the plan,
+# the fingerprint still matched and Bureau deleted the user's entry. Tracking
+# only ids this run's add step actually wrote closes that hole: an
+# "already exists" skip is never mistaken for a write.
+declare -A WRITTEN_IDS_BY_CLI=()
 
 for agent in "${AGENTS[@]}"; do
     if [[ "$agent" == "$OPENCODE" ]]; then
@@ -1474,6 +1628,10 @@ for agent in "${AGENTS[@]}"; do
             fi
             if add_http_mcp_to_agent "$agent" "$server_id" "$url" "${headers[@]}"; then
                 log_success "$agent configured ($server_id)"
+                # return 0 = the add step actually wrote this entry (as
+                # opposed to finding it already present); only such
+                # write-confirmed ids are safe to hand to record_registry
+                WRITTEN_IDS_BY_CLI["$agent_key"]+="$server_id,"
             else
                 case $? in
                     1) already_exists_count=$((already_exists_count + 1)) ;;
@@ -1505,6 +1663,9 @@ for agent in "${AGENTS[@]}"; do
 
             if add_stdio_mcp_to_agent "$agent" "$server_id" "${stdio_args[@]}"; then
                 log_success "$agent configured ($server_id)"
+                # see the analogous comment in the http branch above: only a
+                # 0 return (written) may be recorded as write-confirmed
+                WRITTEN_IDS_BY_CLI["$agent_key"]+="$server_id,"
             else
                 case $? in
                     1) already_exists_count=$((already_exists_count + 1)) ;;
@@ -1526,13 +1687,16 @@ if [[ $already_exists_count -gt 0 ]]; then
 fi
 
 if agent_enabled "$CLAUDE"; then
-    managed_registry_record "claude" "$CLAUDE_CLI_STATE"
+    managed_registry_record "claude" "$CLAUDE_CLI_STATE" "${WRITTEN_IDS_BY_CLI[claude]:-}"
 fi
 if agent_enabled "$GEMINI"; then
-    managed_registry_record "gemini" "$GEMINI_CONFIG"
+    managed_registry_record "gemini" "$GEMINI_CONFIG" "${WRITTEN_IDS_BY_CLI[gemini]:-}"
 fi
 if agent_enabled "$CODEX"; then
-    managed_registry_record "codex" "$CODEX_CONFIG"
+    managed_registry_record "codex" "$CODEX_CONFIG" "${WRITTEN_IDS_BY_CLI[codex]:-}"
+fi
+if agent_enabled "$GROK"; then
+    managed_registry_record "grok" "$GROK_CONFIG" "${WRITTEN_IDS_BY_CLI[grok]:-}"
 fi
 
 # Configure MCP auto-approvals if requested
@@ -1613,7 +1777,15 @@ if agent_enabled "OpenCode"; then
             if [[ "$MODE_BARE" == true ]]; then
                 OPENCODE_ARGS+=(--bare)
             fi
-            if uv run "$SCRIPT_DIR/configure-opencode.py" "${OPENCODE_ARGS[@]}"; then
+            if oc_output=$(uv run "$SCRIPT_DIR/configure-opencode.py" "${OPENCODE_ARGS[@]}"); then
+                # configure-opencode.py ends its stdout with a marker line reporting
+                # the ids it actually WROTE this run; extract just that value so only
+                # Bureau-authored entries are recorded as ours (issue C6). OpenCode is
+                # merged separately (not via the per-agent add loop), so this is its
+                # equivalent of WRITTEN_IDS_BY_CLI. Strip through the marker so an
+                # empty CSV or preceding load warnings can't be mistaken for ids.
+                # (the literal below must match OC_WRITTEN_MARKER in configure-opencode.py)
+                oc_written="${oc_output##*__BUREAU_OC_WRITTEN__:}"
                 log_success "OpenCode config merged into $TARGET_OC (preserved user overrides)"
             else
                 log_warning "OpenCode merge failed; leaving $TARGET_OC unchanged"
@@ -1624,7 +1796,7 @@ if agent_enabled "OpenCode"; then
     else
         log_warning "OpenCode config template not found at $TEMPLATE_OC; skipping OpenCode sync"
     fi
-    managed_registry_record "opencode" "$OPENCODE_CONFIG"
+    managed_registry_record "opencode" "$OPENCODE_CONFIG" "${oc_written:-}"
 fi
 
 if agent_enabled "$CODEX"; then
@@ -1708,5 +1880,6 @@ if [[ "$AUTO_APPROVE_MCP" == true ]]; then
     log_info "  → Updated: ~/.claude/settings.json"
     log_info "  → Updated: ~/.codex/config.toml"
     log_info "  → Updated: ~/.gemini/settings.json"
+    log_info "  → Updated: ~/.grok/config.toml (when Grok is enabled)"
     log_info "  → MCP tools will no longer require permission prompts"
 fi

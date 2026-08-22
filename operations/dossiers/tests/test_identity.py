@@ -12,7 +12,9 @@ from operations.dossiers.identity import (
     _ppid_via_proc,
     _ppid_via_ps,
     resolve_identity,
+    resolve_worker_identity,
 )
+from operations.dossiers.registration import register_agent
 
 
 # ── _get_cli_process_pid: the layered chain ─────────────────────────────
@@ -286,3 +288,84 @@ class TestResolveIdentityConvergence:
 
             with pytest.raises(RuntimeError, match="did not converge"):
                 resolve_identity(_AdoptNeverWins(conn), slug, "claude-code")
+
+
+# ── resolve_worker_identity: the worker-role counterpart ─────────────────
+
+
+class TestResolveWorkerIdentity:
+    """Workers get the same connect-time refresh orchestrators already had.
+
+    `resolve_identity` establishes and refreshes an orchestrator's row before
+    the reap can consider it. Without an equivalent for workers their heartbeat
+    never moves and their `cli_pid` stays NULL, which is the pair of gaps that
+    lets an active worker be reaped.
+    """
+
+    def _seed_worker(self, conn, agent_id="claude-code:worker-1:42", cli_pid=None):
+        register_agent(conn, agent_id, agent_id.split(":", 1)[0], cli_pid, role="worker")
+        conn.execute(
+            "UPDATE registrations SET last_heartbeat = '2020-01-01T00:00:00Z' "
+            "WHERE agent_id = ?",
+            (agent_id,),
+        )
+        conn.commit()
+
+    def test_refreshes_heartbeat_and_adopts_cli_pid(
+        self, tmp_path, make_dossier, mock_cli_pid
+    ):
+        slug = make_dossier()["slug"]
+        mock_cli_pid(4242)
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            self._seed_worker(conn)
+            returned = resolve_worker_identity(conn, "claude-code:worker-1:42")
+            row = conn.execute(
+                "SELECT cli_pid, last_heartbeat FROM registrations WHERE agent_id = ?",
+                ("claude-code:worker-1:42",),
+            ).fetchone()
+        assert returned == "claude-code:worker-1:42"
+        assert row["cli_pid"] == 4242                          # NULL row healed
+        assert row["last_heartbeat"] > "2020-01-01T00:00:00Z"  # heartbeat moved
+
+    def test_leaves_registered_at_untouched(self, tmp_path, make_dossier, mock_cli_pid):
+        slug = make_dossier()["slug"]
+        mock_cli_pid(4242)
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            self._seed_worker(conn)
+            born = conn.execute(
+                "SELECT registered_at FROM registrations WHERE agent_id = ?",
+                ("claude-code:worker-1:42",),
+            ).fetchone()["registered_at"]
+            resolve_worker_identity(conn, "claude-code:worker-1:42")
+            row = conn.execute(
+                "SELECT registered_at FROM registrations WHERE agent_id = ?",
+                ("claude-code:worker-1:42",),
+            ).fetchone()
+        assert row["registered_at"] == born  # set-once birth time
+
+    def test_never_touches_an_orchestrator_row(self, tmp_path, make_dossier, mock_cli_pid):
+        # the role guard: routing an orchestrator id through the worker path must
+        # not stomp its cli_pid, which would bypass the concurrent-instance check
+        slug = make_dossier()["slug"]
+        mock_cli_pid(4242)
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            register_agent(conn, "orch-claude-code-aaaa", "claude-code", 999)
+            conn.commit()
+            resolve_worker_identity(conn, "orch-claude-code-aaaa")
+            row = conn.execute(
+                "SELECT cli_pid FROM registrations WHERE agent_id = ?",
+                ("orch-claude-code-aaaa",),
+            ).fetchone()
+        assert row["cli_pid"] == 999  # untouched
+
+    def test_missing_row_is_noop_and_still_returns_the_id(
+        self, tmp_path, make_dossier, mock_cli_pid
+    ):
+        # `unfold --worker` resolves the label BEFORE claim_task inserts the row
+        slug = make_dossier()["slug"]
+        mock_cli_pid(4242)
+        with open_dossier_db(safe_db_path(tmp_path, slug)) as conn:
+            returned = resolve_worker_identity(conn, "claude-code:worker-9:42")
+            rows = conn.execute("SELECT * FROM registrations").fetchall()
+        assert returned == "claude-code:worker-9:42"
+        assert rows == []

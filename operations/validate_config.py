@@ -69,6 +69,7 @@ class ValidationResult:
 # Required schema for cleanup operations
 REQUIRED_SCHEMA: dict[str, Any] = {
     "agents": list,            # At least one agent enabled
+    "workspace": str,          # Top-level canonical code-tree anchor (was path_to.workspace)
     "retention_period_for": {
         "claude_mem": str,     # Duration string (e.g., "30d")
         "serena": str,
@@ -81,9 +82,9 @@ REQUIRED_SCHEMA: dict[str, Any] = {
     "trash": {
         "grace_period": str,   # Duration string
     },
-    "path_to": {
-        "workspace": str,      # Base workspace path string
-    },
+    # NOTE: path_to is intentionally absent — its sole required leaf (workspace)
+    # was promoted to top-level, and mcp_clones/bureau_repo were never required.
+    # The loader always materializes path_to, so requiring it here adds no safety.
     "startup_timeout_for": {
         "mcp_servers": int,    # Seconds to wait for MCP servers
         "docker_daemon": int,  # Seconds to wait for Docker daemon
@@ -1025,6 +1026,75 @@ def _validate_cross_references(config: Mapping[str, Any]) -> ValidationResult:
     return result
 
 
+# allowed keys for an agent_access.paths.<name> entry — others are warnings
+_AGENT_ACCESS_ENTRY_KEYS = {"enabled", "path"}
+
+
+def _validate_agent_access(config: Mapping[str, Any]) -> ValidationResult:
+    """Validate the agent_access.paths keyed map.
+
+    agent_access.paths is a keyed map whose arbitrary entry names cannot be
+    expressed in REQUIRED_SCHEMA, so its per-entry shape is hand-checked here,
+    mirroring _validate_mcp_client_configs.
+
+    Rules:
+        - agent_access absent → no-op (the block is optional at the schema level).
+        - Each entry must be a dict carrying `enabled` (bool) and `path` (str).
+        - Unknown entry keys are warnings (the established convention).
+
+    NOTE: this does NOT gate normal config loading — get_config() runs only
+    validate_protocol_settings, not validate_config. resolve_agent_access_paths()
+    carries an independent load-time guard for the structurally-fatal cases.
+    """
+    result = ValidationResult()
+
+    agent_access = config.get("agent_access")
+    if agent_access is None:
+        return result
+    if not isinstance(agent_access, dict):
+        result.errors.append(
+            f"agent_access: expected dict, got {type(agent_access).__name__}"
+        )
+        return result
+
+    paths = agent_access.get("paths")
+    if paths is None:
+        return result
+    if not isinstance(paths, dict):
+        result.errors.append(
+            f"agent_access.paths: expected dict, got {type(paths).__name__}"
+        )
+        return result
+
+    for name, entry in paths.items():
+        entry_path = f"agent_access.paths.{name}"
+        if not isinstance(entry, dict):
+            result.errors.append(
+                f"{entry_path}: expected dict, got {type(entry).__name__}"
+            )
+            continue
+
+        # unknown keys → warnings (matches the mcp_validation_rules convention)
+        for key in sorted(set(entry.keys()) - _AGENT_ACCESS_ENTRY_KEYS):
+            result.warnings.append(f"{entry_path}: unknown key '{key}'")
+
+        if "enabled" not in entry:
+            result.errors.append(f"{entry_path}: missing required field 'enabled'")
+        elif not isinstance(entry["enabled"], bool):
+            result.errors.append(
+                f"{entry_path}.enabled: expected bool, got {type(entry['enabled']).__name__}"
+            )
+
+        if "path" not in entry:
+            result.errors.append(f"{entry_path}: missing required field 'path'")
+        elif not isinstance(entry["path"], str):
+            result.errors.append(
+                f"{entry_path}.path: expected str, got {type(entry['path']).__name__}"
+            )
+
+    return result
+
+
 def validate_mcp_rules(config: Mapping[str, Any]) -> ValidationResult:
     """Validate MCP entry schemas: kinds, required fields, unknown keys, types, cross-references.
 
@@ -1076,8 +1146,14 @@ def validate_config(config: Mapping[str, Any], add_warnings: bool = False) -> Va
     # may contain both warnings *and* errors
     validation_result = validate_mcp_rules(config)
     protocol_owned_skill_result = _validate_protocol_owned_skill_settings(config)
+    agent_access_result = _validate_agent_access(config)
     errors.extend(validation_result.errors)
-    warnings = validation_result.warnings + protocol_owned_skill_result.warnings
+    errors.extend(agent_access_result.errors)
+    warnings = (
+        validation_result.warnings
+        + protocol_owned_skill_result.warnings
+        + agent_access_result.warnings
+    )
     info = validation_result.info + protocol_owned_skill_result.info
 
     return ValidationResult(errors=errors, warnings=warnings, info=info) if add_warnings else errors

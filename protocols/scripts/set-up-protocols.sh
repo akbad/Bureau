@@ -70,9 +70,9 @@ discover_agents
 
 # Build --agent args for configure-hooks.py (expects lowercase config names,
 # not display names like "Claude Code")
-CONFIGURE_HOOK_SUPPORTED_AGENTS=(claude codex gemini)
+CONFIGURE_HOOK_SUPPORTED_AGENTS=(claude codex gemini grok)
 CONFIGURE_HOOK_AGENT_ARGS=()
-REMOVE_HOOK_SUPPORTED_AGENTS=(claude codex gemini)
+REMOVE_HOOK_SUPPORTED_AGENTS=(claude codex gemini grok)
 REMOVE_HOOK_AGENT_ARGS=()
 for agent in "${AGENTS[@]}"; do
     config_name="$(_agent_config_name "$agent")"
@@ -373,9 +373,12 @@ remove_protocols() {
         log_warning "Failed to remove some hooks"
     fi
 
-    # Remove legacy context-file symlinks (may be dangling after generated dir removal)
+    # Remove legacy context-file symlinks (may be dangling after generated dir removal).
+    # Guard on the link target: only Bureau-owned links (pointing into a generated
+    # context dir) are removed — users may legitimately occupy these same paths with
+    # their own symlinks (e.g. to a personal context store), which must survive.
     for old_symlink in "$HOME/.gemini/GEMINI.md" "$HOME/.codex/AGENTS.md" "$HOME/.claude/CLAUDE.md"; do
-        if [[ -L "$old_symlink" ]]; then
+        if [[ -L "$old_symlink" ]] && [[ "$(readlink "$old_symlink")" == */protocols/context/generated/* ]]; then
             rm "$old_symlink"
             log_success "Removed legacy context symlink: $old_symlink"
         fi

@@ -85,3 +85,28 @@ def build_codex_rule_lines(
         pattern = json.dumps(tokenize_prefix(prefix))
         lines.append(f"prefix_rule(pattern={pattern}, decision=\"forbidden\")")
     return lines
+
+
+def build_grok_bash_rules(prefixes: Iterable[str]) -> list[str]:
+    """Build Grok compact Bash allow/deny rules: ``Bash(<prefix> *)``."""
+    rules: list[str] = []
+    for prefix in normalize_prefixes(prefixes):
+        # Trailing space + * matches Claude-style prefix semantics for multi-word cmds.
+        rules.append(f"Bash({prefix} *)")
+    return rules
+
+
+def build_grok_mcp_rules(server_ids: Iterable[str]) -> list[str]:
+    """Build Grok MCP tool allow rules: ``MCPTool(<server>__*)``."""
+    return [f"MCPTool({server}__*)" for server in normalize_prefixes(server_ids)]
+
+
+def build_grok_path_rules(paths: Iterable[str]) -> list[str]:
+    """Build Grok Read+Edit allow rules for each enabled access path."""
+    rules: list[str] = []
+    for path in normalize_prefixes(paths):
+        if not path.endswith("/**") and not path.endswith("/*"):
+            path = f"{path}/**"
+        rules.append(f"Read({path})")
+        rules.append(f"Edit({path})")
+    return rules

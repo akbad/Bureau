@@ -23,6 +23,7 @@ from .errors import (
 )
 from .fold import fold_dossier
 from .identity import _orchestrator_agent_id
+from .payload import check_fold_payload
 from .registration import list_agents
 from .unfold import unfold_dossier, list_dossiers, find_dossier
 from .tasks import list_tasks, add_task, update_task, remove_task, claim_task, complete_task
@@ -34,7 +35,17 @@ DEFAULT_DOSSIERS_DIR = Path(os.path.expanduser("~/.config/bureau/dossiers"))
 
 
 def _get_dossiers_dir(args: argparse.Namespace) -> Path:
-    return Path(args.dossiers_dir) if args.dossiers_dir else DEFAULT_DOSSIERS_DIR
+    """Resolve the dossiers directory from parsed args, falling back to the default.
+
+    Args:
+        args: the parsed namespace. `dossiers_dir` may be **absent** rather than
+            `None`: the option defaults to `argparse.SUPPRESS` so a subparser
+            cannot overwrite a value the top-level parser already read (see
+            `main`). `getattr` is therefore required — attribute access would
+            raise on the common case of the flag being omitted entirely.
+    """
+    dossiers_dir = getattr(args, "dossiers_dir", None)
+    return Path(dossiers_dir) if dossiers_dir else DEFAULT_DOSSIERS_DIR
 
 
 def _resolve_agent(args_agent: str, slug: str, dossiers_dir: Path) -> tuple[str, str]:
@@ -47,8 +58,16 @@ def _resolve_agent(args_agent: str, slug: str, dossiers_dir: Path) -> tuple[str,
         ordering fix) and protects the agent's own row from reaping. The
         orchestrator id is deterministic, so it is recomputed here rather than
         threaded out of the context manager.
-      - Worker label (``claude-code:worker-1:1743926400``): return as-is; the
-        prefix before the first ``:`` is the agent_type.
+      - Worker label (``claude-code:worker-1:1743926400``): the id is the label
+        itself, so there is nothing to compute — but the connect still happens,
+        because that is what refreshes the worker's heartbeat and adopts its
+        `cli_pid` before the reap runs. Skipping it would let an active worker
+        be reaped on age alone. The prefix before the first ``:`` is the
+        agent_type.
+
+    Every worker-reachable command (``unfold --worker``, ``tasks
+    claim/update/complete``, ``lock claim/release``) funnels through here, so
+    this one call site is the whole worker heartbeat surface.
 
     Returns ``(agent_id, agent_type)``.
 
@@ -57,6 +76,10 @@ def _resolve_agent(args_agent: str, slug: str, dossiers_dir: Path) -> tuple[str,
             slot (propagated from `resolve_identity` inside the connect).
     """
     if ":" in args_agent:
+        with open_dossier_db(
+            safe_db_path(dossiers_dir, slug), worker_agent_id=args_agent
+        ):
+            pass  # refresh + reap happen inside connect, in the correct order
         return args_agent, args_agent.split(":", 1)[0]
     with open_dossier_db(
         safe_db_path(dossiers_dir, slug), agent_type=args_agent, slug=slug
@@ -115,6 +138,17 @@ def cmd_fold(args: argparse.Namespace) -> int:
     dossiers_dir.mkdir(parents=True, exist_ok=True)
 
     input_data = _load_fold_input(args)
+
+    # Report the payload contract before anything can exit early, so an agent
+    # running a cached skill copy always learns what this version dropped.
+    # Advisory only — the fold proceeds regardless (see payload.py, "Warn,
+    # never reject"). Mode is decided by the payload's `slug`, matching
+    # `fold_dossier`'s own `is_refold` predicate.
+    for warning in check_fold_payload(
+        input_data, is_refold=bool(input_data.get("slug"))
+    ):
+        print(f"Warning: {warning}", file=sys.stderr)
+
     name = input_data.get("name")
     slug = input_data.get("slug")
     agent = input_data.get("agent")
@@ -150,8 +184,25 @@ def cmd_fold(args: argparse.Namespace) -> int:
         tasks=tasks,
         decisions=decisions,
         files=files,
+        last_exchange=input_data.get("last_exchange"),
+        next_words=input_data.get("next_words"),
+        mood=input_data.get("mood"),
+        pinned_findings=input_data.get("pinned_findings"),
+        memory_queries=input_data.get("memory_queries"),
+        max_retained_sessions=args.max_retained_sessions,
     )
-    print(f"Dossier saved: `{result['slug']}` ({result['task_count']} tasks, {result['decision_count']} decisions)")
+    summary = (
+        f"Dossier saved: `{result['slug']}` "
+        f"({result['task_count']} tasks, {result['decision_count']} decisions)"
+    )
+    # surface destruction explicitly: retention is opt-in and unrecoverable,
+    # so a fold that deleted rows must never look like one that did not
+    if result["pruned_file_rows"]:
+        summary += (
+            f"\nPruned {result['pruned_file_rows']} file-interaction row(s) "
+            f"outside the newest {args.max_retained_sessions} sessions."
+        )
+    print(summary)
     return 0
 
 
@@ -556,9 +607,25 @@ def cmd_context(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    # Shared parent parser for --dossiers-dir so it can appear before or after subcommand
+    # Shared parent parser for --dossiers-dir so it can appear before or after
+    # the subcommand. The parent is attached to the top-level parser *and* to
+    # every subparser, so the option exists at both placements.
+    #
+    # `default=argparse.SUPPRESS` is load-bearing, not stylistic. With an
+    # ordinary default, a subparser's copy of the option fires even when the
+    # flag was given *before* the subcommand and overwrites the already-parsed
+    # value with `None`, sending every command to the home directory instead.
+    # The caller would believe they are isolated to a copy while operating on
+    # real dossiers — a silent wrong target rather than an error. SUPPRESS makes
+    # argparse omit the attribute entirely when the flag is absent, so an
+    # earlier value survives and the most specific placement wins when both are
+    # given.
     parent_parser = argparse.ArgumentParser(add_help=False)
-    parent_parser.add_argument("--dossiers-dir", help="Override dossiers directory")
+    parent_parser.add_argument(
+        "--dossiers-dir",
+        default=argparse.SUPPRESS,
+        help="Override dossiers directory (valid before or after the subcommand)",
+    )
 
     parser = argparse.ArgumentParser(prog="dossiers", description="Bureau dossier CLI",
                                      parents=[parent_parser])
@@ -570,6 +637,15 @@ def main() -> int:
     p_fold.add_argument(
         "--input-file", required=True,
         help="JSON file with all fold fields, or '-' to read from stdin",
+    )
+    p_fold.add_argument(
+        "--max-retained-sessions", type=int, default=0,
+        dest="max_retained_sessions",
+        help=(
+            "DESTRUCTIVE, opt-in: delete file-interaction rows for sessions "
+            "older than the newest N. Default 0 (never delete). Unfold already "
+            "windows its output, so this is only for reclaiming storage."
+        ),
     )
 
     # unfold

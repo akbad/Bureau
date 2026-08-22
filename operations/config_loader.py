@@ -49,7 +49,9 @@ class StartupTimeoutForConfig(TypedDict):
 
 
 class PathToConfig(TypedDict, total=False):
-    workspace: str
+    # NOTE: `workspace` was promoted to a top-level Config field — it is the
+    # canonical code-tree anchor (path identity), distinct from access policy.
+    # serena_memories_root is code-derived from the top-level workspace when unset.
     serena_memories_root: str
     mcp_clones: str
     bureau_repo: str
@@ -203,7 +205,8 @@ class ConversationsConfig(TypedDict, total=False):
     save: str                                   # command verb, default "fold-dossier"
     resume: str                                 # command verb, default "unfold-dossier"
     storage_dir: str                            # default "~/.config/bureau/dossiers"
-    stale_dossier_days: int                     # cleanup threshold, default 30
+    # note: dossier retention is declared once, in `retention_period_for.dossiers`
+    # (read by `get_retention`, shared duration grammar: "90d", "2w", "never")
     max_retained_sessions: int                  # prune file_interactions beyond this, default 5
     registration_ttl: str                       # duration string, default "2h"
     cleanup_check_interval: str                 # duration string, default "5min"
@@ -211,9 +214,38 @@ class ConversationsConfig(TypedDict, total=False):
     keywords: dict[str, list[str]]
 
 
+class AgentAccessPathConfig(TypedDict):
+    """A single raw entry in agent_access.paths.<name>.
+
+    Models the on-disk config shape (NOT the resolved path — see
+    operations.agent_access.AgentAccessPath for the expanded/absolute form).
+
+    Fields:
+        enabled: Whether agents may access this entry. Default-false entries are
+            opt-in; only enabled entries are projected into CLI adapters.
+        path: A path string, possibly carrying ${...} placeholders (e.g.
+            ${workspace}) and a leading ~. Resolution happens in agent_access.py.
+    """
+
+    enabled: bool
+    path: str
+
+
+class AgentAccessConfig(TypedDict):
+    """The agent_access block: the explicit agent filesystem-access policy surface.
+
+    A keyed map (`paths`) rather than a list, so individual entries can be
+    toggled or overridden across config layers without wholesale list replacement
+    (the loader deep-merges dicts but replaces lists).
+    """
+
+    paths: dict[str, AgentAccessPathConfig]
+
+
 # root-level config-modeling object
 class Config(TypedDict, total=False):
     agents: list[str]
+    workspace: str
     retention_period_for: RetentionPeriodForConfig
     trash: TrashConfig
     cleanup: CleanupConfig
@@ -223,6 +255,7 @@ class Config(TypedDict, total=False):
     protocols: ProtocolsConfig
     mcp: MCPConfig
     conversations: ConversationsConfig
+    agent_access: AgentAccessConfig
 
 
 def find_repo_root(start_path: Path | None = None) -> Path:
@@ -409,21 +442,29 @@ def get_config() -> Config:
     # 3. Personal overrides (optional, gitignored)
     config = deep_merge(config, _load_yaml_file(repo_root / "local.yml"))
 
-    # Apply environment variable overrides for path_to
+    # Apply environment variable overrides.
+    # BUREAU_WORKSPACE overrides the TOP-LEVEL `workspace` anchor — not
+    # path_to.workspace, which no longer exists after the promotion. (Pre-promotion
+    # this wrote into path_to["workspace"]; the doc at docs/CONFIGURATION.md tracks it.)
+    if env_workspace := os.environ.get("BUREAU_WORKSPACE"):
+        config["workspace"] = env_workspace
+
     path_to = config.get("path_to", {})
-    path_env_overrides = {
-        "workspace": "BUREAU_WORKSPACE",
-    }
 
-    for path_key, env_var in path_env_overrides.items():
-        if env_val := os.environ.get(env_var):
-            path_to[path_key] = env_val
-
-    # Derive paths from workspace if not explicitly set
-    if workspace := path_to.get("workspace"):
-        # Only set these if not already configured
+    # Derive serena_memories_root from the top-level workspace when not explicitly
+    # set. The derived value still lives UNDER path_to because it is consumed via
+    # get_path("serena_memories_root") and operations/cleanup/handlers/serena.py.
+    if workspace := config.get("workspace"):
         if "serena_memories_root" not in path_to:
             path_to["serena_memories_root"] = workspace
+
+    # ~~~ TEMPORARY back-compat shim — DELETE IN STEP 2 with the Filesystem MCP block ~~~
+    # defaults.yml's Filesystem MCP whitelist still references ${path_to.workspace}
+    # until Step 2 removes that block. Mirror the promoted top-level workspace back
+    # into path_to so the placeholder keeps resolving during the one-commit window.
+    # Remove this shim together with the mcp.client_configs.filesystem block.
+    if "workspace" in config and "workspace" not in path_to:
+        path_to["workspace"] = config["workspace"]
 
     # Resolve MCP clones from the main repo root so clone caches can be shared
     # across Bureau worktrees, but resolve Bureau's runnable package path from

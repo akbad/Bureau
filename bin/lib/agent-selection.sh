@@ -60,6 +60,7 @@ _agent_config_name() {
         "Gemini CLI") echo "gemini" ;;
         "Codex") echo "codex" ;;
         "OpenCode") echo "opencode" ;;
+        "Grok Build") echo "grok" ;;
         *) echo "" ;;
     esac
 }
@@ -71,6 +72,7 @@ _agent_display_name() {
         "gemini") echo "Gemini CLI" ;;
         "codex") echo "Codex" ;;
         "opencode") echo "OpenCode" ;;
+        "grok") echo "Grok Build" ;;
         *) echo "" ;;
     esac
 }
@@ -115,6 +117,7 @@ discover_agents() {
         echo "    - gemini"
         echo "    - codex"
         echo "    - opencode"
+        echo "    - grok"
         echo ""
         echo "Then re-run this script."
         exit 1

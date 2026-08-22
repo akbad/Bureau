@@ -302,7 +302,7 @@ class TestProtocolSettingsValidation:
             },
             "cleanup": {"min_interval": "1d"},
             "trash": {"grace_period": "7d"},
-            "path_to": {"workspace": "~/code"},
+            "workspace": "~/code",
             "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
             "mcp": {"services": {}, "client_configs": {}},
             "skills": {
@@ -330,7 +330,7 @@ class TestProtocolSettingsValidation:
             },
             "cleanup": {"min_interval": "1d"},
             "trash": {"grace_period": "7d"},
-            "path_to": {"workspace": "~/code"},
+            "workspace": "~/code",
             "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
             "mcp": {"services": {}, "client_configs": {}},
             "skills": {
@@ -346,3 +346,92 @@ class TestProtocolSettingsValidation:
         assert result.errors == []
         assert any("skills.disabled" in warning for warning in result.warnings)
         assert any("protocols.code_standards" in warning for warning in result.warnings)
+
+
+class TestWorkspaceAndAgentAccessValidation:
+    """Top-level workspace requirement + the hand-written agent_access validator."""
+
+    def _base_config(self) -> dict:
+        """A minimal config that passes REQUIRED_SCHEMA (top-level workspace, no path_to)."""
+        return {
+            "agents": ["claude"],
+            "workspace": "~/code",
+            "retention_period_for": {
+                "claude_mem": "30d",
+                "serena": "30d",
+                "qdrant": "30d",
+                "memory_mcp": "30d",
+            },
+            "cleanup": {"min_interval": "1d"},
+            "trash": {"grace_period": "7d"},
+            "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
+            "mcp": {"services": {}, "client_configs": {}},
+        }
+
+    def test_missing_top_level_workspace_is_error(self):
+        config = self._base_config()
+        del config["workspace"]
+
+        errors = validate_config(config)
+
+        assert any("workspace" in e for e in errors)
+
+    def test_top_level_workspace_is_accepted(self):
+        errors = validate_config(self._base_config())
+
+        assert errors == []
+
+    def test_canonical_agent_access_shape_is_valid(self):
+        config = self._base_config()
+        config["agent_access"] = {"paths": {
+            "bureau_config": {"enabled": True, "path": "~/.config/bureau"},
+            "workspace": {"enabled": False, "path": "${workspace}"},
+        }}
+
+        result = validate_config(config, add_warnings=True)
+
+        assert result.errors == []
+
+    def test_entry_missing_path_is_error(self):
+        config = self._base_config()
+        config["agent_access"] = {"paths": {"bad": {"enabled": True}}}
+
+        errors = validate_config(config)
+
+        assert any("agent_access.paths.bad" in e and "path" in e for e in errors)
+
+    def test_entry_missing_enabled_is_error(self):
+        config = self._base_config()
+        config["agent_access"] = {"paths": {"bad": {"path": "~/x"}}}
+
+        errors = validate_config(config)
+
+        assert any("agent_access.paths.bad" in e and "enabled" in e for e in errors)
+
+    def test_entry_wrong_types_are_errors(self):
+        config = self._base_config()
+        config["agent_access"] = {"paths": {"bad": {"enabled": "yes", "path": 42}}}
+
+        errors = validate_config(config)
+
+        assert any("agent_access.paths.bad.enabled" in e for e in errors)
+        assert any("agent_access.paths.bad.path" in e for e in errors)
+
+    def test_unknown_entry_key_is_warning_not_error(self):
+        config = self._base_config()
+        config["agent_access"] = {"paths": {
+            "ok": {"enabled": True, "path": "~/x", "mode": "ro"},
+        }}
+
+        result = validate_config(config, add_warnings=True)
+
+        assert result.errors == []
+        assert any("agent_access.paths.ok" in w and "mode" in w for w in result.warnings)
+
+    def test_non_dict_agent_access_is_error(self):
+        config = self._base_config()
+        config["agent_access"] = ["not", "a", "dict"]
+
+        errors = validate_config(config)
+
+        assert any("agent_access" in e for e in errors)

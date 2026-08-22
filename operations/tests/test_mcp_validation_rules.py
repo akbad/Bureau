@@ -311,7 +311,7 @@ class TestEdgeCases:
             },
             "cleanup": {"min_interval": "1h"},
             "trash": {"grace_period": "7d"},
-            "path_to": {"workspace": "/tmp"},
+            "workspace": "/tmp",
             "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
             "mcp": {
                 "services": {},
@@ -1328,7 +1328,7 @@ class TestInfoTier:
             "retention_period_for": {"claude_mem": "30d", "serena": "30d", "qdrant": "30d", "memory_mcp": "30d"},
             "cleanup": {"min_interval": "1h"},
             "trash": {"grace_period": "7d"},
-            "path_to": {"workspace": "/tmp"},
+            "workspace": "/tmp",
             "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
             "mcp": {"services": {}, "client_configs": {}},
         }
@@ -1490,7 +1490,7 @@ class TestW1W11Integration:
             "retention_period_for": {"claude_mem": "30d", "serena": "30d", "qdrant": "30d", "memory_mcp": "30d"},
             "cleanup": {"min_interval": "1h"},
             "trash": {"grace_period": "7d"},
-            "path_to": {"workspace": "/tmp"},
+            "workspace": "/tmp",
             "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
             "mcp": {
                 "dependencies": {
@@ -1550,7 +1550,7 @@ class TestW1W11Integration:
             "retention_period_for": {"claude_mem": "30d", "serena": "30d", "qdrant": "30d", "memory_mcp": "30d"},
             "cleanup": {"min_interval": "1h"},
             "trash": {"grace_period": "7d"},
-            "path_to": {"workspace": "/tmp"},
+            "workspace": "/tmp",
             "startup_timeout_for": {"mcp_servers": 30, "docker_daemon": 30},
             "mcp": {
                 "dependencies": {

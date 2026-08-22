@@ -5,11 +5,12 @@
 2. Reads from merged config
 
 Usage:
-    get-config agents                           # Output: claude gemini codex opencode
+    get-config agents                           # Output: claude gemini codex opencode grok
     get-config retention_period_for.qdrant      # Output: 180d
     get-config mcp.client_configs.memory.storage_path  # Output: ~/.memory-mcp/memory.jsonl
     get-config --check agent claude    # Exit 0 if enabled, 1 if not
-    get-config --list agents           # List all enabled agents
+    get-config --list agents           # List all enabled agents (space-separated)
+    get-config --list access-paths     # List enabled agent_access paths (one per line)
 """
 import sys
 from typing import Any, Mapping
@@ -59,7 +60,7 @@ def main() -> int:
     args = sys.argv[1:]
 
     if not args:
-        print("Usage: get-config <key.path> | --check agent <name> | --list agents", file=sys.stderr)
+        print("Usage: get-config <key.path> | --check agent <name> | --list agents|access-paths", file=sys.stderr)
         return 1
 
     if args[0] == "--check":
@@ -81,15 +82,25 @@ def main() -> int:
 
     if args[0] == "--list":
         # show all enabled settings for a specific key in the config
-        # (only supports checking list of enabled agents for now)
+        # (supports: agents, access-paths)
         if len(args) < 2:
-            print("Usage: get-config --list agents", file=sys.stderr)
+            print("Usage: get-config --list agents|access-paths", file=sys.stderr)
             return 1
 
         list_type = args[1]
 
         if list_type == "agents":
             print(" ".join(get_enabled_agents()))
+            return 0
+        elif list_type == "access-paths":
+            # NEWLINE-delimited, NOT space-joined like agents: access entries are
+            # filesystem paths that may contain spaces, and the bash caller consumes
+            # them via `mapfile -t`, which splits on newlines and preserves spaces.
+            # Imported lazily so `get-config` startup stays cheap for other subcommands.
+            from .agent_access import resolve_agent_access_paths
+
+            for entry in resolve_agent_access_paths():  # already enabled-filtered + absolute
+                print(entry.path)
             return 0
         else:
             print(f"Unknown list type: {list_type}", file=sys.stderr)

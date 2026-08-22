@@ -12,12 +12,24 @@ from .errors import (
     TaskNotFoundError, IdentityReapedError, TaskAlreadyCompletedError,
     TaskDeletedError, TaskStateError,
 )
+from .identity import _get_cli_process_pid
 from .registration import _maybe_deregister_worker, register_agent
 
 # nullable fields where passing "" means "clear to NULL";
 # non-nullable fields (subject, status) ignore empty strings to avoid
 # violating SQLite NOT NULL constraints
 CLEARABLE_FIELDS = {"description", "owner", "blocked_by", "context_notes"}
+
+# Statuses whose write is CAS-guarded when the caller identifies itself.
+#
+# These are exactly the transitions *out of* `in_progress`. An identified
+# caller must not be able to move a task it does not own, and that applies most
+# strongly to `completed` and `deleted`: they are terminal, and so the two least
+# recoverable states to reach by mistake.
+#
+# The unidentified path (no `agent`) remains unguarded on purpose — that is the
+# documented manual-repair escape hatch.
+CAS_GUARDED_STATUSES = ("pending", "blocked", "completed", "deleted")
 
 
 def _raise_task_cas_failure(
@@ -192,12 +204,15 @@ def update_task(
 
     ## Worker-reassignment CAS guard
 
-    When `agent` is provided **and** `status` is being set to ``pending`` or
-    ``blocked``, the UPDATE adds a ``WHERE status = 'in_progress'`` guard.
-    Without this, an orchestrator reassigning a worker's task could clobber
-    a concurrent ``complete_task`` and revert a ``completed`` row back to
-    ``pending``. The CAS returns `rowcount = 0` on contention and the caller
-    sees a clear error.
+    When `agent` is provided **and** `status` is one of `CAS_GUARDED_STATUSES`
+    (every transition *out of* ``in_progress``), the UPDATE adds a
+    ``WHERE status = 'in_progress'`` guard. Without this, an orchestrator
+    reassigning a worker's task could clobber a concurrent ``complete_task``
+    and revert a ``completed`` row back to ``pending``. The CAS returns
+    `rowcount = 0` on contention and the caller sees a clear error.
+
+    The guarded set is `CAS_GUARDED_STATUSES`: the transitions out of
+    ``in_progress``.
 
     When `agent` is not provided, the update is unguarded (current escape-hatch
     semantics for manual repair via CLI with no `--agent`).
@@ -239,7 +254,7 @@ def update_task(
             return
 
         # decide whether to add the worker-reassignment CAS guard
-        cas_guarded = agent is not None and status in ("pending", "blocked")
+        cas_guarded = agent is not None and status in CAS_GUARDED_STATUSES
 
         with conn:
             updates.append("updated_at = ?")
@@ -298,8 +313,14 @@ def claim_task(dossiers_dir: Path, slug: str, task_id: int, owner: str) -> None:
                     "SELECT 1 FROM registrations WHERE agent_id = ?", (owner,)
                 ).fetchone()
                 if not already:
+                    # record the ancestor CLI pid, not None: a NULL here
+                    # gives the reap's liveness oracle nothing to ask, so it
+                    # falls through to reaping the worker on age alone. The pid
+                    # is the enclosing CLI process — the worker lives exactly as
+                    # long as it does.
                     register_agent(
-                        conn, owner, owner.split(":", 1)[0], None, role="worker"
+                        conn, owner, owner.split(":", 1)[0],
+                        _get_cli_process_pid(), role="worker",
                     )
 
             now = _now_iso()

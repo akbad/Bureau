@@ -50,7 +50,9 @@ follow_imports = "silent"
 
 [tool.pytest.ini_options]
 testpaths = [
+    "bin/lib/tests",
     "operations/cleanup/tests",
+    "operations/dossiers/tests",
     "operations/tests",
     "protocols/scripts/tests",
     "tools/scripts/tests",

@@ -19,7 +19,7 @@ def resolve_roles_catalog(
 
     Args:
         config: Full Bureau configuration dictionary
-        cli_name: CLI name (claude, codex, gemini, opencode)
+        cli_name: CLI name (claude, codex, gemini, opencode, grok)
 
     Returns:
         Dictionary with:
@@ -85,7 +85,7 @@ def get_enabled_roles(cli_name: str) -> list[str]:
         python3 -c "from operations.roles_catalog import get_enabled_roles; ..."
 
     Args:
-        cli_name: CLI name (claude, codex, gemini, opencode)
+        cli_name: CLI name (claude, codex, gemini, opencode, grok)
 
     Returns:
         List of enabled role names
@@ -101,7 +101,7 @@ def get_role_source_path(cli_name: str) -> Path:
     """Get source path for role files for a CLI.
 
     Args:
-        cli_name: CLI name (claude, codex, gemini, opencode)
+        cli_name: CLI name (claude, codex, gemini, opencode, grok)
 
     Returns:
         Path to role source directory

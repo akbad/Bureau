@@ -34,6 +34,7 @@
     - **Codex**
     - **Gemini CLI**
     - **OpenCode**
+    - **Grok Build**
 
 - A **suite of specialized coding agent roles** with consistent behaviour on any platform, with **flexible ways of invoking them:**
 
